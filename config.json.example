@@ -1,0 +1,17 @@
+{
+  "rss_feeds": [
+    "https://feeds.bbci.co.uk/news/rss.xml",
+    "https://rss.cnn.com/rss/edition.rss",
+    "https://feeds.reuters.com/reuters/topNews"
+  ],
+  "email": {
+    "to": "user@example.com",
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "username": "your-email@gmail.com"
+  },
+  "schedule": {
+    "hour": 8,
+    "minute": 0
+  }
+} 
