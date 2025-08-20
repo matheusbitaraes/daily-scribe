@@ -14,6 +14,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).parent))
 
 from components.config import load_config, AppConfig
+from components.feed_processor import process_rss_feeds, Article
 
 
 def setup_logging() -> None:
@@ -55,7 +56,27 @@ def main(config_path: Optional[str] = None) -> None:
         for i, feed_url in enumerate(config.rss_feeds, 1):
             logger.info(f"  {i}. {feed_url}")
         
-        logger.info("Daily Scribe is ready to run!")
+        # Test RSS feed processing
+        logger.info("Checking RSS feed processing...")
+        try:
+            articles = process_rss_feeds(config.rss_feeds)
+            logger.info(f"Successfully retrieved {len(articles)} articles from RSS feeds")
+            
+            # Display sample articles
+            if articles:
+                logger.info("Sample articles:")
+                for i, article in enumerate(articles[:3], 1):  # Show first 3 articles
+                    logger.info(f"  {i}. {article.title}")
+                    logger.info(f"     Source: {article.feed_source}")
+                    logger.info(f"     URL: {article.url}")
+                    if article.published_date:
+                        logger.info(f"     Published: {article.published_date}")
+                    logger.info("")
+            
+        except Exception as e:
+            logger.error(f"RSS feed processing failed: {e}")
+            logger.info("Continuing without RSS feed test...")
+        
         
     except FileNotFoundError as e:
         logger.error(f"Configuration file not found: {e}")

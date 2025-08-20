@@ -10,31 +10,31 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-from dataclasses import dataclass
-
-
-@dataclass
 class EmailConfig:
     """Email configuration settings."""
-    to: str
-    smtp_server: str
-    smtp_port: int
-    username: str
+    
+    def __init__(self, to, smtp_server, smtp_port, username):
+        self.to = to
+        self.smtp_server = smtp_server
+        self.smtp_port = smtp_port
+        self.username = username
 
 
-@dataclass
 class ScheduleConfig:
     """Schedule configuration settings."""
-    hour: int
-    minute: int
+    
+    def __init__(self, hour, minute):
+        self.hour = hour
+        self.minute = minute
 
 
-@dataclass
 class AppConfig:
     """Main application configuration."""
-    rss_feeds: List[str]
-    email: EmailConfig
-    schedule: ScheduleConfig
+    
+    def __init__(self, rss_feeds, email, schedule):
+        self.rss_feeds = rss_feeds
+        self.email = email
+        self.schedule = schedule
 
 
 class ConfigLoader:
