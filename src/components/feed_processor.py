@@ -19,13 +19,17 @@ from datetime import datetime
 class Article:
     """Represents a single article from an RSS feed."""
     
-    def __init__(self, title, url, published_date, feed_source, description=None, author=None):
+    def __init__(self, title, url, published_date, feed_source, description=None, author=None, 
+                 content=None, summary=None, summary_generated=False):
         self.title = title
         self.url = url
         self.published_date = published_date
         self.feed_source = feed_source
         self.description = description
         self.author = author
+        self.content = content  # Full article content
+        self.summary = summary  # Generated summary
+        self.summary_generated = summary_generated  # Whether summary was generated
 
 
 class FeedResult:

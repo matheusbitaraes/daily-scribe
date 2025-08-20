@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from components.config import load_config, AppConfig
 from components.feed_processor import process_rss_feeds, Article
+from components.article_processor import process_feeds_with_summaries
 
 
 def setup_logging() -> None:
@@ -56,26 +57,45 @@ def main(config_path: Optional[str] = None) -> None:
         for i, feed_url in enumerate(config.rss_feeds, 1):
             logger.info(f"  {i}. {feed_url}")
         
-        # Test RSS feed processing
-        logger.info("Checking RSS feed processing...")
+        # Test RSS feed processing with summarization
+        logger.info("Testing RSS feed processing with summarization...")
         try:
+            # First test basic RSS processing
             articles = process_rss_feeds(config.rss_feeds)
             logger.info(f"Successfully retrieved {len(articles)} articles from RSS feeds")
             
-            # Display sample articles
-            if articles:
-                logger.info("Sample articles:")
-                for i, article in enumerate(articles[:3], 1):  # Show first 3 articles
+            # Then test with summarization (limited to 3 articles for demo)
+            logger.info("Testing article summarization...")
+            summarized_articles, stats = process_feeds_with_summaries(
+                config.rss_feeds, 
+                max_articles_per_feed=3,
+                max_workers=2
+            )
+            
+            logger.info(f"Article processing completed:")
+            logger.info(f"  Total articles: {stats.total_articles}")
+            logger.info(f"  Articles summarized: {stats.articles_summarized}")
+            logger.info(f"  Processing time: {stats.processing_time:.2f}s")
+            
+            # Display sample articles with summaries
+            if summarized_articles:
+                logger.info("Sample articles with summaries:")
+                for i, article in enumerate(summarized_articles[:2], 1):  # Show first 2 articles
                     logger.info(f"  {i}. {article.title}")
                     logger.info(f"     Source: {article.feed_source}")
                     logger.info(f"     URL: {article.url}")
                     if article.published_date:
                         logger.info(f"     Published: {article.published_date}")
+                    logger.info(f"     Summary generated: {article.summary_generated}")
+                    if article.summary:
+                        # Truncate summary for display
+                        summary_preview = article.summary[:150] + "..." if len(article.summary) > 150 else article.summary
+                        logger.info(f"     Summary: {summary_preview}")
                     logger.info("")
             
         except Exception as e:
-            logger.error(f"RSS feed processing failed: {e}")
-            logger.info("Continuing without RSS feed test...")
+            logger.error(f"Article processing failed: {e}")
+            logger.info("Continuing without article processing test...")
         
         
     except FileNotFoundError as e:

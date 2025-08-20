@@ -33,7 +33,10 @@ class TestArticle:
             published_date=datetime(2023, 1, 1, 12, 0),
             feed_source="Test Feed",
             description="Test description",
-            author="Test Author"
+            author="Test Author",
+            content="Full article content",
+            summary="Article summary",
+            summary_generated=True
         )
         
         assert article.title == "Test Article"
@@ -41,6 +44,9 @@ class TestArticle:
         assert article.feed_source == "Test Feed"
         assert article.description == "Test description"
         assert article.author == "Test Author"
+        assert article.content == "Full article content"
+        assert article.summary == "Article summary"
+        assert article.summary_generated is True
     
     def test_article_optional_fields(self):
         """Test creating an Article with minimal required fields."""
@@ -56,6 +62,9 @@ class TestArticle:
         assert article.published_date is None
         assert article.description is None
         assert article.author is None
+        assert article.content is None
+        assert article.summary is None
+        assert article.summary_generated is False
 
 
 class TestFeedResult:

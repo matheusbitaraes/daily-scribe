@@ -9,12 +9,12 @@ This project is currently implementing **Epic 1: Core Digest Engine & Delivery**
 ### Completed Stories
 - ✅ **Story 1.1: Project Setup and Configuration Loading** - Project structure created with configuration loading functionality
 - ✅ **Story 1.2: Fetch and Parse RSS Feeds** - RSS feed processing with concurrent fetching and parsing implemented
+- ✅ **Story 1.3: Article Summarization via Local LLM** - Mock summarization service implemented with content extraction
 
 ### In Progress
-- 🔄 **Story 1.3: Article Summarization via Local LLM** - Coming next
+- 🔄 **Story 1.4: Daily Digest Aggregation and Scheduling** - Coming next
 
 ### Upcoming Stories
-- 📋 **Story 1.4: Daily Digest Aggregation and Scheduling**
 - 📋 **Story 1.5: Email Delivery**
 
 ## Features
