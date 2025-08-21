@@ -118,6 +118,7 @@ def run_digest(config_path: Optional[str] = typer.Option(None, "--config", "-c",
     """
     Runs the daily digest generation process.
     """
+    setup_logging()
     generate_digest(config_path)
 
 

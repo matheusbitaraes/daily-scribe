@@ -8,10 +8,12 @@ and extracting individual article information with concurrent processing.
 import asyncio
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+
+
 from typing import List, Dict, Any, Optional, Tuple
 from urllib.parse import urlparse
 import feedparser
+feedparser.PREFERRED_PARSER = "drv_sgmllib"
 import requests
 from datetime import datetime
 
@@ -46,15 +48,13 @@ class FeedResult:
 class RSSFeedProcessor:
     """Handles fetching and parsing RSS feeds with concurrent processing."""
     
-    def __init__(self, max_workers: int = 5, timeout: int = 30):
+    def __init__(self, timeout: int = 15):
         """
         Initialize the RSS feed processor.
         
         Args:
-            max_workers: Maximum number of concurrent feed fetchers
             timeout: Request timeout in seconds
         """
-        self.max_workers = max_workers
         self.timeout = timeout
         self.logger = logging.getLogger(__name__)
         
@@ -62,68 +62,33 @@ class RSSFeedProcessor:
         self.session = requests.Session()
         self.session.timeout = timeout
     
-    def process_feeds(self, feed_urls: List[str]) -> List[FeedResult]:
+    def get_all_articles(self, feed_urls: List[str]) -> List[Article]:
         """
-        Process multiple RSS feeds concurrently.
+        Get all articles from multiple feeds, flattening the results.
         
         Args:
             feed_urls: List of RSS feed URLs to process
             
         Returns:
-            List of FeedResult objects for each feed
+            List of all Article objects from all feeds
         """
-        self.logger.info(f"Starting to process {len(feed_urls)} RSS feeds with {self.max_workers} workers")
+        all_articles = []
+        for url in feed_urls:
+            result = self._process_single_feed(url)
+            if result.success:
+                all_articles.extend(result.articles)
+            else:
+                self.logger.warning(f"Skipping failed feed: {result.feed_url} - Reason: {result.error_message}")
         
-        start_time = time.time()
-        results = []
-        
-        # Use ThreadPoolExecutor for concurrent processing
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # Submit all feed processing tasks
-            future_to_url = {
-                executor.submit(self._process_single_feed, url): url 
-                for url in feed_urls
-            }
-            
-            # Collect results as they complete
-            for future in as_completed(future_to_url):
-                feed_url = future_to_url[future]
-                try:
-                    result = future.result()
-                    results.append(result)
-                    
-                    if result.success:
-                        self.logger.info(
-                            f"Feed '{feed_url}' processed successfully: "
-                            f"{len(result.articles)} articles in {result.processing_time:.2f}s"
-                        )
-                    else:
-                        self.logger.warning(
-                            f"Feed '{feed_url}' failed: {result.error_message}"
-                        )
-                        
-                except Exception as e:
-                    self.logger.error(f"Unexpected error processing feed '{feed_url}': {e}")
-                    results.append(FeedResult(
-                        feed_url=feed_url,
-                        success=False,
-                        articles=[],
-                        error_message=f"Unexpected error: {str(e)}",
-                        processing_time=0.0
-                    ))
-        
-        total_time = time.time() - start_time
-        total_articles = sum(len(r.articles) for r in results if r.success)
-        successful_feeds = sum(1 for r in results if r.success)
-        
-        self.logger.info(
-            f"Feed processing completed in {total_time:.2f}s: "
-            f"{successful_feeds}/{len(feed_urls)} feeds successful, "
-            f"{total_articles} total articles"
+        # Sort articles by published date (newest first)
+        all_articles.sort(
+            key=lambda x: x.published_date or datetime.min,
+            reverse=True
         )
         
-        return results
-    
+        self.logger.info(f"Retrieved {len(all_articles)} total articles from {len(feed_urls)} feeds")
+        return all_articles
+
     def _process_single_feed(self, feed_url: str) -> FeedResult:
         """
         Process a single RSS feed.
@@ -148,8 +113,9 @@ class RSSFeedProcessor:
                 )
             
             # Fetch RSS content
-            self.logger.debug(f"Fetching RSS feed: {feed_url}")
-            response = self.session.get(feed_url)
+            self.logger.info(f"Fetching RSS feed: {feed_url}")
+            response = self.session.get(feed_url, timeout=self.timeout)
+
             response.raise_for_status()
             
             # Parse RSS content
@@ -177,7 +143,17 @@ class RSSFeedProcessor:
                 processing_time=processing_time
             )
             
+        except requests.exceptions.Timeout as e:
+            self.logger.error(f"Timeout fetching RSS feed {feed_url}: {e}")
+            return FeedResult(
+                feed_url=feed_url,
+                success=False,
+                articles=[],
+                error_message=f"Timeout fetching feed: {str(e)}",
+                processing_time=time.time() - start_time
+            )
         except requests.exceptions.RequestException as e:
+            self.logger.error(f"HTTP request failed for RSS feed {feed_url}: {e}")
             return FeedResult(
                 feed_url=feed_url,
                 success=False,
@@ -194,7 +170,7 @@ class RSSFeedProcessor:
                 error_message=f"Processing error: {str(e)}",
                 processing_time=time.time() - start_time
             )
-    
+
     def _is_valid_url(self, url: str) -> bool:
         """
         Validate URL format.
@@ -215,7 +191,7 @@ class RSSFeedProcessor:
                    '.' in result.netloc)
         except Exception:
             return False
-    
+
     def _extract_articles(self, feed_data: feedparser.FeedParserDict, feed_url: str) -> List[Article]:
         """
         Extract article information from parsed RSS feed data.
@@ -279,51 +255,22 @@ class RSSFeedProcessor:
         
         return articles
     
-    def get_all_articles(self, feed_urls: List[str]) -> List[Article]:
-        """
-        Get all articles from multiple feeds, flattening the results.
-        
-        Args:
-            feed_urls: List of RSS feed URLs to process
-            
-        Returns:
-            List of all Article objects from all feeds
-        """
-        feed_results = self.process_feeds(feed_urls)
-        
-        all_articles = []
-        for result in feed_results:
-            if result.success:
-                all_articles.extend(result.articles)
-            else:
-                self.logger.warning(f"Skipping failed feed: {result.feed_url}")
-        
-        # Sort articles by published date (newest first)
-        all_articles.sort(
-            key=lambda x: x.published_date or datetime.min,
-            reverse=True
-        )
-        
-        self.logger.info(f"Retrieved {len(all_articles)} total articles from {len(feed_urls)} feeds")
-        return all_articles
-    
     def close(self):
         """Close the requests session."""
         self.session.close()
 
 
-def process_rss_feeds(feed_urls: List[str], max_workers: int = 5) -> List[Article]:
+def process_rss_feeds(feed_urls: List[str]) -> List[Article]:
     """
     Convenience function to process RSS feeds and return articles.
     
     Args:
         feed_urls: List of RSS feed URLs to process
-        max_workers: Maximum number of concurrent workers
         
     Returns:
         List of Article objects from all feeds
     """
-    processor = RSSFeedProcessor(max_workers=max_workers)
+    processor = RSSFeedProcessor()
     try:
         return processor.get_all_articles(feed_urls)
     finally:
@@ -334,11 +281,7 @@ if __name__ == "__main__":
     # Test the RSS feed processor
     import logging
     
-    # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    
     
     # Test URLs
     test_feeds = [

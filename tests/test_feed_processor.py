@@ -103,18 +103,15 @@ class TestRSSFeedProcessor:
     """Test cases for RSSFeedProcessor class."""
     
     def setup_method(self):
-        """Set up test fixtures."""
-        self.processor = RSSFeedProcessor(max_workers=2, timeout=10)
+        """
+        Set up test fixtures."""
+        self.processor = RSSFeedProcessor(timeout=10)
     
     def teardown_method(self):
         """Clean up test fixtures."""
         self.processor.close()
     
-    def test_processor_initialization(self):
-        """Test RSSFeedProcessor initialization."""
-        assert self.processor.max_workers == 2
-        assert self.processor.timeout == 10
-        assert self.processor.session is not None
+    
     
     def test_valid_url_validation(self):
         """Test URL validation with valid URLs."""
@@ -284,76 +281,39 @@ class TestRSSFeedProcessor:
         assert articles[1].published_date is None
         assert articles[1].description == "Description 2"
     
-    @patch('components.feed_processor.ThreadPoolExecutor')
-    @patch('components.feed_processor.as_completed')
-    def test_process_feeds_concurrent(self, mock_as_completed, mock_executor_class):
-        """Test concurrent processing of multiple feeds."""
-        mock_executor = Mock()
-        mock_executor_class.return_value.__enter__.return_value = mock_executor
-        
-        # Mock successful feed processing
-        mock_future1 = Mock()
-        mock_future1.result.return_value = FeedResult(
-            feed_url="https://feed1.com",
-            success=True,
-            articles=[Article("Article 1", "https://example.com/1", None, "Feed 1")],
-            processing_time=1.0
-        )
-        
-        mock_future2 = Mock()
-        mock_future2.result.return_value = FeedResult(
-            feed_url="https://feed2.com",
-            success=False,
-            articles=[],
-            error_message="Connection failed",
-            processing_time=0.5
-        )
-        
-        mock_executor.submit.side_effect = [mock_future1, mock_future2]
-        
-        # Mock as_completed to return our futures in sequence
-        mock_as_completed.return_value = [mock_future1, mock_future2]
-        
-        feed_urls = ["https://feed1.com", "https://feed2.com"]
-        results = self.processor.process_feeds(feed_urls)
-        
-        assert len(results) == 2
-        assert results[0].success is True
-        assert results[1].success is False
-        assert len(results[0].articles) == 1
-        assert len(results[1].articles) == 0
+    
     
     def test_get_all_articles(self):
         """Test getting all articles from multiple feeds."""
-        # Mock feed results
-        mock_results = [
-            FeedResult(
-                feed_url="https://feed1.com",
-                success=True,
-                articles=[
-                    Article("Article 1", "https://example.com/1", datetime(2023, 1, 2), "Feed 1"),
-                    Article("Article 2", "https://example.com/2", datetime(2023, 1, 1), "Feed 1")
-                ],
-                processing_time=1.0
-            ),
-            FeedResult(
-                feed_url="https://feed2.com",
-                success=False,
-                articles=[],
-                error_message="Connection failed",
-                processing_time=0.5
-            ),
-            FeedResult(
-                feed_url="https://feed3.com",
-                success=True,
-                articles=[
-                    Article("Article 3", "https://example.com/3", datetime(2023, 1, 3), "Feed 3")
-                ],
-                processing_time=0.8
-            )
-        ]
-        
-        with patch.object(self.processor, 'process_feeds', return_value=mock_results):
+        # Mock _process_single_feed to return specific results
+        with patch.object(self.processor, '_process_single_feed') as mock_single_feed:
+            mock_single_feed.side_effect = [
+                FeedResult(
+                    feed_url="https://feed1.com",
+                    success=True,
+                    articles=[
+                        Article("Article 1", "https://example.com/1", datetime(2023, 1, 2), "Feed 1"),
+                        Article("Article 2", "https://example.com/2", datetime(2023, 1, 1), "Feed 1")
+                    ],
+                    processing_time=1.0
+                ),
+                FeedResult(
+                    feed_url="https://feed2.com",
+                    success=False,
+                    articles=[],
+                    error_message="Connection failed",
+                    processing_time=0.5
+                ),
+                FeedResult(
+                    feed_url="https://feed3.com",
+                    success=True,
+                    articles=[
+                        Article("Article 3", "https://example.com/3", datetime(2023, 1, 3), "Feed 3")
+                    ],
+                    processing_time=0.8
+                )
+            ]
+            
             articles = self.processor.get_all_articles(["https://feed1.com", "https://feed2.com", "https://feed3.com"])
             
             # Should get articles from successful feeds only

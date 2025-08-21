@@ -31,7 +31,6 @@ class ArticleProcessor:
     """Handles end-to-end article processing: RSS -> Content -> Summary."""
     
     def __init__(self, 
-                 max_workers: int = 3,
                  max_articles_per_feed: int = 10,
                  scraper_timeout: int = 30,
                  enable_summarization: bool = True):
@@ -39,18 +38,16 @@ class ArticleProcessor:
         Initialize the article processor.
         
         Args:
-            max_workers: Maximum number of concurrent article processors
             max_articles_per_feed: Maximum articles to process per feed
             scraper_timeout: Timeout for content scraping
             enable_summarization: Whether to generate summaries
         """
-        self.max_workers = max_workers
         self.max_articles_per_feed = max_articles_per_feed
         self.enable_summarization = enable_summarization
         self.logger = logging.getLogger(__name__)
         
         # Initialize components
-        self.rss_processor = RSSFeedProcessor(max_workers=max_workers)
+        self.rss_processor = RSSFeedProcessor()
         self.scraper = ArticleScraper(timeout=scraper_timeout)
         self.summarizer = ArticleSummarizer()
     
@@ -69,19 +66,7 @@ class ArticleProcessor:
         
         # Step 1: Fetch RSS feeds and extract article metadata
         self.logger.info("Step 1: Fetching RSS feeds...")
-        feed_results = self.rss_processor.process_feeds(feed_urls)
-        
-        # Collect all articles from successful feeds
-        all_articles = []
-        for result in feed_results:
-            if result.success:
-                # Limit articles per feed to avoid overprocessing
-                articles_to_process = result.articles[:self.max_articles_per_feed]
-                all_articles.extend(articles_to_process)
-                
-                if len(result.articles) > self.max_articles_per_feed:
-                    self.logger.info(f"Limited {result.feed_url} to {self.max_articles_per_feed} articles "
-                                   f"(had {len(result.articles)})")
+        all_articles = self.rss_processor.get_all_articles(feed_urls)
         
         self.logger.info(f"Found {len(all_articles)} articles across all feeds")
         
@@ -114,30 +99,21 @@ class ArticleProcessor:
         """
         processed_articles = []
         
-        # Use ThreadPoolExecutor for concurrent processing
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # Submit all article processing tasks
-            future_to_article = {
-                executor.submit(self._process_single_article, article): article 
-                for article in articles
-            }
-            
-            # Collect results as they complete
-            for future in as_completed(future_to_article):
-                article = future_to_article[future]
-                try:
-                    processed_article = future.result()
-                    processed_articles.append(processed_article)
+        # Process articles sequentially
+        for article in articles:
+            try:
+                processed_article = self._process_single_article(article)
+                processed_articles.append(processed_article)
+                
+                if processed_article.summary_generated:
+                    self.logger.debug(f"Successfully processed: {processed_article.title[:50]}...")
+                else:
+                    self.logger.warning(f"Failed to process: {processed_article.title[:50]}...")
                     
-                    if processed_article.summary_generated:
-                        self.logger.debug(f"Successfully processed: {processed_article.title[:50]}...")
-                    else:
-                        self.logger.warning(f"Failed to process: {processed_article.title[:50]}...")
-                        
-                except Exception as e:
-                    self.logger.error(f"Unexpected error processing article '{article.title[:50]}...': {e}")
-                    # Still add the article, but without content/summary
-                    processed_articles.append(article)
+            except Exception as e:
+                self.logger.error(f"Unexpected error processing article '{article.title[:50]}...': {e}")
+                # Still add the article, but without content/summary
+                processed_articles.append(article)
         
         return processed_articles
     
@@ -227,7 +203,6 @@ class ArticleProcessor:
             Processing configuration dictionary
         """
         return {
-            'max_workers': self.max_workers,
             'max_articles_per_feed': self.max_articles_per_feed,
             'enable_summarization': self.enable_summarization,
             'scraper_timeout': self.scraper.timeout,
@@ -243,21 +218,18 @@ class ArticleProcessor:
 
 
 def process_feeds_with_summaries(feed_urls: List[str], 
-                                max_workers: int = 3,
                                 max_articles_per_feed: int = 10) -> Tuple[List[Article], ProcessingStats]:
     """
     Convenience function to process RSS feeds with summaries.
     
     Args:
         feed_urls: List of RSS feed URLs to process
-        max_workers: Maximum number of concurrent workers
         max_articles_per_feed: Maximum articles to process per feed
         
     Returns:
         Tuple of (processed_articles, processing_stats)
     """
     processor = ArticleProcessor(
-        max_workers=max_workers,
         max_articles_per_feed=max_articles_per_feed
     )
     try:
@@ -270,11 +242,7 @@ if __name__ == "__main__":
     # Test the article processor
     import logging
     
-    # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    
     
     # Test URLs
     test_feeds = [

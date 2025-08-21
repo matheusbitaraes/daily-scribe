@@ -63,7 +63,7 @@ class ArticleScraper:
         
         try:
             # Fetch the HTML content
-            response = self.session.get(url)
+            response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
             
             # Check content length
@@ -90,7 +90,11 @@ class ArticleScraper:
             
             return main_content, first_paragraph
             
+        except requests.exceptions.Timeout as e:
+            self.logger.error(f"Timeout fetching article from {url}: {e}")
+            raise ArticleExtractorError(f"Timeout fetching URL {url}: {str(e)}")
         except requests.exceptions.RequestException as e:
+            self.logger.error(f"HTTP request failed for article {url}: {e}")
             raise ArticleExtractorError(f"Failed to fetch URL {url}: {str(e)}")
             
         except Exception as e:
@@ -267,11 +271,7 @@ if __name__ == "__main__":
     # Test the article scraper
     import logging
     
-    # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    
     
     # Test URL (you can replace with any article URL)
     test_url = "https://www.bbc.com/news"
