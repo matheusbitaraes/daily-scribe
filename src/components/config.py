@@ -13,11 +13,12 @@ from typing import Dict, List, Any, Optional
 class EmailConfig:
     """Email configuration settings."""
     
-    def __init__(self, to, smtp_server, smtp_port, username):
+    def __init__(self, to, smtp_server, smtp_port, username, password):
         self.to = to
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
         self.username = username
+        self.password = password
 
 
 class ScheduleConfig:
@@ -112,7 +113,7 @@ class ConfigLoader:
             raise ValueError("Configuration missing 'email' section")
         
         email_data = config_data['email']
-        required_email_fields = ['to', 'smtp_server', 'smtp_port', 'username']
+        required_email_fields = ['to', 'smtp_server', 'smtp_port', 'username', 'password']
         for field in required_email_fields:
             if field not in email_data:
                 raise ValueError(f"Email configuration missing '{field}' field")
@@ -120,6 +121,11 @@ class ConfigLoader:
         if not isinstance(email_data['smtp_port'], int) or email_data['smtp_port'] <= 0:
             raise ValueError("SMTP port must be a positive integer")
         
+        # Expand environment variables in password
+        password = os.path.expandvars(email_data['password'])
+        if not password:
+            raise ValueError("SMTP password is not set. Please set the SMTP_PASSWORD environment variable.")
+
         # Validate schedule configuration
         if 'schedule' not in config_data:
             raise ValueError("Configuration missing 'schedule' section")
@@ -145,7 +151,8 @@ class ConfigLoader:
             to=email_data['to'],
             smtp_server=email_data['smtp_server'],
             smtp_port=email_data['smtp_port'],
-            username=email_data['username']
+            username=email_data['username'],
+            password=password
         )
         
         schedule_config = ScheduleConfig(

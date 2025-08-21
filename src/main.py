@@ -21,6 +21,7 @@ from components.database import DatabaseService
 from components.feed_processor import RSSFeedProcessor
 from components.scraper import ArticleScraper
 from components.summarizer import Summarizer
+from components.notifier import EmailNotifier
 from components.content_extractor import ContentExtractor
 
 app = typer.Typer()
@@ -99,9 +100,12 @@ def generate_digest(config_path: Optional[str] = None) -> None:
                 digest += f"**Link:** {summary['link']}\n\n"
                 digest += f"{summary['summary']}\n\n"
 
-            # TODO: Send email with the digest (Story 1.5)
-            logger.info("Daily digest generated successfully.")
-            print(digest)  # Print digest for now
+            # Send email with the digest
+            notifier = EmailNotifier(config.email.__dict__)
+            subject = f"Your Daily Digest for {time.strftime('%Y-%m-%d')}"
+            notifier.send_digest(digest, config.email.to, subject)
+
+            logger.info("Daily digest generated and sent successfully.")
         else:
             logger.info("No new articles to generate a digest.")
 
