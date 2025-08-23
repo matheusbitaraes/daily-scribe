@@ -21,7 +21,7 @@ class ArticleExtractorError(Exception):
 class ArticleScraper:
     """Handles extracting full text content from article URLs."""
     
-    def __init__(self, timeout: int = 30, max_content_length: int = 50000):
+    def __init__(self, timeout: int = 30, max_content_length: int = 100000):
         """
         Initialize the article scraper.
         
