@@ -56,7 +56,7 @@ def generate_digest(config_path: Optional[str] = None) -> None:
         db_service = DatabaseService()
         feed_processor = RSSFeedProcessor()
         scraper = ArticleScraper()
-        summarizer = Summarizer()
+        summarizer = Summarizer(config.gemini)
         content_extractor = ContentExtractor(scraper, summarizer)
 
         # Fetch articles

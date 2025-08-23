@@ -52,7 +52,7 @@ class ContentExtractor:
             self.logger.debug(f"Using description from RSS for {article.title}")
 
         # If RSS content is too short, try scraping
-        if not content_to_summarize or len(content_to_summarize) < 100:  # Arbitrary threshold
+        if not content_to_summarize or len(content_to_summarize) < 30:  # Arbitrary threshold
             self.logger.debug(f"RSS content insufficient for {article.title}, attempting to scrape.")
             try:
                 scraped_content, _ = self.scraper.extract_article_content(article.url)

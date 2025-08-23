@@ -146,9 +146,12 @@ This project is for personal use only.
 
 ## Roadmap
 
-- [ ] RSS feed fetching and parsing
+- [x] RSS feed fetching and parsing
 - [ ] Local LLM integration for summarization
-- [ ] Daily digest generation and scheduling
+- [ ] External model (Gemini API integration)
+- [ ] Handle rate limiting from the LLM API
+- [ ] Add a new table to track in which digest the articles were sent
+- [x] Daily digest generation and scheduling
 - [ ] Email delivery system
 - [ ] Web interface for configuration management
 - [ ] Advanced content filtering and categorization

@@ -10,6 +10,15 @@ import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+
+
+class GeminiConfig:
+    """Gemini API configuration settings."""
+
+    def __init__(self, api_key):
+        self.api_key = api_key
+
+
 class EmailConfig:
     """Email configuration settings."""
     
@@ -32,10 +41,11 @@ class ScheduleConfig:
 class AppConfig:
     """Main application configuration."""
     
-    def __init__(self, rss_feeds, email, schedule):
+    def __init__(self, rss_feeds, email, schedule, gemini):
         self.rss_feeds = rss_feeds
         self.email = email
         self.schedule = schedule
+        self.gemini = gemini
 
 
 class ConfigLoader:
@@ -145,6 +155,11 @@ class ConfigLoader:
         
         if not (0 <= minute <= 59):
             raise ValueError("Schedule minute must be between 0 and 59")
+
+        # Validate Gemini configuration
+        gemini_api_key = os.getenv('GEMINI_API_KEY')
+        if not gemini_api_key:
+            raise ValueError("Gemini API key is not set. Please set the GEMINI_API_KEY environment variable.")
         
         # Create and return validated config
         email_config = EmailConfig(
@@ -159,11 +174,16 @@ class ConfigLoader:
             hour=hour,
             minute=minute
         )
+
+        gemini_config = GeminiConfig(
+            api_key=gemini_api_key
+        )
         
         return AppConfig(
             rss_feeds=rss_feeds,
             email=email_config,
-            schedule=schedule_config
+            schedule=schedule_config,
+            gemini=gemini_config
         )
 
 
