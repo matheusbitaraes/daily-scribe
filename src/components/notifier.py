@@ -39,7 +39,7 @@ class EmailNotifier:
             message["From"] = self.smtp_config['username']
             message["To"] = recipient_email
             message["Subject"] = subject
-            message.attach(MIMEText(digest_content, "plain"))
+            message.attach(MIMEText(digest_content, "html"))
 
             # Send the email
             with smtplib.SMTP(self.smtp_config['smtp_server'], self.smtp_config['smtp_port']) as server:

@@ -147,12 +147,16 @@ This project is for personal use only.
 ## Roadmap
 
 - [x] RSS feed fetching and parsing
-- [ ] Local LLM integration for summarization
-- [ ] External model (Gemini API integration)
-- [ ] Handle rate limiting from the LLM API
+- [x] External model (Gemini API integration)
+- [x] Handle rate limiting from the LLM API
+- [ ] Improve digest format and language
+- [ ] store publication date in the artice table as well as creation date in our side
+- [ ] Develop a categorization approach - implement a metadata extractor?
+- [ ] divide extraction of content and diggest to be different processes
 - [ ] Add a new table to track in which digest the articles were sent
 - [x] Daily digest generation and scheduling
 - [ ] Email delivery system
 - [ ] Web interface for configuration management
 - [ ] Advanced content filtering and categorization
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 
+- [ ] Local LLM integration for summarization

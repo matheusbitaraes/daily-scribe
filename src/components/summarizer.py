@@ -36,7 +36,7 @@ class Summarizer:
             self.logger.error(f"Failed to initialize Gemini client: {e}")
             raise
 
-    def summarize(self, text: str, max_length: int = 150, min_length: int = 40, max_retries: int = 5) -> str:
+    def summarize(self, text: str, max_length: int = 100, min_length: int = 40, max_retries: int = 5) -> str:
         """
         Summarize the given text.
 
@@ -50,7 +50,7 @@ class Summarizer:
             The summarized text.
         """
         model = genai.GenerativeModel('gemini-2.5-flash')
-        prompt = f"Summarize the following text in approximately {min_length} to {max_length} words: {text}"
+        prompt = f"Summarize the following text in approximately {min_length} to {max_length} words and DO IT ALWAYS IN BRAZILIAN PORTUGUESE: {text}"
         
         for attempt in range(max_retries):
             try:
@@ -67,7 +67,7 @@ class Summarizer:
                         time.sleep(wait_time)
                     else:
                         self.logger.warning("Could not extract wait time. Using default backoff.")
-                        time.sleep(5 ** attempt)  # Exponential backoff
+                        time.sleep(2 ** attempt)  # Exponential backoff
                 else:
                     self.logger.error(f"An unexpected error occurred: {error_message}")
                     break  # Break on non-rate-limit errors
@@ -85,16 +85,16 @@ class Summarizer:
         Returns:
             The wait time in seconds, or None if not found.
         """
-        match = re.search(r"retry_delay {\s*seconds: (\d+)", error_message)
+        # Try to extract retry_delay { seconds: N } (with or without whitespace)
+        match = re.search(r'seconds: (\d+)', str(e))
         if match:
             return int(match.group(1))
-        
+        # Try to extract retry after N
         match = re.search(r"retry after (\d+)", error_message, re.IGNORECASE)
         if match:
             return int(match.group(1))
-        
+        # Try to extract wait N seconds
         match = re.search(r"wait (\d+) seconds", error_message, re.IGNORECASE)
         if match:
             return int(match.group(1))
-            
         return None

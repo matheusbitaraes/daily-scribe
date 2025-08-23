@@ -23,6 +23,7 @@ from components.scraper import ArticleScraper
 from components.summarizer import Summarizer
 from components.notifier import EmailNotifier
 from components.content_extractor import ContentExtractor
+from components.digest_builder import DigestBuilder
 
 app = typer.Typer()
 
@@ -70,6 +71,10 @@ def generate_digest(config_path: Optional[str] = None) -> None:
 
         # Process new articles
         summaries = []
+
+        # TODO: remove temp article limit
+        new_articles = new_articles[:5]
+
         for article in new_articles:
             try:
                 # Extract and summarize content
@@ -92,22 +97,17 @@ def generate_digest(config_path: Optional[str] = None) -> None:
 
         # Compile digest
         if summaries:
-            digest = """
-            Here is your daily digest:
-            """
-            for summary in summaries:
-                digest += f"\n## {summary['title']}\n"
-                digest += f"**Link:** {summary['link']}\n\n"
-                digest += f"{summary['summary']}\n\n"
-
+            html_digest = DigestBuilder.build_html_digest(summaries)
             # Send email with the digest
             notifier = EmailNotifier(config.email.__dict__)
             subject = f"Your Daily Digest for {time.strftime('%Y-%m-%d')}"
-            notifier.send_digest(digest, config.email.to, subject)
+            notifier.send_digest(html_digest, config.email.to, subject)
 
             logger.info("Daily digest generated and sent successfully.")
         else:
             logger.info("No new articles to generate a digest.")
+
+    
 
     except Exception as e:
         logger.error(f"An error occurred during digest generation: {e}")
