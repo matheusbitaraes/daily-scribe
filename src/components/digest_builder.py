@@ -56,7 +56,7 @@ class DigestBuilder:
                     padding-bottom: 5px;
                     border-bottom: 1px solid #eeeeee;
                 }
-                .content .article:last-child {
+                .content .last-in-category {
                     border-bottom: none !important;
                 }
                 .title {
@@ -75,9 +75,13 @@ class DigestBuilder:
         """
         for category, articles in categories.items():
             html_digest += f'<div class="category">{category}</div>'
-            for summary in articles:
+            for i, summary in enumerate(articles):
+                # Check if this is the last article in this category
+                is_last_in_category = (i == len(articles) - 1)
+                article_class = "article last-in-category" if is_last_in_category else "article"
+                
                 html_digest += f"""
-                <div class=\"article\">
+                <div class=\"{article_class}\">
                     <p class=\"summary\">
                     <span class=\"title\">{summary['title']}:</span> {summary['summary']} <a href=\"{summary['link']}\">[link]</a>
                     </p>
