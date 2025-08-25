@@ -72,23 +72,30 @@ def generate_digest(config_path: Optional[str] = None) -> None:
         # Process new articles
         summaries = []
 
-        # TODO: remove temp article limit
-        new_articles = new_articles[:5]
-
         for article in new_articles:
             try:
                 # Extract and summarize content
-                summary = content_extractor.extract_and_summarize(article)
-                if not summary:
+                metadata = content_extractor.extract_and_summarize(article)
+                if not metadata or not metadata.get('summary'):
                     logger.warning(f"Could not summarize {article.url}. Skipping.")
                     continue
 
-                # Store article and summary
-                db_service.mark_as_processed(article.url, summary)
+                # Store article and all metadata
+                published_at = None
+                if hasattr(article, 'published_date') and article.published_date:
+                    try:
+                        published_at = article.published_date.isoformat()
+                    except Exception:
+                        published_at = str(article.published_date)
+                db_service.mark_as_processed(article.url, metadata, published_at)
                 summaries.append({
                     'title': article.title,
                     'link': article.url,
-                    'summary': summary
+                    'summary': metadata['summary'],
+                    'sentiment': metadata.get('sentiment'),
+                    'keywords': metadata.get('keywords'),
+                    'category': metadata.get('category'),
+                    'region': metadata.get('region')
                 })
                 logger.info(f"Processed and summarized: {article.title}")
 

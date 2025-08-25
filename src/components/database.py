@@ -48,6 +48,11 @@ class DatabaseService:
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         url TEXT NOT NULL UNIQUE,
                         summary TEXT,
+                        sentiment TEXT,
+                        keywords TEXT,
+                        category TEXT,
+                        region TEXT,
+                        published_at TIMESTAMP,
                         processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     );
                 """)
@@ -72,18 +77,31 @@ class DatabaseService:
             self.logger.error(f"Error getting processed URLs from database: {e}")
             return []
 
-    def mark_as_processed(self, url: str, summary: str) -> None:
+    def mark_as_processed(self, url: str, metadata: dict, published_at: Optional[str] = None) -> None:
         """
-        Mark an article as processed by storing its URL and summary in the database.
+        Mark an article as processed by storing its URL and NewsMetadata in the database.
 
         Args:
             url: The URL of the article to mark as processed.
-            summary: The summary of the article.
+            metadata: The NewsMetadata dict (summary, sentiment, keywords, category, region).
+            published_at: The published date/time of the article (ISO format string or None).
         """
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("INSERT INTO articles (url, summary) VALUES (?, ?)", (url, summary))
+                keywords_str = ','.join(metadata.get('keywords', [])) if metadata.get('keywords') else None
+                cursor.execute(
+                    "INSERT INTO articles (url, summary, sentiment, keywords, category, region, published_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        url,
+                        metadata.get('summary'),
+                        metadata.get('sentiment'),
+                        keywords_str,
+                        metadata.get('category'),
+                        metadata.get('region'),
+                        published_at
+                    )
+                )
                 conn.commit()
         except sqlite3.IntegrityError:
             self.logger.warning(f"Article with URL {url} has already been processed.")

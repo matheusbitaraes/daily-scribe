@@ -28,9 +28,9 @@ class ContentExtractor:
         self.scraper = scraper
         self.summarizer = summarizer
 
-    def extract_and_summarize(self, article: Article) -> Optional[str]:
+    def extract_and_summarize(self, article: Article) -> Optional[dict]:
         """
-        Extracts content from an article and summarizes it.
+        Extracts content from an article and summarizes it, returning metadata dict.
 
         Prioritizes content from the RSS feed (description/content fields).
         If not sufficient, falls back to scraping the article URL.
@@ -39,7 +39,7 @@ class ContentExtractor:
             article: The Article object containing title, URL, and potentially description/content.
 
         Returns:
-            The summarized content, or None if summarization fails.
+            A dict with summary, sentiment, keywords, category, region, or None if summarization fails.
         """
         content_to_summarize = None
 
@@ -52,7 +52,7 @@ class ContentExtractor:
             self.logger.debug(f"Using description from RSS for {article.title}")
 
         # If RSS content is too short, try scraping
-        if not content_to_summarize or len(content_to_summarize) < 30:  # Arbitrary threshold
+        if not content_to_summarize or len(content_to_summarize) < 30:
             self.logger.debug(f"RSS content insufficient for {article.title}, attempting to scrape.")
             try:
                 scraped_content, _ = self.scraper.extract_article_content(article.url)
@@ -70,12 +70,14 @@ class ContentExtractor:
             self.logger.warning(f"No content available to summarize for {article.title}")
             return None
 
-        # Summarize the chosen content
+        # Summarize the chosen content and extract metadata
         try:
-            summary = self.summarizer.summarize(content_to_summarize)
-            if summary:
+            metadata = self.summarizer.summarize(content_to_summarize)
+            if metadata and metadata.get('summary'):
                 self.logger.debug(f"Successfully summarized {article.title}")
-                return summary
+                # log metadata for debugging
+                self.logger.info(f"Metadata: {metadata}")
+                return metadata
             else:
                 self.logger.warning(f"Summarization returned empty for {article.title}")
                 return None

@@ -1,4 +1,4 @@
---SELECT * FROM articles
+SELECT * FROM articles
 
-delete from articles
-where id > 0
+-- delete from articles
+-- where id > 0

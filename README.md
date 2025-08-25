@@ -149,9 +149,9 @@ This project is for personal use only.
 - [x] RSS feed fetching and parsing
 - [x] External model (Gemini API integration)
 - [x] Handle rate limiting from the LLM API
-- [ ] Improve digest format and language
-- [ ] store publication date in the artice table as well as creation date in our side
-- [ ] Develop a categorization approach - implement a metadata extractor?
+- [x] Improve digest format and language
+- [x] store publication date in the artice table as well as creation date in our side
+- [x] Develop a categorization approach - implement a metadata extractor?
 - [ ] divide extraction of content and diggest to be different processes
 - [ ] Add a new table to track in which digest the articles were sent
 - [x] Daily digest generation and scheduling
