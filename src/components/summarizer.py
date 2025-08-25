@@ -32,6 +32,8 @@ class Summarizer:
         self.logger = logging.getLogger(__name__)
         self.config = config
         self._initialize_gemini()
+        self._pro_quota_exceeded = False
+        self._flash_quota_exceeded = False
 
     def _initialize_gemini(self):
         """
@@ -45,7 +47,7 @@ class Summarizer:
             self.logger.error(f"Failed to initialize Gemini client: {e}")
             raise
 
-    def summarize(self, text: str, max_retries: int = 5) -> Dict[str, Any]:
+    def summarize(self, text: str, max_retries: int = 3) -> Dict[str, Any]:
         """
         Summarize the given text and extract metadata.
 
@@ -58,46 +60,65 @@ class Summarizer:
         Returns:
             A dict with summary, sentiment, keywords, category, region.
         """
-        # Use genai.GenerativeModel instead of genai.Client
-        model = genai.GenerativeModel('gemini-2.5-flash')
-        prompt = f"Extract the requested metadata from the following news content: {text}"
-        for attempt in range(max_retries):
-            try:
-                response = model.generate_content(
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        response_mime_type="application/json",
-                        response_schema=NewsMetadata,
-                    )
-                )
-                # Try to parse the response as JSON from the first part
+        # Try pro first unless quota exceeded, then fallback to flash
+        model_order = []
+        if not self._pro_quota_exceeded:
+            model_order.append('gemini-2.5-pro')
+        if not self._flash_quota_exceeded:
+            model_order.append('gemini-2.5-flash')
+        if not model_order:
+            self.logger.error("All Gemini model quotas exceeded. Aborting summarization.")
+            return {}
+        for model_name in model_order:
+            model = genai.GenerativeModel(model_name)
+            prompt = f"Extract the requested metadata from the following news content: {text}"
+            for attempt in range(max_retries):
                 try:
-                    # Gemini's response may have a 'text' field with JSON string
-                    part = response.candidates[0].content.parts[0]
-                    if hasattr(part, 'text'):
-                        import json
-                        return json.loads(part.text)
-                    # Fallback: if part is already a dict
-                    if isinstance(part, dict):
-                        return part
-                except Exception as parse_exc:
-                    self.logger.error(f"Failed to parse Gemini response as JSON: {parse_exc}")
-                    return {}
-            except Exception as e:
-                error_message = str(e)
-                self.logger.warning(f"Attempt {attempt + 1} failed: {error_message}")
-                if "rate limit" in error_message.lower():
-                    wait_time = self._extract_wait_time(error_message)
-                    if wait_time:
-                        self.logger.info(f"Rate limit exceeded. Waiting for {wait_time} seconds.")
-                        time.sleep(wait_time)
+                    response = model.generate_content(
+                        prompt,
+                        generation_config=genai.types.GenerationConfig(
+                            response_mime_type="application/json",
+                            response_schema=NewsMetadata,
+                        )
+                    )
+                    # Try to parse the response as JSON from the first part
+                    try:
+                        part = response.candidates[0].content.parts[0]
+                        if hasattr(part, 'text'):
+                            import json
+                            return json.loads(part.text)
+                        if isinstance(part, dict):
+                            return part
+                    except Exception as parse_exc:
+                        self.logger.error(f"Failed to parse Gemini response as JSON: {parse_exc}")
+                        return {}
+                except Exception as e:
+                    error_message = str(e)
+                    self.logger.warning(f"[{model_name}] Attempt {attempt + 1} failed: {error_message}")
+                    # Check for daily quota exceeded for this model
+                    if "GenerateRequestsPerDayPerProjectPerModel" in error_message:
+                        self.logger.error(f"Gemini API daily quota exceeded for {model_name}. Will not use this model anymore today.")
+                        if model_name == 'gemini-2.5-pro':
+                            self._pro_quota_exceeded = True
+                        elif model_name == 'gemini-2.5-flash':
+                            self._flash_quota_exceeded = True
+                        break  # Try next model if available
+                    
+                    # Check for per-minute rate limit
+                    if "GenerateRequestsPerMinutePerProjectPerModel" in error_message:
+                        wait_time = self._extract_wait_time(error_message)
+                        if wait_time:
+                            self.logger.info(f"Per-minute rate limit exceeded. Waiting for {wait_time} seconds.")
+                            time.sleep(wait_time)
+                        else:
+                            self.logger.warning("Per-minute rate limit exceeded. Using default backoff.")
+                            time.sleep(2 ** attempt)
+                        continue  # Retry this model after waiting
                     else:
-                        self.logger.warning("Could not extract wait time. Using default backoff.")
-                        time.sleep(4 ** attempt)
-                else:
-                    self.logger.error(f"An unexpected error occurred: {error_message}")
-                    break
-        self.logger.error("Failed to summarize text after multiple retries.")
+                        self.logger.error(f"An unexpected error occurred: {error_message}")
+                        break
+            # If we get here, try next model if available
+        self.logger.error("Failed to summarize text after trying all available Gemini models and retries.")
         return {}
 
     def _extract_wait_time(self, error_message: str) -> int:
