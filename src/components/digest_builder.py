@@ -6,6 +6,9 @@ This module handles building the HTML digest from article summaries.
 
 from typing import List, Dict
 
+STANDAND_CATEGORY_ORDER = [
+    'Politics', 'Technology', 'Science and Health', 'Business', 'Entertainment', 'Sports', 'Other' ]
+
 class DigestBuilder:
     @staticmethod
     def build_html_digest(summaries: List[Dict[str, str]]) -> str:
@@ -13,21 +16,17 @@ class DigestBuilder:
         category_translation = {
             'Politics': 'Política',
             'Technology': 'Tecnologia',
-            'Health': 'Saúde',
+            'Science and Health': 'Saúde E Ciência',
             'Business': 'Negócios',
             'Entertainment': 'Entretenimento',
             'Sports': 'Esportes',
-            'Science': 'Ciência',
-            'World': 'Mundo',
-            'Economy': 'Economia',
-            'Education': 'Educação',
-            'Environment': 'Meio Ambiente',
-            'Other': 'Outros',
+            'Other': 'Outros'
         }
         # Group articles by translated category
         from collections import defaultdict
         categories = defaultdict(list)
-        for summary in summaries:
+        ordered_summaries = DigestBuilder.order_summaries(summaries, STANDAND_CATEGORY_ORDER)
+        for summary in ordered_summaries:
             category = summary.get('category', 'Outros') or 'Outros'
             category_pt = category_translation.get(category, category)
             categories[category_pt].append(summary)
@@ -37,50 +36,82 @@ class DigestBuilder:
         <head>
             <style>
                 body {
-                    font-family: Arial, sans-serif;
-                    line-height: 1.6;
+                    font-family: "Google Sans", Roboto, RobotoDraft, Helvetica, Arial, sans-serif;
+                    line-height: 26px;
+                    color: #333333
+                }
+                .content {
                     margin: 0 20%;
                 }
                 .category {
-                    margin-top: 40px;
                     margin-bottom: 10px;
-                    font-size: 22px;
+                    font-size: 20px;
                     font-weight: bold;
-                    color: #333366;
-                    border-bottom: 2px solid #cccccc;
+                    color: #0a97f5;
+                    border-bottom: 2px solid #0a97f5;
                     padding-bottom: 5px;
                 }
                 .article {
-                    margin-bottom: 25px;
-                    padding-bottom: 15px;
+                    margin-bottom: 10px;
+                    padding-bottom: 5px;
                     border-bottom: 1px solid #eeeeee;
                 }
+                .content .article:last-child {
+                    border-bottom: none !important;
+                }
                 .title {
-                    font-size: 18px;
-                    font-weight: bold;
+                    font-size: 17px;
+                    font-weight: 700;
                 }
                 .summary {
                     text-align: justify;
-                    font-size: 14px;
-                    color: #333333;
+                    font-size: 17px;
+                    color: #333333
                 }
             </style>
         </head>
         <body>
+        <div class="content">
         """
         for category, articles in categories.items():
             html_digest += f'<div class="category">{category}</div>'
             for summary in articles:
                 html_digest += f"""
                 <div class=\"article\">
-                    <div class=\"title\">{summary['title']}</div>
-                    <p class=\"summary\">{summary['summary']}<br>
-                    <a href=\"{summary['link']}\">Leia a matéria completa</a>
+                    <p class=\"summary\">
+                    <span class=\"title\">{summary['title']}:</span> {summary['summary']} <a href=\"{summary['link']}\">[link]</a>
                     </p>
                 </div>
                 """
         html_digest += """
-            </body>
+        </div>
+        </body>
         </html>
         """
         return html_digest
+
+    @staticmethod
+    def order_summaries(summaries: List[Dict[str, str]], category_order: List[str]) -> List[Dict[str, str]]:
+        """
+        Order summaries by category (custom order) and date (descending by published_at).
+        Args:
+            summaries: List of article dicts.
+            category_order: List of category names in desired order.
+        Returns:
+            Ordered list of summaries.
+        """
+        # Create a mapping for category priority
+        category_priority = {cat: i for i, cat in enumerate(category_order)}
+        def sort_key(summary):
+            cat = summary.get('category', 'Other')
+            cat_idx = category_priority.get(cat, len(category_priority))
+            # Parse published_at as string (ISO) or fallback to 0
+            date_str = summary.get('published_at')
+            try:
+                from datetime import datetime
+                date_val = datetime.fromisoformat(date_str) if date_str else datetime.min
+            except Exception:
+                date_val = datetime.min
+            # Sort by category priority, then by date descending
+            return (cat_idx, -date_val.timestamp())
+        return sorted(summaries, key=sort_key)
