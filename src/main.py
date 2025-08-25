@@ -52,8 +52,21 @@ def fetch_news(config_path: Optional[str] = None) -> None:
         scraper = ArticleScraper()
         summarizer = Summarizer(config.gemini)
         content_extractor = ContentExtractor(scraper, summarizer)
-        articles = feed_processor.get_all_articles(config.rss_feeds)
-        logger.info(f"Retrieved {len(articles)} articles from {len(config.rss_feeds)} feeds.")
+        
+        # Get all RSS feeds and their source_ids from the database
+        feed_url_to_source_id = {}
+        with db_service._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT url, source_id FROM rss_feeds')
+            for url, source_id in cursor.fetchall():
+                feed_url_to_source_id[url] = source_id
+        all_feeds = list(feed_url_to_source_id.keys())
+        
+        articles = feed_processor.get_all_articles(all_feeds)
+        # Assign source_id to each article based on its feed_source (which is the feed URL)
+        for article in articles:
+            article.source_id = feed_url_to_source_id.get(article.feed_source)
+        logger.info(f"Retrieved {len(articles)} articles from {len(all_feeds)} feeds.")
         processed_urls = db_service.get_processed_urls()
         new_articles = [article for article in articles if article.url not in processed_urls]
         logger.info(f"Found {len(new_articles)} new articles to process.")
@@ -69,7 +82,8 @@ def fetch_news(config_path: Optional[str] = None) -> None:
                         published_at = article.published_date.isoformat()
                     except Exception:
                         published_at = str(article.published_date)
-                db_service.mark_as_processed(article.url, metadata, published_at, title=article.title)
+
+                db_service.mark_as_processed(article.url, metadata, published_at, title=article.title, source_id=article.source_id)
                 logger.info(f"Processed and saved: {article.title}")
             except Exception as e:
                 logger.error(f"Failed to process article {article.url}: {e}")
