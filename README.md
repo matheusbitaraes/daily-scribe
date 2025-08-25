@@ -152,10 +152,10 @@ This project is for personal use only.
 - [x] Improve digest format and language
 - [x] store publication date in the artice table as well as creation date in our side
 - [x] Develop a categorization approach - implement a metadata extractor?
-- [ ] divide extraction of content and diggest to be different processes
-- [ ] Add a new table to track in which digest the articles were sent
+- [x] divide extraction of content and diggest to be different processes
 - [x] Daily digest generation and scheduling
 - [x] Email delivery system
+- [ ] Add a new table to track in which digest the articles were sent
 - [ ] Web interface for configuration management
 - [ ] Advanced content filtering and categorization
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 

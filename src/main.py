@@ -53,11 +53,11 @@ def fetch_news(config_path: Optional[str] = None) -> None:
         summarizer = Summarizer(config.gemini)
         content_extractor = ContentExtractor(scraper, summarizer)
         
-        # Get all RSS feeds and their source_ids from the database
+        # Get all enabled RSS feeds and their source_ids from the database
         feed_url_to_source_id = {}
         with db_service._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT url, source_id FROM rss_feeds')
+            cursor.execute('SELECT url, source_id FROM rss_feeds WHERE is_enabled is true;')
             for url, source_id in cursor.fetchall():
                 feed_url_to_source_id[url] = source_id
         all_feeds = list(feed_url_to_source_id.keys())

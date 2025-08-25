@@ -56,6 +56,7 @@ class DatabaseService:
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         source_id INTEGER NOT NULL,
                         url TEXT NOT NULL,
+                        is_enabled BOOLEAN NOT NULL DEFAULT 1,
                         FOREIGN KEY (source_id) REFERENCES sources(id)
                     );
                 """)
@@ -155,13 +156,14 @@ class DatabaseService:
             self.logger.error(f"Error adding source: {e}")
             return -1
 
-    def add_rss_feed(self, source_id: int, url: str) -> int:
+    def add_rss_feed(self, source_id: int, url: str, is_enabled: str = 'true') -> int:
         """
         Add a new RSS feed for a source. Returns the feed id.
 
         Args:
             source_id: The id of the source.
             url: The RSS feed URL.
+            is_enabled: 'true' or 'false' (default 'true').
 
         Returns:
             The id of the inserted feed.
@@ -170,8 +172,8 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO rss_feeds (source_id, url) VALUES (?, ?)",
-                    (source_id, url)
+                    "INSERT INTO rss_feeds (source_id, url, is_enabled) VALUES (?, ?, ?)",
+                    (source_id, url, is_enabled)
                 )
                 conn.commit()
                 return cursor.lastrowid
@@ -225,8 +227,8 @@ class DatabaseService:
         Retrieve articles from the database filtered by date range and categories.
 
         Args:
-            start_date: ISO format string (inclusive), filter articles processed after this date.
-            end_date: ISO format string (inclusive), filter articles processed before this date.
+            start_date: ISO format string (inclusive), filter articles published after this date.
+            end_date: ISO format string (inclusive), filter articles published before this date.
             categories: List of category strings to filter by.
 
         Returns:
@@ -235,10 +237,10 @@ class DatabaseService:
         query = "SELECT title, url, summary, sentiment, keywords, category, region, published_at, processed_at FROM articles WHERE 1=1"
         params = []
         if start_date:
-            query += " AND processed_at >= ?"
+            query += " AND published_at >= ?"
             params.append(start_date)
         if end_date:
-            query += " AND processed_at <= ?"
+            query += " AND published_at <= ?"
             params.append(end_date)
         if categories:
             query += " AND category IN ({})".format(",".join(["?"] * len(categories)))

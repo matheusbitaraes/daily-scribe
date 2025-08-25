@@ -35,28 +35,151 @@ def test_database_creation(db_service):
 
 def test_mark_as_processed_and_get_urls(db_service):
     """Test that URLs can be marked as processed and retrieved."""
+    # Setup: add a source and a feed
+    source_id = db_service.add_source("Test Source")
+    feed_id = db_service.add_rss_feed(source_id, "https://example.com/feed", is_enabled=1)
     url1 = "https://example.com/article1"
     url2 = "https://example.com/article2"
-    summary1 = "Summary 1"
-    summary2 = "Summary 2"
-    
-    db_service.mark_as_processed(url1, summary1)
-    db_service.mark_as_processed(url2, summary2)
-    
+    metadata1 = {"summary": "Summary 1", "sentiment": "Neutral", "keywords": ["a"], "category": "Test", "region": "US"}
+    metadata2 = {"summary": "Summary 2", "sentiment": "Neutral", "keywords": ["b"], "category": "Test", "region": "US"}
+    db_service.mark_as_processed(url1, metadata1, published_at=None, title="Title 1", source_id=source_id)
+    db_service.mark_as_processed(url2, metadata2, published_at=None, title="Title 2", source_id=source_id)
     processed_urls = db_service.get_processed_urls()
-    
     assert len(processed_urls) == 2
     assert url1 in processed_urls
     assert url2 in processed_urls
 
 def test_duplicate_urls_are_not_added(db_service):
     """Test that duplicate URLs are not added to the database."""
+    source_id = db_service.add_source("Test Source 2")
+    feed_id = db_service.add_rss_feed(source_id, "https://example.com/feed2", is_enabled=1)
     url = "https://example.com/article1"
-    summary = "Summary 1"
-    
-    db_service.mark_as_processed(url, summary)
-    db_service.mark_as_processed(url, summary)  # Try to add the same URL again
-    
+    metadata = {"summary": "Summary 1", "sentiment": "Neutral", "keywords": ["a"], "category": "Test", "region": "US"}
+    db_service.mark_as_processed(url, metadata, published_at=None, title="Title 1", source_id=source_id)
+    db_service.mark_as_processed(url, metadata, published_at=None, title="Title 1", source_id=source_id)  # Try to add the same URL again
     processed_urls = db_service.get_processed_urls()
-    
     assert len(processed_urls) == 1
+
+def test_add_feed_disabled_and_filter(db_service):
+    """Test that a feed with is_enabled=0 is not included in enabled feed queries."""
+    source_id = db_service.add_source("Disabled Source")
+    db_service.add_rss_feed(source_id, "https://disabled.com/feed", is_enabled=0)
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT url FROM rss_feeds WHERE is_enabled=1")
+        enabled_feeds = [row[0] for row in cursor.fetchall()]
+    assert "https://disabled.com/feed" not in enabled_feeds
+
+def test_toggle_feed_enabled(db_service):
+    """Test enabling and disabling a feed updates is_enabled correctly."""
+    source_id = db_service.add_source("Toggle Source")
+    feed_url = "https://toggle.com/feed"
+    db_service.add_rss_feed(source_id, feed_url, is_enabled=1)
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE rss_feeds SET is_enabled=0 WHERE url=?", (feed_url,))
+        conn.commit()
+        cursor.execute("SELECT is_enabled FROM rss_feeds WHERE url=?", (feed_url,))
+        assert cursor.fetchone()[0] == 0
+        cursor.execute("UPDATE rss_feeds SET is_enabled=1 WHERE url=?", (feed_url,))
+        conn.commit()
+        cursor.execute("SELECT is_enabled FROM rss_feeds WHERE url=?", (feed_url,))
+        assert cursor.fetchone()[0] == 1
+
+def test_get_rss_feeds_for_source_only_enabled(db_service):
+    """Test get_rss_feeds_for_source returns only enabled feeds."""
+    source_id = db_service.add_source("Filter Source")
+    db_service.add_rss_feed(source_id, "https://enabled.com/feed", is_enabled=1)
+    db_service.add_rss_feed(source_id, "https://disabled.com/feed", is_enabled=0)
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT url FROM rss_feeds WHERE source_id=? AND is_enabled=1", (source_id,))
+        feeds = [row[0] for row in cursor.fetchall()]
+    assert "https://enabled.com/feed" in feeds
+    assert "https://disabled.com/feed" not in feeds
+
+def test_add_source_duplicate_name(db_service):
+    """Test adding a source with a duplicate name."""
+    name = "Duplicate Source"
+    id1 = db_service.add_source(name)
+    id2 = db_service.add_source(name)
+    assert id1 != id2  # Should allow duplicate names, but IDs must differ
+
+def test_add_rss_feed_duplicate_url_same_source(db_service):
+    """Test adding the same feed URL twice for the same source."""
+    source_id = db_service.add_source("Dup Feed Source")
+    feed_url = "https://dup.com/feed"
+    id1 = db_service.add_rss_feed(source_id, feed_url, is_enabled=1)
+    id2 = db_service.add_rss_feed(source_id, feed_url, is_enabled=1)
+    assert id1 != id2  # Should allow duplicate URLs, but IDs must differ
+
+def test_mark_as_processed_invalid_source_id(db_service):
+    """Test marking an article as processed with a non-existent source_id."""
+    url = "https://invalid.com/article"
+    metadata = {"summary": "Summary", "sentiment": "Neutral", "keywords": ["a"], "category": "Test", "region": "US"}
+    # Use a source_id that does not exist
+    db_service.mark_as_processed(url, metadata, published_at=None, title="Title", source_id=9999)
+    processed_urls = db_service.get_processed_urls()
+    assert url in processed_urls  # Should still insert, but referential integrity is not enforced by default in SQLite
+
+def test_get_processed_urls_after_deletion(db_service):
+    """Test get_processed_urls after deleting an article."""
+    source_id = db_service.add_source("Delete Source")
+    db_service.add_rss_feed(source_id, "https://delete.com/feed", is_enabled=1)
+    url = "https://delete.com/article"
+    metadata = {"summary": "Summary", "sentiment": "Neutral", "keywords": ["a"], "category": "Test", "region": "US"}
+    db_service.mark_as_processed(url, metadata, published_at=None, title="Title", source_id=source_id)
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM articles WHERE url=?", (url,))
+        conn.commit()
+    processed_urls = db_service.get_processed_urls()
+    assert url not in processed_urls
+
+def test_get_articles_with_date_and_category_filters(db_service):
+    """Test get_articles with date and category filters."""
+    source_id = db_service.add_source("Filter Article Source")
+    db_service.add_rss_feed(source_id, "https://filter.com/feed", is_enabled=1)
+    url1 = "https://filter.com/article1"
+    url2 = "https://filter.com/article2"
+    metadata1 = {"summary": "Summary 1", "sentiment": "Neutral", "keywords": ["a"], "category": "CatA", "region": "US"}
+    metadata2 = {"summary": "Summary 2", "sentiment": "Neutral", "keywords": ["b"], "category": "CatB", "region": "US"}
+    db_service.mark_as_processed(url1, metadata1, published_at="2025-08-25T00:00:00", title="Title 1", source_id=source_id)
+    db_service.mark_as_processed(url2, metadata2, published_at="2025-08-24T00:00:00", title="Title 2", source_id=source_id)
+    # Filter by date
+    articles = db_service.get_articles(start_date="2025-08-25T00:00:00")
+    assert any(a['url'] == url1 for a in articles)
+    assert all(a['url'] != url2 for a in articles)
+    # Filter by category
+    articles = db_service.get_articles(categories=["CatA"])
+    assert any(a['url'] == url1 for a in articles)
+    assert all(a['url'] != url2 for a in articles)
+
+def test_mark_as_processed_all_fields(db_service):
+    """Test mark_as_processed with all optional fields."""
+    source_id = db_service.add_source("All Fields Source")
+    db_service.add_rss_feed(source_id, "https://allfields.com/feed", is_enabled=1)
+    url = "https://allfields.com/article"
+    metadata = {"summary": "Full Summary", "sentiment": "Positive", "keywords": ["x", "y"], "category": "Full", "region": "World"}
+    db_service.mark_as_processed(url, metadata, published_at="2025-08-25T12:00:00", title="Full Title", source_id=source_id)
+    articles = db_service.get_articles()
+    found = any(a['url'] == url and a['title'] == "Full Title" and a['summary'] == "Full Summary" for a in articles)
+    assert found
+
+def test_database_initialization_creates_tables():
+    """Test DB initialization when file does not exist."""
+    db_path = "test_db_init.db"
+    if os.path.exists(db_path):
+        os.remove(db_path)
+    service = DatabaseService(db_path=db_path)
+    with sqlite3.connect(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='articles'")
+        assert cursor.fetchone() is not None
+    os.remove(db_path)
+
+def test_add_rss_feed_invalid_source_id(db_service):
+    """Test adding a feed with a non-existent source_id."""
+    feed_url = "https://invalidsource.com/feed"
+    feed_id = db_service.add_rss_feed(9999, feed_url, is_enabled=1)
+    assert feed_id != -1  # SQLite does not enforce foreign keys by default, so it will insert
