@@ -39,85 +39,98 @@ def setup_logging() -> None:
     )
 
 
-def generate_digest(config_path: Optional[str] = None) -> None:
+def fetch_news(config_path: Optional[str] = None) -> None:
     """
-    Generate the daily digest.
-
-    Args:
-        config_path: Optional path to the configuration file.
+    Fetch news articles, summarize, and save to DB (no email sending).
     """
     logger = logging.getLogger(__name__)
-    logger.info("Starting daily digest generation...")
-
+    logger.info("Starting news fetch and save...")
     try:
-        # Load configuration
         config = load_config(config_path)
-
-        # Initialize components
         db_service = DatabaseService()
         feed_processor = RSSFeedProcessor()
         scraper = ArticleScraper()
         summarizer = Summarizer(config.gemini)
         content_extractor = ContentExtractor(scraper, summarizer)
-
-        # Fetch articles
         articles = feed_processor.get_all_articles(config.rss_feeds)
         logger.info(f"Retrieved {len(articles)} articles from {len(config.rss_feeds)} feeds.")
-
-        # Filter out processed articles
         processed_urls = db_service.get_processed_urls()
         new_articles = [article for article in articles if article.url not in processed_urls]
         logger.info(f"Found {len(new_articles)} new articles to process.")
-
-        # Process new articles
-        summaries = []
-
         for article in new_articles:
             try:
-                # Extract and summarize content
                 metadata = content_extractor.extract_and_summarize(article)
                 if not metadata or not metadata.get('summary'):
                     logger.warning(f"Could not summarize {article.url}. Skipping.")
                     continue
-
-                # Store article and all metadata
                 published_at = None
                 if hasattr(article, 'published_date') and article.published_date:
                     try:
                         published_at = article.published_date.isoformat()
                     except Exception:
                         published_at = str(article.published_date)
-                db_service.mark_as_processed(article.url, metadata, published_at)
-                summaries.append({
-                    'title': article.title,
-                    'link': article.url,
-                    'summary': metadata['summary'],
-                    'sentiment': metadata.get('sentiment'),
-                    'keywords': metadata.get('keywords'),
-                    'category': metadata.get('category'),
-                    'region': metadata.get('region')
-                })
-                logger.info(f"Processed and summarized: {article.title}")
-
+                db_service.mark_as_processed(article.url, metadata, published_at, title=article.title)
+                logger.info(f"Processed and saved: {article.title}")
             except Exception as e:
                 logger.error(f"Failed to process article {article.url}: {e}")
-
-        # Compile digest
-        if summaries:
-            html_digest = DigestBuilder.build_html_digest(summaries)
-            # Send email with the digest
-            notifier = EmailNotifier(config.email.__dict__)
-            subject = f"Your Daily Digest for {time.strftime('%Y-%m-%d')}"
-            notifier.send_digest(html_digest, config.email.to, subject)
-
-            logger.info("Daily digest generated and sent successfully.")
-        else:
-            logger.info("No new articles to generate a digest.")
-
-    
-
+        logger.info("News fetch and save complete.")
     except Exception as e:
-        logger.error(f"An error occurred during digest generation: {e}")
+        logger.error(f"An error occurred during news fetch: {e}")
+
+
+def send_digest(
+    config_path: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    categories: Optional[str] = None
+) -> None:
+    """
+    Generate and send the digest email for articles in a date range and category list.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info("Starting digest generation and sending...")
+    try:
+        config = load_config(config_path)
+        db_service = DatabaseService()
+        # Parse categories string to list
+        category_list = [c.strip() for c in categories.split(",")] if categories else None
+        articles = db_service.get_articles(start_date, end_date, category_list)
+        if not articles:
+            logger.info("No articles found for the given filters. No digest sent.")
+            return
+        # Map 'url' to 'link' for DigestBuilder compatibility
+        for article in articles:
+            article['link'] = article['url']
+        html_digest = DigestBuilder.build_html_digest(articles)
+        notifier = EmailNotifier(config.email.__dict__)
+        subject = f"Your Daily Digest for {time.strftime('%Y-%m-%d')}"
+        notifier.send_digest(html_digest, config.email.to, subject)
+        logger.info("Digest generated and sent successfully.")
+    except Exception as e:
+        logger.error(f"An error occurred during digest sending: {e}")
+
+
+@app.command(name="fetch-news")
+def fetch_news_command(config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to configuration file")):
+    """
+    Fetch and process news articles, saving them to the database (no email).
+    """
+    setup_logging()
+    fetch_news(config_path)
+
+
+@app.command(name="send-digest")
+def send_digest_command(
+    config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to configuration file"),
+    start_date: Optional[str] = typer.Option(None, "--start-date", help="Start date (YYYY-MM-DD) for articles to include"),
+    end_date: Optional[str] = typer.Option(None, "--end-date", help="End date (YYYY-MM-DD) for articles to include"),
+    categories: Optional[str] = typer.Option(None, "--categories", help="Comma-separated list of categories to include")
+):
+    """
+    Generate and send the digest email for articles in a date range and category list.
+    """
+    setup_logging()
+    send_digest(config_path, start_date, end_date, categories)
 
 
 @app.command(name="run")
@@ -126,7 +139,7 @@ def run_digest(config_path: Optional[str] = typer.Option(None, "--config", "-c",
     Runs the daily digest generation process.
     """
     setup_logging()
-    generate_digest(config_path)
+    fetch_news(config_path)
 
 
 @app.command(name="schedule")
@@ -144,7 +157,7 @@ def schedule_digest(config_path: Optional[str] = typer.Option(None, "--config", 
         logger.info(f"Scheduling daily digest for {schedule_time}.")
 
         # Schedule the job
-        schedule.every().day.at(schedule_time).do(generate_digest, config_path=config_path)
+        schedule.every().day.at(schedule_time).do(fetch_news, config_path=config_path)
 
         # Run the scheduler
         while True:

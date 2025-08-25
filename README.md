@@ -155,7 +155,7 @@ This project is for personal use only.
 - [ ] divide extraction of content and diggest to be different processes
 - [ ] Add a new table to track in which digest the articles were sent
 - [x] Daily digest generation and scheduling
-- [ ] Email delivery system
+- [x] Email delivery system
 - [ ] Web interface for configuration management
 - [ ] Advanced content filtering and categorization
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 

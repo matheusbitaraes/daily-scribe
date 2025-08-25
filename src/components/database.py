@@ -47,6 +47,7 @@ class DatabaseService:
                     CREATE TABLE IF NOT EXISTS articles (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         url TEXT NOT NULL UNIQUE,
+                        title TEXT,
                         summary TEXT,
                         sentiment TEXT,
                         keywords TEXT,
@@ -77,23 +78,25 @@ class DatabaseService:
             self.logger.error(f"Error getting processed URLs from database: {e}")
             return []
 
-    def mark_as_processed(self, url: str, metadata: dict, published_at: Optional[str] = None) -> None:
+    def mark_as_processed(self, url: str, metadata: dict, published_at: Optional[str] = None, title: Optional[str] = None) -> None:
         """
-        Mark an article as processed by storing its URL and NewsMetadata in the database.
+        Mark an article as processed by storing its URL, title, and NewsMetadata in the database.
 
         Args:
             url: The URL of the article to mark as processed.
             metadata: The NewsMetadata dict (summary, sentiment, keywords, category, region).
             published_at: The published date/time of the article (ISO format string or None).
+            title: The title of the article.
         """
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 keywords_str = ','.join(metadata.get('keywords', [])) if metadata.get('keywords') else None
                 cursor.execute(
-                    "INSERT INTO articles (url, summary, sentiment, keywords, category, region, published_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO articles (url, title, summary, sentiment, keywords, category, region, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         url,
+                        title,
                         metadata.get('summary'),
                         metadata.get('sentiment'),
                         keywords_str,
@@ -107,3 +110,36 @@ class DatabaseService:
             self.logger.warning(f"Article with URL {url} has already been processed.")
         except sqlite3.Error as e:
             self.logger.error(f"Error marking article as processed in database: {e}")
+
+    def get_articles(self, start_date: Optional[str] = None, end_date: Optional[str] = None, categories: Optional[list] = None) -> list:
+        """
+        Retrieve articles from the database filtered by date range and categories.
+
+        Args:
+            start_date: ISO format string (inclusive), filter articles processed after this date.
+            end_date: ISO format string (inclusive), filter articles processed before this date.
+            categories: List of category strings to filter by.
+
+        Returns:
+            List of dicts with article data.
+        """
+        query = "SELECT title, url, summary, sentiment, keywords, category, region, published_at, processed_at FROM articles WHERE 1=1"
+        params = []
+        if start_date:
+            query += " AND processed_at >= ?"
+            params.append(start_date)
+        if end_date:
+            query += " AND processed_at <= ?"
+            params.append(end_date)
+        if categories:
+            query += " AND category IN ({})".format(",".join(["?"] * len(categories)))
+            params.extend(categories)
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        except sqlite3.Error as e:
+            self.logger.error(f"Error fetching articles from database: {e}")
+            return []

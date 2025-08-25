@@ -93,7 +93,7 @@ class Summarizer:
                         time.sleep(wait_time)
                     else:
                         self.logger.warning("Could not extract wait time. Using default backoff.")
-                        time.sleep(2 ** attempt)
+                        time.sleep(4 ** attempt)
                 else:
                     self.logger.error(f"An unexpected error occurred: {error_message}")
                     break
