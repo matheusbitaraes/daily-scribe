@@ -34,40 +34,124 @@ class DigestBuilder:
         html_digest = """
         <html>
         <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
             <style>
+                /* Reset and base styles */
+                * {
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }
                 body {
-                    font-family: "Google Sans", Roboto, RobotoDraft, Helvetica, Arial, sans-serif;
-                    line-height: 26px;
-                    color: #333333
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333333;
+                    background-color: #ffffff;
+                    -webkit-text-size-adjust: 100%;
+                    -ms-text-size-adjust: 100%;
                 }
+                
+                /* Container with mobile-first approach */
                 .content {
-                    margin: 0 20%;
-                    min-width: 500px;
+                    width: 100% !important;
+                    max-width: 600px !important;
+                    margin: 0 auto !important;
+                    padding: 16px !important;
                 }
+                
+                /* Category headers - mobile optimized */
                 .category {
-                    margin-bottom: 10px;
-                    font-size: 20px;
-                    font-weight: bold;
-                    color: #0a97f5;
-                    border-bottom: 2px solid #0a97f5;
-                    padding-bottom: 5px;
+                    margin: 24px 0 16px 0 !important;
+                    font-size: 18px !important;
+                    font-weight: bold !important;
+                    color: #0a97f5 !important;
+                    border-bottom: 2px solid #0a97f5 !important;
+                    padding-bottom: 8px !important;
+                    text-transform: uppercase !important;
+                    letter-spacing: 0.5px !important;
                 }
+                
+                /* First category has less top margin */
+                .category:first-of-type {
+                    margin-top: 8px !important;
+                }
+                
+                /* Article containers */
                 .article {
-                    margin-bottom: 10px;
-                    padding-bottom: 5px;
-                    border-bottom: 1px solid #eeeeee;
+                    margin-bottom: 20px !important;
+                    padding-bottom: 16px !important;
+                    border-bottom: 1px solid #e0e0e0 !important;
                 }
-                .content .last-in-category {
+                
+                .article.last-in-category {
                     border-bottom: none !important;
+                    margin-bottom: 32px !important;
                 }
+                
+                /* Article titles - larger and more prominent on mobile */
                 .title {
-                    font-size: 17px;
-                    font-weight: 700;
+                    font-size: 16px !important;
+                    font-weight: 700 !important;
+                    line-height: 1.4 !important;
+                    color: #1a1a1a !important;
+                    margin-bottom: 8px !important;
+                    display: block !important;
                 }
+                
+                /* Summary text - optimized for mobile reading */
                 .summary {
-                    text-align: justify;
-                    font-size: 17px;
-                    color: #333333
+                    font-size: 15px !important;
+                    line-height: 1.5 !important;
+                    color: #444444 !important;
+                    text-align: left !important;
+                    margin-bottom: 8px !important;
+                }
+                
+                /* Media queries for larger screens */
+                @media screen and (min-width: 480px) {
+                    .content {
+                        padding: 24px !important;
+                    }
+                    .category {
+                        font-size: 20px !important;
+                        margin: 32px 0 20px 0 !important;
+                    }
+                    .title {
+                        font-size: 17px !important;
+                    }
+                    .summary {
+                        font-size: 16px !important;
+                    }
+                }
+                
+                @media screen and (min-width: 768px) {
+                    .content {
+                        padding: 32px !important;
+                    }
+                    .category {
+                        font-size: 22px !important;
+                    }
+                    .title {
+                        font-size: 18px !important;
+                    }
+                }
+                
+                /* Dark mode support */
+                @media (prefers-color-scheme: dark) {
+                    body {
+                        background-color: #1a1a1a !important;
+                        color: #e0e0e0 !important;
+                    }
+                    .title {
+                        color: #ffffff !important;
+                    }
+                    .summary {
+                        color: #cccccc !important;
+                    }
+                    .article {
+                        border-bottom-color: #404040 !important;
+                    }
                 }
             </style>
         </head>
@@ -82,9 +166,9 @@ class DigestBuilder:
                 article_class = "article last-in-category" if is_last_in_category else "article"
                 
                 html_digest += f"""
-                <div class=\"{article_class}\">
-                    <p class=\"summary\">
-                    <span class=\"title\">{summary['title']}:</span> {summary['summary']} <a href=\"{summary['link']}\">[link]</a>
+                <div class="{article_class}">
+                    <p class="summary">
+                    <span class="title">{summary['title']}:</span> {summary['summary']} <a href="{summary['link']}">[link]</a>
                     </p>
                 </div>
                 """

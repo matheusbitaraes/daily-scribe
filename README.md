@@ -155,8 +155,10 @@ This project is for personal use only.
 - [x] divide extraction of content and diggest to be different processes
 - [x] Daily digest generation and scheduling
 - [x] Email delivery system
-- [ ] Add a new table to track in which digest the articles were sent
+- [x] Add a new table to track in which digest the articles were sent
+- [ ] Have a new column in sources that will hide them from ones email diggest (but we will keep on fetching the article news)
+- [ ] Advanced content filtering and categorization -> add a way to curate content when digest is really big - check [here](https://gemini.google.com/gem/fdc459572bee/7c4574e44151bd6c)
 - [ ] Web interface for configuration management
-- [ ] Advanced content filtering and categorization
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 
+- [ ] Web interface to subscription
 - [ ] Local LLM integration for summarization
