@@ -42,6 +42,7 @@ class DigestBuilder:
                 }
                 .content {
                     margin: 0 20%;
+                    min-width: 500px;
                 }
                 .category {
                     margin-bottom: 10px;

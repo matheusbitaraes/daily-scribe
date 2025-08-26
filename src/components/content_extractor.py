@@ -76,7 +76,7 @@ class ContentExtractor:
             if metadata and metadata.get('summary'):
                 self.logger.debug(f"Successfully summarized {article.title}")
                 # log metadata for debugging
-                self.logger.info(f"Metadata: {metadata}")
+                # self.logger.info(f"Metadata: {metadata}")
                 return metadata
             else:
                 self.logger.warning(f"Summarization returned empty for {article.title}")
