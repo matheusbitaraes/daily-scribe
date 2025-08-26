@@ -25,6 +25,7 @@ from components.summarizer import Summarizer
 from components.notifier import EmailNotifier
 from components.content_extractor import ContentExtractor
 from components.digest_builder import DigestBuilder
+from components.news_curator import NewsCurator
 
 app = typer.Typer()
 
@@ -95,9 +96,6 @@ def fetch_news(config_path: Optional[str] = None) -> None:
 
 def send_digest(
     config_path: Optional[str] = None,
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    categories: Optional[str] = None
 ) -> None:
     """
     Generate and send the digest email for articles in a date range and category list.
@@ -108,23 +106,21 @@ def send_digest(
     try:
         config = load_config(config_path)
         db_service = DatabaseService()
-        # Parse categories string to list
-        category_list = [c.strip() for c in categories.split(",")] if categories else None
         email_address = config.email.to
-        articles = db_service.get_unsent_articles(email_address, start_date, end_date, category_list)
-        if not articles:
-            logger.info("No articles found for the given filters. No digest sent.")
+
+        curator = NewsCurator()
+        curated_articles = curator.curate_for_user(email_address)
+        if not curated_articles:
+            logger.info("No curated articles to send after applying curation rules.")
             return
-        # Map 'url' to 'link' for DigestBuilder compatibility
-        for article in articles:
-            article['link'] = article['url']
-        html_digest = DigestBuilder.build_html_digest(articles)
+            
+        html_digest = DigestBuilder.build_html_digest(curated_articles)
         notifier = EmailNotifier(config.email.__dict__)
         subject = f"Your Daily Digest for {time.strftime('%Y-%m-%d')}"
         notifier.send_digest(html_digest, email_address, subject)
         # Mark all sent articles in sent_articles table
         digest_id = uuid.uuid4()
-        for article in articles:
+        for article in curated_articles:
             # Get article_id from DB
             db_article = db_service.get_article_by_url(article['url'])
             if db_article:
@@ -146,15 +142,12 @@ def fetch_news_command(config_path: Optional[str] = typer.Option(None, "--config
 @app.command(name="send-digest")
 def send_digest_command(
     config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to configuration file"),
-    start_date: Optional[str] = typer.Option(None, "--start-date", help="Start date (YYYY-MM-DD) for articles to include"),
-    end_date: Optional[str] = typer.Option(None, "--end-date", help="End date (YYYY-MM-DD) for articles to include"),
-    categories: Optional[str] = typer.Option(None, "--categories", help="Comma-separated list of categories to include")
 ):
     """
     Generate and send the digest email for articles in a date range and category list.
     """
     setup_logging()
-    send_digest(config_path, start_date, end_date, categories)
+    send_digest(config_path)
 
 
 @app.command(name="run")

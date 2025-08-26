@@ -168,7 +168,7 @@ class DigestBuilder:
                 html_digest += f"""
                 <div class="{article_class}">
                     <p class="summary">
-                    <span class="title">{summary['title']}:</span> {summary['summary']} <a href="{summary['link']}">[link]</a>
+                    <span class="title">{summary['title']}:</span> {summary['summary']} <a href="{summary['url']}">[link]</a>
                     </p>
                 </div>
                 """
