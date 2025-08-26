@@ -7,6 +7,7 @@ including storing and retrieving processed article URLs.
 
 import logging
 import sqlite3
+import uuid
 from pathlib import Path
 from typing import List, Optional
 
@@ -77,10 +78,87 @@ class DatabaseService:
                         FOREIGN KEY (source_id) REFERENCES sources(id)
                     );
                 """)
+                # Create sent_articles table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS sent_articles (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        article_id INTEGER NOT NULL,
+                        digest_id UUID NOT NULL,
+                        email_address TEXT NOT NULL,
+                        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (article_id) REFERENCES articles (id)
+                    );
+                """)
                 conn.commit()
         except sqlite3.Error as e:
             self.logger.error(f"Error creating database tables: {e}")
             raise
+
+    def get_article_by_url(self, url: str) -> Optional[dict]:
+        """
+        Get an article by its URL.
+
+        Args:
+            url: The URL of the article.
+
+        Returns:
+            A dict with article data or None if not found.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, url, title, summary, sentiment, keywords, category, region, published_at, processed_at, source_id FROM articles WHERE url = ?", (url,))
+                row = cursor.fetchone()
+                if row:
+                    columns = [desc[0] for desc in cursor.description]
+                    return dict(zip(columns, row))
+                return None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error getting article by URL from database: {e}")
+            return None
+
+    def add_sent_article(self, article_id: int, digest_id: uuid.UUID, email_address: str) -> None:
+        """
+        Record that an article has been sent in an email.
+
+        Args:
+            article_id: The ID of the article.
+            digest_id: The ID of the digest.
+            email_address: The email address the article was sent to.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO sent_articles (article_id, digest_id, email_address) VALUES (?, ?, ?)",
+                    (article_id, str(digest_id), email_address)
+                )
+                conn.commit()
+        except sqlite3.Error as e:
+            self.logger.error(f"Error adding sent article to database: {e}")
+
+    def check_if_article_sent(self, article_id: int, email_address: str) -> bool:
+        """
+        Check if an article has already been sent to a specific email address.
+
+        Args:
+            article_id: The ID of the article.
+            email_address: The email address to check.
+
+        Returns:
+            True if the article has been sent, False otherwise.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT 1 FROM sent_articles WHERE article_id = ? AND email_address = ?",
+                    (article_id, email_address)
+                )
+                return cursor.fetchone() is not None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error checking if article was sent: {e}")
+            return False
 
     def get_processed_urls(self) -> List[str]:
         """
@@ -254,3 +332,41 @@ class DatabaseService:
         except sqlite3.Error as e:
             self.logger.error(f"Error fetching articles from database: {e}")
             return []
+
+    def get_sent_article_ids_for_email(self, email_address: str) -> set:
+        """
+        Get a set of article IDs that have already been sent to the given email address.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT article_id FROM sent_articles WHERE email_address = ?", (email_address,))
+                return set(row[0] for row in cursor.fetchall())
+        except sqlite3.Error as e:
+            self.logger.error(f"Error getting sent article IDs: {e}")
+            return set()
+
+    def get_unsent_articles(self, email_address: str, start_date: Optional[str] = None, end_date: Optional[str] = None, categories: Optional[list] = None) -> list:
+        """
+        Retrieve articles that have NOT been sent to the given email address, filtered by date and category.
+        """
+        sent_ids = self.get_sent_article_ids_for_email(email_address)
+        all_articles = self.get_articles(start_date, end_date, categories)
+        if not sent_ids:
+            return all_articles
+        # get_articles returns dicts with 'url', but we need article id
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # Map url to id for all articles
+                url_to_id = {}
+                for article in all_articles:
+                    cursor.execute("SELECT id FROM articles WHERE url = ?", (article['url'],))
+                    row = cursor.fetchone()
+                    if row:
+                        url_to_id[article['url']] = row[0]
+                # Filter out articles whose id is in sent_ids
+                return [a for a in all_articles if url_to_id.get(a['url']) not in sent_ids]
+        except sqlite3.Error as e:
+            self.logger.error(f"Error filtering unsent articles: {e}")
+            return all_articles

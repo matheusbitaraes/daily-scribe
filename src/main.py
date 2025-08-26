@@ -7,6 +7,7 @@ This module handles the scheduling and execution of the daily digest generation.
 import sys
 import logging
 import time
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -100,6 +101,7 @@ def send_digest(
 ) -> None:
     """
     Generate and send the digest email for articles in a date range and category list.
+    Only send articles that have not already been sent to the recipient.
     """
     logger = logging.getLogger(__name__)
     logger.info("Starting digest generation and sending...")
@@ -108,7 +110,8 @@ def send_digest(
         db_service = DatabaseService()
         # Parse categories string to list
         category_list = [c.strip() for c in categories.split(",")] if categories else None
-        articles = db_service.get_articles(start_date, end_date, category_list)
+        email_address = config.email.to
+        articles = db_service.get_unsent_articles(email_address, start_date, end_date, category_list)
         if not articles:
             logger.info("No articles found for the given filters. No digest sent.")
             return
@@ -118,7 +121,14 @@ def send_digest(
         html_digest = DigestBuilder.build_html_digest(articles)
         notifier = EmailNotifier(config.email.__dict__)
         subject = f"Your Daily Digest for {time.strftime('%Y-%m-%d')}"
-        notifier.send_digest(html_digest, config.email.to, subject)
+        notifier.send_digest(html_digest, email_address, subject)
+        # Mark all sent articles in sent_articles table
+        digest_id = uuid.uuid4()
+        for article in articles:
+            # Get article_id from DB
+            db_article = db_service.get_article_by_url(article['url'])
+            if db_article:
+                db_service.add_sent_article(db_article['id'], digest_id=digest_id, email_address=email_address)
         logger.info("Digest generated and sent successfully.")
     except Exception as e:
         logger.error(f"An error occurred during digest sending: {e}")

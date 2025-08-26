@@ -5,6 +5,7 @@ Tests for the database service component.
 import os
 import sqlite3
 import pytest
+import uuid
 from pathlib import Path
 
 # Add src to path for imports
@@ -183,3 +184,53 @@ def test_add_rss_feed_invalid_source_id(db_service):
     feed_url = "https://invalidsource.com/feed"
     feed_id = db_service.add_rss_feed(9999, feed_url, is_enabled=1)
     assert feed_id != -1  # SQLite does not enforce foreign keys by default, so it will insert
+
+def test_add_sent_article_uuid(db_service):
+    """Test that sent_articles accepts and stores UUID digest_id correctly."""
+    source_id = db_service.add_source("UUID Source")
+    db_service.add_rss_feed(source_id, "https://uuid.com/feed", is_enabled=1)
+    url = "https://uuid.com/article"
+    metadata = {"summary": "Summary", "sentiment": "Neutral", "keywords": ["a"], "category": "Test", "region": "US"}
+    db_service.mark_as_processed(url, metadata, published_at=None, title="Title", source_id=source_id)
+    article = db_service.get_article_by_url(url)
+    digest_id = str(uuid.uuid4())
+    db_service.add_sent_article(article_id=article["id"], digest_id=digest_id, email_address="test@example.com")
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT digest_id FROM sent_articles WHERE article_id=?", (article["id"],))
+        row = cursor.fetchone()
+        assert row is not None
+        assert row[0] == digest_id
+
+def test_sent_articles_prevent_resend(db_service):
+    """Test that get_unsent_articles does not return already sent articles for the same email."""
+    source_id = db_service.add_source("Resend Source")
+    db_service.add_rss_feed(source_id, "https://resend.com/feed", is_enabled=1)
+    url = "https://resend.com/article"
+    metadata = {"summary": "Summary", "sentiment": "Neutral", "keywords": ["a"], "category": "Test", "region": "US"}
+    db_service.mark_as_processed(url, metadata, published_at=None, title="Title", source_id=source_id)
+    article = db_service.get_article_by_url(url)
+    digest_id = str(uuid.uuid4())
+    email = "resend@example.com"
+    db_service.add_sent_article(article_id=article["id"], digest_id=digest_id, email_address=email)
+    unsent = db_service.get_unsent_articles(email)
+    assert all(a["url"] != url for a in unsent)
+
+def test_sent_articles_duplicate_digest(db_service):
+    """Test that multiple digests for the same article/email are stored separately."""
+    source_id = db_service.add_source("DupDigest Source")
+    db_service.add_rss_feed(source_id, "https://dup.com/feed", is_enabled=1)
+    url = "https://dup.com/article"
+    metadata = {"summary": "Summary", "sentiment": "Neutral", "keywords": ["a"], "category": "Test", "region": "US"}
+    db_service.mark_as_processed(url, metadata, published_at=None, title="Title", source_id=source_id)
+    article = db_service.get_article_by_url(url)
+    email = "dup@example.com"
+    digest1 = str(uuid.uuid4())
+    digest2 = str(uuid.uuid4())
+    db_service.add_sent_article(article_id=article["id"], digest_id=digest1, email_address=email)
+    db_service.add_sent_article(article_id=article["id"], digest_id=digest2, email_address=email)
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM sent_articles WHERE article_id=? AND email_address=?", (article["id"], email))
+        count = cursor.fetchone()[0]
+        assert count == 2
