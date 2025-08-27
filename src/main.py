@@ -231,5 +231,34 @@ def generate_article_embeddings_command(
     except Exception as e:
         logger.error(f"Error during article embedding generation: {e}")
 
+
+@app.command(name="full-run")
+def full_run_command(
+    config_path: str = typer.Option("config.json", "--config", "-c", help="Path to configuration file"),
+    db_path: str = typer.Option("data/digest_history.db", "--db-path", help="Path to the SQLite database file"),
+    openai_api_key: str = typer.Option(None, "--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key (or set OPENAI_API_KEY env var)")
+):
+    """
+    Run the full pipeline: fetch articles, generate embeddings, and send the digest.
+    """
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    logger.info("[1/3] Fetching articles...")
+    fetch_news(config_path)
+    logger.info("[2/3] Generating embeddings...")
+    if not openai_api_key:
+        import os
+        openai_api_key = os.environ.get("OPENAI_API_KEY")
+    if not openai_api_key:
+        logger.error("OPENAI_API_KEY must be set in environment or passed as argument.")
+        raise typer.Exit(1)
+    from components.article_clusterer import ArticleClusterer
+    clusterer = ArticleClusterer(openai_api_key=openai_api_key)
+    clusterer.generate_embeddings()
+    logger.info("[3/3] Sending digest...")
+    send_digest(config_path)
+    logger.info("Full pipeline complete.")
+
+
 if __name__ == "__main__":
     app()
