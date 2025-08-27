@@ -89,7 +89,7 @@ class DatabaseService:
                         FOREIGN KEY (article_id) REFERENCES articles (id)
                     );
                 """)
-                # Create user_preferences table
+                # Create user_preferences table with keywords column
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS user_preferences (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,6 +97,7 @@ class DatabaseService:
                         enabled_sources TEXT, -- comma-separated source names or ids
                         enabled_categories TEXT, -- comma-separated category names
                         max_news_per_category INTEGER DEFAULT 10,
+                        keywords TEXT, -- comma-separated keywords representing user interests
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
                 """)
@@ -121,6 +122,17 @@ class DatabaseService:
                     clustering_run_id TEXT NOT NULL,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (article_id) REFERENCES articles(id)
+                )
+            ''')
+            
+            # Create user_preferences_embeddings table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_preferences_embeddings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_preferences_id INTEGER NOT NULL,
+                    embedding BLOB NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_preferences_id) REFERENCES user_preferences(id)
                 )
             ''')
             conn.commit()
@@ -427,7 +439,7 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "SELECT enabled_sources, enabled_categories, max_news_per_category FROM user_preferences WHERE email_address = ? ORDER BY updated_at DESC LIMIT 1",
+                    "SELECT enabled_sources, enabled_categories, max_news_per_category, keywords FROM user_preferences WHERE email_address = ? ORDER BY updated_at DESC LIMIT 1",
                     (email_address,)
                 )
                 row = cursor.fetchone()
@@ -435,7 +447,8 @@ class DatabaseService:
                     return {
                         'enabled_sources': row[0].split(',') if row[0] else [],
                         'enabled_categories': row[1].split(',') if row[1] else [],
-                        'max_news_per_category': row[2] if row[2] is not None else 10
+                        'max_news_per_category': row[2] if row[2] is not None else 10,
+                        'keywords': row[3].split(',') if row[3] else []
                     }
                 return None
         except sqlite3.Error as e:
@@ -592,3 +605,71 @@ class DatabaseService:
         except Exception as e:
             self.logger.error(f"Error analyzing clusters: {e}")
             return {}
+
+    def store_user_embedding(self, email_address: str, embedding: list):
+        """
+        Store or update the embedding for a user's preferences.
+        Args:
+            email_address: The user's email address.
+            embedding: The embedding vector as a list of floats or bytes.
+        """
+        import numpy as np
+        embedding_bytes = (
+            embedding if isinstance(embedding, (bytes, bytearray))
+            else np.array(embedding, dtype=np.float32).tobytes()
+        )
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # Get the latest user_preferences id for this user
+                cursor.execute(
+                    "SELECT id FROM user_preferences WHERE email_address = ? ORDER BY updated_at DESC LIMIT 1",
+                    (email_address,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    raise ValueError(f"No user_preferences found for {email_address}")
+                user_preferences_id = row[0]
+                # Insert or replace embedding for this user_preferences_id
+                cursor.execute(
+                    '''INSERT OR REPLACE INTO user_preferences_embeddings (user_preferences_id, embedding) VALUES (?, ?)''',
+                    (user_preferences_id, embedding_bytes)
+                )
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error storing user embedding: {e}")
+
+    def get_user_embedding(self, email_address: str):
+        """
+        Retrieve the latest embedding for a user's preferences.
+        Args:
+            email_address: The user's email address.
+        Returns:
+            The embedding as a numpy array, or None if not found.
+        """
+        import numpy as np
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # Get the latest user_preferences id for this user
+                cursor.execute(
+                    "SELECT id FROM user_preferences WHERE email_address = ? ORDER BY updated_at DESC LIMIT 1",
+                    (email_address,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                user_preferences_id = row[0]
+                # Get the latest embedding for this user_preferences_id
+                cursor.execute(
+                    '''SELECT embedding FROM user_preferences_embeddings WHERE user_preferences_id = ? ORDER BY created_at DESC LIMIT 1''',
+                    (user_preferences_id,)
+                )
+                emb_row = cursor.fetchone()
+                if not emb_row:
+                    return None
+                embedding_bytes = emb_row[0]
+                return np.frombuffer(embedding_bytes, dtype=np.float32)
+        except Exception as e:
+            self.logger.error(f"Error retrieving user embedding: {e}")
+            return None

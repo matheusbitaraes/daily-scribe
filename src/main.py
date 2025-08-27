@@ -108,6 +108,11 @@ def send_digest(
         db_service = DatabaseService()
         email_address = config.email.to
 
+        # Update user embedding before curation
+        from components.article_clusterer import ArticleClusterer
+        clusterer = ArticleClusterer()
+        clusterer.update_user_embedding(email_address)
+
         curator = NewsCurator()
         curated_articles = curator.curate_for_user(email_address)
         if not curated_articles:
@@ -115,7 +120,6 @@ def send_digest(
             return
 
         # Cluster similar articles
-        from components.article_clusterer import ArticleClusterer
         clusterer = ArticleClusterer()
         clustered_curated_articles = []
         used_article_ids = set()

@@ -124,6 +124,45 @@ class ArticleClusterer:
                 break
         return results
 
+    def update_user_embedding(self, email_address: str) -> List[float]:
+        """
+        Generate an embedding for a user based on their preferences in the database.
+        Args:
+            email_address: The user's email address.
+        Returns:
+            Embedding vector as a list of floats.
+        """
+        # Fetch user preferences from the database
+        prefs = self.db_service.get_user_preferences(email_address)
+        
+        if not prefs:
+            raise ValueError(f"No user preferences found for {email_address}")
+        categories = prefs.get('enabled_categories', [])
+        user_keywords = prefs.get('keywords', [])
+
+        print(f"User preferences for {email_address}: categories={categories}, keywords={user_keywords}")
+        
+        # Combine keywords and categories into a single text string
+        text_parts = []
+        if user_keywords:
+            text_parts.append("Keywords: " + ", ".join(user_keywords))
+        if categories:
+            text_parts.append("Categories: " + ", ".join(categories))
+        user_text = " | ".join(text_parts)
+        if not user_text.strip():
+            # raise warning but no error and return None
+            logger.warning("No user keywords or categories provided for embedding.")
+            return None
+
+        embedding = self.get_embedding(user_text)
+
+        # Store or update the user embedding in the database
+        self.db_service.store_user_embedding(email_address, embedding)
+        return embedding
+    
+    def get_user_embedding(self, email_address: str) -> List[float]:
+        return self.db_service.get_user_embedding(email_address)
+
 def main():
     """Example usage"""
     # Configuration
