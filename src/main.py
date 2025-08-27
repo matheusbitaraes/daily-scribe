@@ -247,9 +247,9 @@ def full_run_command(
     """
     setup_logging()
     logger = logging.getLogger(__name__)
-    logger.info("[1/3] Fetching articles...")
+    logger.info("[1/2] Fetching articles...")
     fetch_news(config_path)
-    logger.info("[2/3] Generating embeddings...")
+    logger.info("[2/2] Generating embeddings...")
     if not openai_api_key:
         import os
         openai_api_key = os.environ.get("OPENAI_API_KEY")
@@ -259,8 +259,6 @@ def full_run_command(
     from components.article_clusterer import ArticleClusterer
     clusterer = ArticleClusterer(openai_api_key=openai_api_key)
     clusterer.generate_embeddings()
-    logger.info("[3/3] Sending digest...")
-    send_digest(config_path)
     logger.info("Full pipeline complete.")
 
 
