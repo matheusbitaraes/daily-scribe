@@ -156,8 +156,9 @@ This project is for personal use only.
 - [x] Daily digest generation and scheduling
 - [x] Email delivery system
 - [x] Add a new table to track in which digest the articles were sent
-- [ ] Have a new column in sources that will hide them from ones email diggest (but we will keep on fetching the article news)
-- [ ] Advanced content filtering and categorization -> add a way to curate content when digest is really big - check [here](https://gemini.google.com/gem/fdc459572bee/7c4574e44151bd6c)
+- [x] Have a new column in sources that will hide them from ones email diggest (but we will keep on fetching the article news)
+- [x] Advanced content filtering and categorization -> add a way to curate content when digest is really big - check [here](https://gemini.google.com/gem/fdc459572bee/7c4574e44151bd6c)
+- [x] Similar news showing clustered
 - [ ] Web interface for configuration management
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 
 - [ ] Web interface to subscription

@@ -100,7 +100,30 @@ class DatabaseService:
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
                 """)
-                conn.commit()
+
+            # Create embeddings and clusters tables
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS article_embeddings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    article_id INTEGER NOT NULL UNIQUE,
+                    embedding BLOB NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (article_id) REFERENCES articles(id)
+                )
+            ''')
+            
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS article_clusters (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    article_id INTEGER NOT NULL,
+                    cluster_id INTEGER NOT NULL,
+                    similarity_score REAL,
+                    clustering_run_id TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (article_id) REFERENCES articles(id)
+                )
+            ''')
+            conn.commit()
         except sqlite3.Error as e:
             self.logger.error(f"Error creating database tables: {e}")
             raise
@@ -323,7 +346,7 @@ class DatabaseService:
         Returns:
             List of dicts with article data.
         """
-        query = "SELECT title, url, summary, sentiment, keywords, category, region, published_at, processed_at FROM articles WHERE 1=1"
+        query = "SELECT id, title, url, summary, sentiment, keywords, category, region, published_at, processed_at FROM articles WHERE 1=1"
         params = []
         if start_date:
             query += " AND published_at >= ?"
@@ -439,3 +462,133 @@ class DatabaseService:
         except sqlite3.Error as e:
             self.logger.error(f"Error setting user preferences: {e}")
             return
+
+    def get_articles_without_embeddings(self) -> list:
+        """
+        Return articles (id, title, summary, keywords, category) that do not have embeddings yet.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT a.id, a.title, a.summary, a.keywords, a.category
+                    FROM articles a
+                    LEFT JOIN article_embeddings ae ON a.id = ae.article_id
+                    WHERE ae.article_id IS NULL
+                    AND a.title IS NOT NULL
+                    ORDER BY a.id
+                ''')
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        except Exception as e:
+            self.logger.error(f"Error fetching articles without embeddings: {e}")
+            return []
+
+    def store_article_embedding(self, article_id: int, embedding_bytes: bytes):
+        """
+        Store embedding bytes for an article.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT OR REPLACE INTO article_embeddings (article_id, embedding)
+                    VALUES (?, ?)
+                ''', (article_id, embedding_bytes))
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error storing article embedding: {e}")
+
+    def get_all_article_embeddings(self):
+        """
+        Return (embeddings_matrix, article_ids) for all articles with embeddings.
+        """
+        import numpy as np
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT ae.article_id, ae.embedding
+                    FROM article_embeddings ae
+                    INNER JOIN articles a ON ae.article_id = a.id
+                    ORDER BY ae.article_id
+                ''')
+                embeddings = []
+                article_ids = []
+                for article_id, embedding_bytes in cursor.fetchall():
+                    embedding = np.frombuffer(embedding_bytes, dtype=np.float32)
+                    embeddings.append(embedding)
+                    article_ids.append(article_id)
+                return (np.array(embeddings), article_ids)
+        except Exception as e:
+            self.logger.error(f"Error fetching all article embeddings: {e}")
+            return ([], [])
+
+    def store_article_clusters(self, article_ids, cluster_labels, similarity_scores, run_id):
+        """
+        Store clustering results for articles.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('DELETE FROM article_clusters WHERE clustering_run_id = ?', (run_id,))
+                for article_id, cluster_id, similarity_score in zip(article_ids, cluster_labels, similarity_scores):
+                    cursor.execute('''
+                        INSERT INTO article_clusters 
+                        (article_id, cluster_id, similarity_score, clustering_run_id)
+                        VALUES (?, ?, ?, ?)
+                    ''', (article_id, cluster_id, similarity_score, run_id))
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error storing article clusters: {e}")
+
+    def get_article_by_id(self, article_id: int):
+        """
+        Return article dict by id.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('SELECT id, title, summary, category, url FROM articles WHERE id = ?', (article_id,))
+                row = cursor.fetchone()
+                if row:
+                    columns = [desc[0] for desc in cursor.description]
+                    return dict(zip(columns, row))
+                return None
+        except Exception as e:
+            self.logger.error(f"Error getting article by id: {e}")
+            return None
+
+    def analyze_clusters(self, run_id: str):
+        """
+        Return cluster analysis for a given run_id.
+        """
+        import pandas as pd
+        try:
+            with self._get_connection() as conn:
+                query = '''
+                    SELECT 
+                        ac.cluster_id,
+                        COUNT(*) as article_count,
+                        AVG(ac.similarity_score) as avg_similarity,
+                        GROUP_CONCAT(DISTINCT a.category) as categories,
+                        GROUP_CONCAT(a.title, ' | ') as sample_titles
+                    FROM article_clusters ac
+                    JOIN articles a ON ac.article_id = a.id
+                    WHERE ac.clustering_run_id = ?
+                    GROUP BY ac.cluster_id
+                    ORDER BY article_count DESC
+                '''
+                df = pd.read_sql_query(query, conn, params=(run_id,))
+                df['sample_titles'] = df['sample_titles'].apply(
+                    lambda x: (x[:200] + '...') if len(str(x)) > 200 else x
+                )
+                return {
+                    'total_clusters': len(df),
+                    'total_articles': df['article_count'].sum(),
+                    'avg_cluster_size': df['article_count'].mean(),
+                    'cluster_details': df.to_dict('records')
+                }
+        except Exception as e:
+            self.logger.error(f"Error analyzing clusters: {e}")
+            return {}

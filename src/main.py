@@ -113,15 +113,34 @@ def send_digest(
         if not curated_articles:
             logger.info("No curated articles to send after applying curation rules.")
             return
-            
-        html_digest = DigestBuilder.build_html_digest(curated_articles)
+
+        # Cluster similar articles
+        from components.article_clusterer import ArticleClusterer
+        clusterer = ArticleClusterer()
+        clustered_curated_articles = []
+        used_article_ids = set()
+        for article in curated_articles:
+            if article['id'] in used_article_ids:
+                continue
+            cluster = [article]
+            used_article_ids.add(article['id'])
+            try:
+                similar = clusterer.get_similar_articles(article['id'], top_k=5, similarity_threshold=0.55)
+                for sim_article in similar:
+                    if sim_article['id'] not in used_article_ids:
+                        cluster.append(sim_article)
+                        used_article_ids.add(sim_article['id'])
+            except Exception as e:
+                logger.warning(f"Could not get similar articles for {article['id']}: {e}")
+            clustered_curated_articles.append(cluster)
+
+        html_digest = DigestBuilder.build_html_digest(clustered_curated_articles)
         notifier = EmailNotifier(config.email.__dict__)
         subject = f"Your Daily Digest for {time.strftime('%Y-%m-%d')}"
         notifier.send_digest(html_digest, email_address, subject)
         # Mark all sent articles in sent_articles table
         digest_id = uuid.uuid4()
         for article in curated_articles:
-            # Get article_id from DB
             db_article = db_service.get_article_by_url(article['url'])
             if db_article:
                 db_service.add_sent_article(db_article['id'], digest_id=digest_id, email_address=email_address)
@@ -191,6 +210,26 @@ def schedule_digest(config_path: Optional[str] = typer.Option(None, "--config", 
         logger.error(f"An unexpected error occurred: {e}")
         sys.exit(1)
 
+
+@app.command(name="generate-article-embeddings")
+def generate_article_embeddings_command(
+    db_path: str = typer.Option("data/digest_history.db", "--db-path", help="Path to the SQLite database file"),
+    openai_api_key: str = typer.Option(..., "--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key (or set OPENAI_API_KEY env var)")
+):
+    """
+    Generate OpenAI embeddings for all articles in the database that do not have embeddings yet.
+    """
+    setup_logging()
+    from components.article_clusterer import ArticleClusterer
+    logger = logging.getLogger(__name__)
+    logger.info("Starting article embedding generation process...")
+    try:
+        clusterer = ArticleClusterer(db_path, openai_api_key)
+        logger.info("Generating embeddings for articles without embeddings...")
+        clusterer.generate_embeddings()
+        logger.info("Embedding generation complete.")
+    except Exception as e:
+        logger.error(f"Error during article embedding generation: {e}")
 
 if __name__ == "__main__":
     app()
