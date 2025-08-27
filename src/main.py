@@ -239,7 +239,6 @@ def generate_article_embeddings_command(
 @app.command(name="full-run")
 def full_run_command(
     config_path: str = typer.Option("config.json", "--config", "-c", help="Path to configuration file"),
-    db_path: str = typer.Option("data/digest_history.db", "--db-path", help="Path to the SQLite database file"),
     openai_api_key: str = typer.Option(None, "--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key (or set OPENAI_API_KEY env var)")
 ):
     """
