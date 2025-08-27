@@ -89,6 +89,17 @@ class DatabaseService:
                         FOREIGN KEY (article_id) REFERENCES articles (id)
                     );
                 """)
+                # Create user_preferences table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS user_preferences (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        email_address TEXT NOT NULL,
+                        enabled_sources TEXT, -- comma-separated source names or ids
+                        enabled_categories TEXT, -- comma-separated category names
+                        max_news_per_category INTEGER DEFAULT 10,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
                 conn.commit()
         except sqlite3.Error as e:
             self.logger.error(f"Error creating database tables: {e}")
@@ -346,27 +357,85 @@ class DatabaseService:
             self.logger.error(f"Error getting sent article IDs: {e}")
             return set()
 
-    def get_unsent_articles(self, email_address: str, start_date: Optional[str] = None, end_date: Optional[str] = None, categories: Optional[list] = None) -> list:
+    def get_unsent_articles(self, email_address: str, start_date: Optional[str] = None, end_date: Optional[str] = None, categories: Optional[list] = None, enabled_sources: Optional[list] = None, enabled_categories: Optional[list] = None) -> list:
         """
-        Retrieve articles that have NOT been sent to the given email address, filtered by date and category.
+        Retrieve articles that have NOT been sent to the given email address, filtered by date, category, and user preferences.
         """
         sent_ids = self.get_sent_article_ids_for_email(email_address)
         all_articles = self.get_articles(start_date, end_date, categories)
         if not sent_ids:
-            return all_articles
-        # get_articles returns dicts with 'url', but we need article id
+            filtered = all_articles
+        else:
+            try:
+                with self._get_connection() as conn:
+                    cursor = conn.cursor()
+                    url_to_id = {}
+                    for article in all_articles:
+                        cursor.execute("SELECT id FROM articles WHERE url = ?", (article['url'],))
+                        row = cursor.fetchone()
+                        if row:
+                            url_to_id[article['url']] = row[0]
+                    filtered = [a for a in all_articles if url_to_id.get(a['url']) not in sent_ids]
+            except sqlite3.Error as e:
+                self.logger.error(f"Error filtering unsent articles: {e}")
+                filtered = all_articles
+        # Apply enabled_sources and enabled_categories filters
+        if enabled_sources:
+            enabled_sources_set = set(str(s) for s in enabled_sources)
+            filtered = [a for a in filtered if str(a.get('source_id')) in enabled_sources_set]
+        if enabled_categories:
+            enabled_categories_set = set(enabled_categories)
+            def has_enabled_category(article):
+                cats = article.get('category')
+                if not cats:
+                    cats = ['uncategorized']
+                elif isinstance(cats, str):
+                    cats = [cats]
+                return bool(set(cats) & enabled_categories_set)
+            filtered = [a for a in filtered if has_enabled_category(a)]
+        return filtered
+
+    def get_user_preferences(self, email_address: str) -> Optional[dict]:
+        """
+        Retrieve user preferences for a given email address.
+        Returns a dict with enabled_sources, enabled_categories, max_news_per_category, or None if not set.
+        """
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                # Map url to id for all articles
-                url_to_id = {}
-                for article in all_articles:
-                    cursor.execute("SELECT id FROM articles WHERE url = ?", (article['url'],))
-                    row = cursor.fetchone()
-                    if row:
-                        url_to_id[article['url']] = row[0]
-                # Filter out articles whose id is in sent_ids
-                return [a for a in all_articles if url_to_id.get(a['url']) not in sent_ids]
+                cursor.execute(
+                    "SELECT enabled_sources, enabled_categories, max_news_per_category FROM user_preferences WHERE email_address = ? ORDER BY updated_at DESC LIMIT 1",
+                    (email_address,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        'enabled_sources': row[0].split(',') if row[0] else [],
+                        'enabled_categories': row[1].split(',') if row[1] else [],
+                        'max_news_per_category': row[2] if row[2] is not None else 10
+                    }
+                return None
         except sqlite3.Error as e:
-            self.logger.error(f"Error filtering unsent articles: {e}")
-            return all_articles
+            self.logger.error(f"Error getting user preferences: {e}")
+            return None
+
+    def set_user_preferences(self, email_address: str, enabled_sources: Optional[list] = None, enabled_categories: Optional[list] = None, max_news_per_category: Optional[int] = 10) -> None:
+        """
+        Set or update user preferences for a given email address.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO user_preferences (email_address, enabled_sources, enabled_categories, max_news_per_category, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                    (
+                        email_address,
+                        ','.join(enabled_sources) if enabled_sources else None,
+                        ','.join(enabled_categories) if enabled_categories else None,
+                        max_news_per_category
+                    )
+                )
+                conn.commit()
+        except sqlite3.Error as e:
+            self.logger.error(f"Error setting user preferences: {e}")
+            return
