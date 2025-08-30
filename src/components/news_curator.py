@@ -21,9 +21,9 @@ class NewsCurator:
         enabled_categories = prefs['enabled_categories'] if prefs and prefs.get('enabled_categories') else None
         max_news_per_category = prefs['max_news_per_category'] if prefs and prefs.get('max_news_per_category') is not None else 10
 
-        # Date range: last 48 hours
+        # Date range: last 24 hours
         end_date = datetime.now(timezone.utc)
-        start_date = end_date - timedelta(hours=48)
+        start_date = end_date - timedelta(hours=24)
         start_date_str = start_date.isoformat()
         end_date_str = end_date.isoformat()
 

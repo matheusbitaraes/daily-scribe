@@ -96,6 +96,7 @@ def fetch_news(config_path: Optional[str] = None) -> None:
 
 def send_digest(
     config_path: Optional[str] = None,
+    email_address: Optional[str] = None,
 ) -> None:
     """
     Generate and send the digest email for articles in a date range and category list.
@@ -106,7 +107,7 @@ def send_digest(
     try:
         config = load_config(config_path)
         db_service = DatabaseService()
-        email_address = config.email.to
+        email_address = email_address or config.email.to
 
         # Update user embedding before curation
         from components.article_clusterer import ArticleClusterer
@@ -165,12 +166,26 @@ def fetch_news_command(config_path: Optional[str] = typer.Option(None, "--config
 @app.command(name="send-digest")
 def send_digest_command(
     config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to configuration file"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Generate the digest but do not send the email"),
 ):
     """
     Generate and send the digest email for articles in a date range and category list.
     """
     setup_logging()
-    send_digest(config_path)
+
+    if dry_run:
+        send_digest(config_path)
+    else:
+        db_service = DatabaseService()
+        email_addresses = db_service.get_all_user_email_addresses()
+        if not email_addresses:
+            logging.getLogger(__name__).info("No user email addresses found in the database.")
+            return
+        for email in email_addresses:
+            try:
+                send_digest(config_path, email_address=email)
+            except Exception as e:
+                logging.getLogger(__name__).error(f"Failed to send digest to {email}: {e}")
 
 
 @app.command(name="run")

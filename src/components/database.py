@@ -673,3 +673,16 @@ class DatabaseService:
         except Exception as e:
             self.logger.error(f"Error retrieving user embedding: {e}")
             return None
+
+    def get_all_user_email_addresses(self) -> list:
+        """
+        Return a list of all unique user email addresses from the user_preferences table.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT DISTINCT email_address FROM user_preferences")
+                return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            self.logger.error(f"Error fetching user email addresses: {e}")
+            return []
