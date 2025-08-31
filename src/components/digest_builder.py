@@ -5,9 +5,11 @@ This module handles building the HTML digest from article summaries.
 """
 
 from typing import List, Dict
+from collections import defaultdict
 
-STANDAND_CATEGORY_ORDER = [
-    'Politics', 'Technology', 'Science and Health', 'Business', 'Entertainment', 'Sports', 'Other' ]
+STANDARD_CATEGORY_ORDER = [  # Fixed typo: STANDAND -> STANDARD
+    'Politics', 'Technology', 'Science and Health', 'Business', 'Entertainment', 'Sports', 'Other'
+]
 
 class DigestBuilder:
     @staticmethod
@@ -22,28 +24,12 @@ class DigestBuilder:
             'Other': 'Outros'
         }
 
-        # Flatten clusters
-        all_summaries = []
-        for cluster in clustered_summaries:
-            if cluster:
-                all_summaries.extend(cluster)
-
-        from collections import defaultdict
+        # Group clusters by category
         categories = defaultdict(list)
-        ordered_summaries = DigestBuilder.order_summaries(all_summaries, STANDAND_CATEGORY_ORDER)
-
-        ordered_clusters = []
         for cluster in clustered_summaries:
             if cluster:
-                cluster_ordered = sorted(
-                    cluster,
-                    key=lambda x: next((i for i, s in enumerate(ordered_summaries) if s == x), float('inf'))
-                )
-                ordered_clusters.append(cluster_ordered)
-
-        for cluster in ordered_clusters:
-            if cluster:
-                category = cluster[0].get('category', 'Outros') or 'Outros'
+                # Use the first article's category for the entire cluster
+                category = cluster[0].get('category', 'Other') or 'Other'
                 category_pt = category_translation.get(category, category)
                 categories[category_pt].append(cluster)
 
@@ -117,55 +103,57 @@ class DigestBuilder:
         <div class="content">
         """
 
-        for category, clusters in categories.items():
-            html_digest += f'<div class="category">{category}</div>'
-            for cluster in clusters:
-                html_digest += '<div class="cluster">'
-                main_article = cluster[0]
-                html_digest += f"""
-                <div class="main-article">
-                    <p class="summary">
-                        <span class="title">{main_article['title']}:</span>
-                        {main_article['summary']} <a href="{main_article['url']}">[link]</a>
-                    </p>
-                </div>
-                """
-                if len(cluster) > 1:
-                    html_digest += '<ul class="related-list">'
-                    for article in cluster[1:]:
-                        html_digest += f"""
-                        <li>
-                            <a href="{article['url']}">{article['title']}</a>
-                        </li>
-                        """
-                    html_digest += '</ul>'
-                html_digest += '</div>'
+        # Process categories in the specified order
+        for category_en in STANDARD_CATEGORY_ORDER:
+            category_pt = category_translation.get(category_en, category_en)
+            if category_pt in categories:
+                html_digest += f'<div class="category">{category_pt}</div>'
+                
+                # Sort clusters within category by size (largest first), then by date (newest first)
+                sorted_clusters = sorted(
+                    categories[category_pt],
+                    key=lambda cluster: (len(cluster), DigestBuilder._get_cluster_date(cluster)),
+                    reverse=True
+                )
+                
+                for cluster in sorted_clusters:
+                    html_digest += '<div class="cluster">'
+                    main_article = cluster[0]
+                    html_digest += f"""
+                    <div class="main-article">
+                        <p class="summary">
+                            <span class="title">{main_article['title']}:</span>
+                            {main_article['summary']} <a href="{main_article['url']}">[link]</a>
+                        </p>
+                    </div>
+                    """
+                    if len(cluster) > 1:
+                        html_digest += '<ul class="related-list">'
+                        for article in cluster[1:]:
+                            html_digest += f"""
+                            <li>
+                                <a href="{article['url']}">{article['title']}</a>
+                            </li>
+                            """
+                        html_digest += '</ul>'
+                    html_digest += '</div>'
 
         html_digest += "</div></body></html>"
         return html_digest
 
     @staticmethod
-    def order_summaries(summaries: List[Dict[str, str]], category_order: List[str]) -> List[Dict[str, str]]:
-        """
-        Order summaries by category (custom order) and date (descending by published_at or processed_at).
-        Args:
-            summaries: List of article dicts.
-            category_order: List of category names in desired order.
-        Returns:
-            Ordered list of summaries.
-        """
-        # Create a mapping for category priority
-        category_priority = {cat: i for i, cat in enumerate(category_order)}
-        def sort_key(summary):
-            cat = summary.get('category', 'Other')
-            cat_idx = category_priority.get(cat, len(category_priority))
-            # Try published_at, fallback to processed_at, fallback to datetime.min
-            date_str = summary.get('published_at') or summary.get('processed_at')
-            try:
-                from datetime import datetime
-                date_val = datetime.fromisoformat(date_str) if date_str else datetime(1970, 1, 1)
-            except Exception:
-                date_val = datetime(1970, 1, 1)
-            # Sort by category priority, then by date descending
-            return (cat_idx, -date_val.timestamp())
-        return sorted(summaries, key=sort_key)
+    def _get_cluster_date(cluster: List[Dict[str, str]]) -> float:
+        """Get the date of a cluster based on its first article."""
+        if not cluster:
+            return 0.0
+        
+        article = cluster[0]
+        date_str = article.get('published_at') or article.get('processed_at')
+        if not date_str:
+            return 0.0
+            
+        try:
+            from datetime import datetime
+            return datetime.fromisoformat(date_str).timestamp()
+        except Exception:
+            return 0.0
