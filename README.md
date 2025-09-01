@@ -159,8 +159,11 @@ This project is for personal use only.
 - [x] Have a new column in sources that will hide them from ones email diggest (but we will keep on fetching the article news)
 - [x] Advanced content filtering and categorization -> add a way to curate content when digest is really big - check [here](https://gemini.google.com/gem/fdc459572bee/7c4574e44151bd6c)
 - [x] Similar news showing clustered
-- [ ] send source in diggest
+- [x] send source in digest
 - [x] fix ordering
+- [ ] split article fetch from article summarization 
+      - store originals 
+      - create a layer for translating each different rss?
 - [ ] Web interface for configuration management
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 
 - [ ] Web interface to subscription

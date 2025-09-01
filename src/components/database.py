@@ -356,18 +356,24 @@ class DatabaseService:
             categories: List of category strings to filter by.
 
         Returns:
-            List of dicts with article data.
+            List of dicts with article data including source_name.
         """
-        query = "SELECT id, title, url, summary, sentiment, keywords, category, region, published_at, processed_at FROM articles WHERE 1=1"
+        query = """
+            SELECT a.id, a.title, a.url, a.summary, a.sentiment, a.keywords, a.category, a.region, 
+                   a.published_at, a.processed_at, a.source_id, s.name as source_name
+            FROM articles a
+            LEFT JOIN sources s ON a.source_id = s.id
+            WHERE 1=1
+        """
         params = []
         if start_date:
-            query += " AND published_at >= ?"
+            query += " AND a.published_at >= ?"
             params.append(start_date)
         if end_date:
-            query += " AND published_at <= ?"
+            query += " AND a.published_at <= ?"
             params.append(end_date)
         if categories:
-            query += " AND category IN ({})".format(",".join(["?"] * len(categories)))
+            query += " AND a.category IN ({})".format(",".join(["?"] * len(categories)))
             params.extend(categories)
         try:
             with self._get_connection() as conn:
@@ -686,3 +692,23 @@ class DatabaseService:
         except Exception as e:
             self.logger.error(f"Error fetching user email addresses: {e}")
             return []
+
+    def get_source_id_by_feed_url(self, feed_url: str) -> Optional[int]:
+        """
+        Get the source_id for a given feed_url from the rss_feeds table.
+        Args:
+            feed_url: The RSS feed URL.
+        Returns:
+            The source_id if found, else None.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT source_id FROM rss_feeds WHERE url = ?", (feed_url,))
+                row = cursor.fetchone()
+                if row:
+                    return row[0]
+                return None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error getting source_id by feed_url: {e}")
+            return None

@@ -119,20 +119,27 @@ class DigestBuilder:
                 for cluster in sorted_clusters:
                     html_digest += '<div class="cluster">'
                     main_article = cluster[0]
+                    source = main_article.get('source_name')
+                    if not source:
+                        source = 'link'
                     html_digest += f"""
                     <div class="main-article">
                         <p class="summary">
                             <span class="title">{main_article['title']}:</span>
-                            {main_article['summary']} <a href="{main_article['url']}">[link]</a>
+                            {main_article['summary']} <a href="{main_article['url']}">[{source}]</a>
                         </p>
                     </div>
                     """
                     if len(cluster) > 1:
                         html_digest += '<ul class="related-list">'
                         for article in cluster[1:]:
+                            if source == 'link':
+                                title = article['title']
+                            else:
+                                title = f"[{source}] {article['title']}"
                             html_digest += f"""
                             <li>
-                                <a href="{article['url']}">{article['title']}</a>
+                                <a href="{article['url']}">{title}</a>
                             </li>
                             """
                         html_digest += '</ul>'

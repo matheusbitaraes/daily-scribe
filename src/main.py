@@ -59,15 +59,12 @@ def fetch_news(config_path: Optional[str] = None) -> None:
         feed_url_to_source_id = {}
         with db_service._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT url, source_id FROM rss_feeds WHERE is_enabled is true;')
+            cursor.execute('SELECT url, source_id FROM rss_feeds WHERE is_enabled is 1;')
             for url, source_id in cursor.fetchall():
                 feed_url_to_source_id[url] = source_id
         all_feeds = list(feed_url_to_source_id.keys())
         
         articles = feed_processor.get_all_articles(all_feeds)
-        # Assign source_id to each article based on its feed_source (which is the feed URL)
-        for article in articles:
-            article.source_id = feed_url_to_source_id.get(article.feed_source)
         logger.info(f"Retrieved {len(articles)} articles from {len(all_feeds)} feeds.")
         processed_urls = db_service.get_processed_urls()
         new_articles = [article for article in articles if article.url not in processed_urls]

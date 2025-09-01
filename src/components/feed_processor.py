@@ -16,13 +16,14 @@ import feedparser
 feedparser.PREFERRED_PARSER = "drv_sgmllib"
 import requests
 from datetime import datetime
+from .database import DatabaseService
 
 
 class Article:
     """Represents a single article from an RSS feed."""
     
     def __init__(self, title, url, published_date, feed_source, description=None, author=None, 
-                 content=None, summary=None, summary_generated=False):
+                 content=None, summary=None, summary_generated=False, source_id=None):
         self.title = title
         self.url = url
         self.published_date = published_date
@@ -32,6 +33,7 @@ class Article:
         self.content = content  # Full article content
         self.summary = summary  # Generated summary
         self.summary_generated = summary_generated  # Whether summary was generated
+        self.source_id = source_id
 
 
 class FeedResult:
@@ -48,7 +50,7 @@ class FeedResult:
 class RSSFeedProcessor:
     """Handles fetching and parsing RSS feeds with concurrent processing."""
     
-    def __init__(self, timeout: int = 15):
+    def __init__(self, timeout: int = 15, db_path: Optional[str] = None):
         """
         Initialize the RSS feed processor.
         
@@ -61,6 +63,7 @@ class RSSFeedProcessor:
         # Configure requests session with timeout
         self.session = requests.Session()
         self.session.timeout = timeout
+        self.db_service = DatabaseService(db_path)
     
     def get_all_articles(self, feed_urls: List[str]) -> List[Article]:
         """
@@ -205,6 +208,10 @@ class RSSFeedProcessor:
         """
         articles = []
         feed_source = feed_data.feed.get('title', feed_url)
+
+        # Query the rss_feeds table to get source_id from feed_url
+        source_id = self.db_service.get_source_id_by_feed_url(feed_url)
+        # If not found, fallback to None or a default
         
         for entry in feed_data.entries:
             try:
@@ -237,12 +244,13 @@ class RSSFeedProcessor:
                     author = entry.author
                 elif 'author_detail' in entry and entry.author_detail.get('name'):
                     author = entry.author_detail.name
-                
+
                 article = Article(
                     title=title.strip(),
                     url=url.strip(),
                     published_date=published_date,
                     feed_source=feed_source,
+                    source_id=source_id,
                     description=description.strip() if description else None,
                     author=author.strip() if author else None
                 )
@@ -299,4 +307,4 @@ if __name__ == "__main__":
         print(f"   Source: {article.feed_source}")
         if article.published_date:
             print(f"   Published: {article.published_date}")
-        print() 
+        print()
