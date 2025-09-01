@@ -73,35 +73,59 @@ class ArticleClusterer:
                 logger.error(f"Error processing article ID {article['id']}: {e}")
                 continue
 
-    def get_all_embeddings(self) -> Tuple[np.ndarray, List[int]]:
-        return self.db_service.get_all_article_embeddings()
+    def get_all_embeddings(self, article_ids: List[int] = None) -> Tuple[np.ndarray, List[int]]:
+        return self.db_service.get_all_article_embeddings(article_ids=article_ids)
 
-    def perform_clustering(self, n_clusters: int = 10, algorithm: str = 'kmeans') -> str:
-        logger.info(f"Starting clustering with {n_clusters} clusters using {algorithm}")
-        embeddings, article_ids = self.get_all_embeddings()
-        if len(embeddings) == 0:
-            raise ValueError("No embeddings found. Run generate_embeddings() first.")
-        logger.info(f"Clustering {len(embeddings)} articles")
-        if algorithm == 'kmeans':
-            clusterer = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-            cluster_labels = clusterer.fit_predict(embeddings)
-            cluster_centers = clusterer.cluster_centers_
-            similarity_scores = []
-            for i, embedding in enumerate(embeddings):
-                cluster_id = cluster_labels[i]
-                similarity = -np.linalg.norm(embedding - cluster_centers[cluster_id])
-                similarity_scores.append(similarity)
-        else:
-            raise ValueError(f"Algorithm {algorithm} not implemented yet")
-        run_id = f"clustering_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        self.db_service.store_article_clusters(article_ids, cluster_labels, similarity_scores, run_id)
-        logger.info(f"Clustering complete. Run ID: {run_id}")
-        return run_id
+    def perform_clustering(self, articles: List[Dict], n_clusters: int = 10, similarity_threshold: float = 0.5) -> List[List[Dict]]:
+        """
+        Performs clustering on a given list of articles.
+        """
+        logger.info(f"Starting clustering for {len(articles)} articles into {n_clusters} clusters.")
+        
+        if not articles:
+            return []
+
+        article_ids = [article['id'] for article in articles]
+        embeddings, found_article_ids = self.get_all_embeddings(article_ids=article_ids)
+
+        if len(embeddings) < n_clusters:
+            logger.warning(f"Number of articles with embeddings ({len(embeddings)}) is less than n_clusters ({n_clusters}). "
+                           f"Adjusting n_clusters to {len(embeddings)}. Or returning all articles as a single cluster if no embeddings.")
+            if len(embeddings) == 0:
+                return [articles]
+            n_clusters = len(embeddings)
+
+        # Map article IDs to articles for easy lookup
+        articles_by_id = {article['id']: article for article in articles}
+
+        # Filter out articles for which no embedding was found
+        original_articles = [articles_by_id[id] for id in found_article_ids]
+
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init='auto')
+        cluster_labels = kmeans.fit_predict(embeddings)
+        cluster_centers = kmeans.cluster_centers_
+
+        clusters = [[] for _ in range(n_clusters)]
+        for i, label in enumerate(cluster_labels):
+            embedding = embeddings[i].reshape(1, -1)
+            center = cluster_centers[label].reshape(1, -1)
+            similarity = cosine_similarity(embedding, center)[0][0]
+            if similarity >= similarity_threshold:
+                clusters[label].append(original_articles[i])
+
+        # Filter out empty clusters
+        clusters = [cluster for cluster in clusters if cluster]
+
+        # Sort clusters by size (largest first)
+        clusters.sort(key=len, reverse=True)
+        
+        logger.info(f"Clustering complete. Found {len(clusters)} clusters after applying similarity threshold.")
+        return clusters
 
     def analyze_clusters(self, run_id: str) -> Dict:
         return self.db_service.analyze_clusters(run_id)
 
-    def get_similar_articles(self, article_id: int, top_k: int = 5, similarity_threshold: float = 0.65) -> List[Dict]:
+    def get_similar_articles(self, article_id: int, top_k: int = 5, similarity_threshold: float = 0.85) -> List[Dict]:
         embeddings, article_ids = self.get_all_embeddings()
         if article_id not in article_ids:
             raise ValueError(f"Article ID {article_id} not found in embeddings")

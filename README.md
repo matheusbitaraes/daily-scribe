@@ -168,3 +168,11 @@ This project is for personal use only.
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 
 - [ ] Web interface to subscription
 - [ ] Local LLM integration for summarization
+- [x] create below users
+      Smendes.ana@gmail.com
+      fsnader@gmail.com
+      nikolas.memo@gmail.com
+      pareidoliza@gmail.com
+      onolupo@msn.com
+      daniel.hesanto@gmail.com
+      lucasaugustorl@hotmail.com

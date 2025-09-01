@@ -112,37 +112,19 @@ def send_digest(
         clusterer.update_user_embedding(email_address)
 
         curator = NewsCurator()
-        curated_articles = curator.curate_for_user(email_address)
-        if not curated_articles:
+        clustered_curated_articles = curator.curate_and_cluster_for_user(email_address)
+        if not clustered_curated_articles:
             logger.info("No curated articles to send after applying curation rules.")
             return
 
-        # Cluster similar articles
-        clusterer = ArticleClusterer()
-        clustered_curated_articles = []
-        used_article_ids = set()
-        for article in curated_articles:
-            if article['id'] in used_article_ids:
-                continue
-            cluster = [article]
-            used_article_ids.add(article['id'])
-            try:
-                similar = clusterer.get_similar_articles(article['id'], top_k=5, similarity_threshold=0.55)
-                for sim_article in similar:
-                    if sim_article['id'] not in used_article_ids:
-                        cluster.append(sim_article)
-                        used_article_ids.add(sim_article['id'])
-            except Exception as e:
-                logger.warning(f"Could not get similar articles for {article['id']}: {e}")
-            clustered_curated_articles.append(cluster)
-
         html_digest = DigestBuilder.build_html_digest(clustered_curated_articles)
         notifier = EmailNotifier(config.email.__dict__)
-        subject = f"Your Daily Digest for {time.strftime('%Y-%m-%d')}"
+        subject = f"Your Daily Digest for {time.strftime('%Y-%m-%d')} [BETA]"
         notifier.send_digest(html_digest, email_address, subject)
         # Mark all sent articles in sent_articles table
         digest_id = uuid.uuid4()
-        for article in curated_articles:
+        all_sent_articles = [article for cluster in clustered_curated_articles for article in cluster]
+        for article in all_sent_articles:
             db_article = db_service.get_article_by_url(article['url'])
             if db_article:
                 db_service.add_sent_article(db_article['id'], digest_id=digest_id, email_address=email_address)

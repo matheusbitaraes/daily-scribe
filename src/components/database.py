@@ -518,30 +518,39 @@ class DatabaseService:
         except Exception as e:
             self.logger.error(f"Error storing article embedding: {e}")
 
-    def get_all_article_embeddings(self):
+    def get_all_article_embeddings(self, article_ids: Optional[List[int]] = None):
         """
         Return (embeddings_matrix, article_ids) for all articles with embeddings.
+        Can be filtered by a list of article_ids.
         """
         import numpy as np
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute('''
+                query = '''
                     SELECT ae.article_id, ae.embedding
                     FROM article_embeddings ae
                     INNER JOIN articles a ON ae.article_id = a.id
-                    ORDER BY ae.article_id
-                ''')
+                '''
+                params = []
+                if article_ids:
+                    query += " WHERE ae.article_id IN ({})".format(",".join(["?"] * len(article_ids)))
+                    params.extend(article_ids)
+                
+                query += ' ORDER BY ae.article_id'
+                
+                cursor.execute(query, params)
+                
                 embeddings = []
-                article_ids = []
+                returned_article_ids = []
                 for article_id, embedding_bytes in cursor.fetchall():
                     embedding = np.frombuffer(embedding_bytes, dtype=np.float32)
                     embeddings.append(embedding)
-                    article_ids.append(article_id)
-                return (np.array(embeddings), article_ids)
+                    returned_article_ids.append(article_id)
+                return (np.array(embeddings), returned_article_ids)
         except Exception as e:
             self.logger.error(f"Error fetching all article embeddings: {e}")
-            return ([], [])
+            return (np.array([]), [])
 
     def store_article_clusters(self, article_ids, cluster_labels, similarity_scores, run_id):
         """
@@ -563,12 +572,18 @@ class DatabaseService:
 
     def get_article_by_id(self, article_id: int):
         """
-        Return article dict by id.
+        Return article dict by id, including source_name.
         """
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute('SELECT id, title, summary, category, url FROM articles WHERE id = ?', (article_id,))
+                query = """
+                    SELECT a.*, s.name as source_name
+                    FROM articles a
+                    LEFT JOIN sources s ON a.source_id = s.id
+                    WHERE a.id = ?
+                """
+                cursor.execute(query, (article_id,))
                 row = cursor.fetchone()
                 if row:
                     columns = [desc[0] for desc in cursor.description]

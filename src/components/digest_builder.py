@@ -133,10 +133,11 @@ class DigestBuilder:
                     if len(cluster) > 1:
                         html_digest += '<ul class="related-list">'
                         for article in cluster[1:]:
-                            if source == 'link':
+                            related_source = article.get('source_name')
+                            if not related_source:
                                 title = article['title']
                             else:
-                                title = f"[{source}] {article['title']}"
+                                title = f"[{related_source}] {article['title']}"
                             html_digest += f"""
                             <li>
                                 <a href="{article['url']}">{title}</a>
