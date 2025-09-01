@@ -94,10 +94,12 @@ def fetch_news(config_path: Optional[str] = None) -> None:
 def send_digest(
     config_path: Optional[str] = None,
     email_address: Optional[str] = None,
+    force: bool = False,
 ) -> None:
     """
     Generate and send the digest email for articles in a date range and category list.
     Only send articles that have not already been sent to the recipient.
+    Includes a safety switch to prevent sending multiple digests per day unless forced.
     """
     logger = logging.getLogger(__name__)
     logger.info("Starting digest generation and sending...")
@@ -105,6 +107,11 @@ def send_digest(
         config = load_config(config_path)
         db_service = DatabaseService()
         email_address = email_address or config.email.to
+
+        # Safety switch: check if user has received a digest today
+        if not force and db_service.has_user_received_digest_today(email_address):
+            logger.warning(f"Digest already sent to {email_address} today. Use --force to override.")
+            return
 
         # Update user embedding before curation
         from components.article_clusterer import ArticleClusterer
@@ -146,6 +153,7 @@ def fetch_news_command(config_path: Optional[str] = typer.Option(None, "--config
 def send_digest_command(
     config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to configuration file"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Generate the digest but do not send the email"),
+    force: bool = typer.Option(False, "--force", help="Force sending the digest even if one has been sent today"),
 ):
     """
     Generate and send the digest email for articles in a date range and category list.
@@ -153,7 +161,7 @@ def send_digest_command(
     setup_logging()
 
     if dry_run:
-        send_digest(config_path)
+        send_digest(config_path, force=force)
     else:
         db_service = DatabaseService()
         email_addresses = db_service.get_all_user_email_addresses()
@@ -162,7 +170,7 @@ def send_digest_command(
             return
         for email in email_addresses:
             try:
-                send_digest(config_path, email_address=email)
+                send_digest(config_path, email_address=email, force=force)
             except Exception as e:
                 logging.getLogger(__name__).error(f"Failed to send digest to {email}: {e}")
 

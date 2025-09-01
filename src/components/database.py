@@ -727,3 +727,21 @@ class DatabaseService:
         except sqlite3.Error as e:
             self.logger.error(f"Error getting source_id by feed_url: {e}")
             return None
+
+    def has_user_received_digest_today(self, email_address: str) -> bool:
+        """
+        Check if a user has received a digest today.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # Check for entries for the user from today in local time
+                cursor.execute(
+                    "SELECT 1 FROM sent_articles WHERE email_address = ? AND DATE(sent_at, 'localtime') = DATE('now', 'localtime')",
+                    (email_address,)
+                )
+                return cursor.fetchone() is not None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error checking if user received digest today: {e}")
+            # Fail safe: if check fails, better to not send than to send multiple times.
+            return True
