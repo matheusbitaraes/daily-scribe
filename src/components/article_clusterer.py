@@ -29,6 +29,8 @@ class ArticleClusterer:
             parts.append(f"Category: {article['category']}")
         if article.get('keywords'):
             parts.append(f"Keywords: {article['keywords']}")
+        if article.get('raw_content'):
+            parts.append(f"Content: {article['raw_content']}")
         return " | ".join(parts)
 
     def get_embedding(self, text: str) -> List[float]:

@@ -48,7 +48,6 @@ def fetch_news(config_path: Optional[str] = None) -> None:
     logger = logging.getLogger(__name__)
     logger.info("Starting news fetch and save...")
     try:
-        config = load_config(config_path)
         db_service = DatabaseService()
         feed_processor = RSSFeedProcessor()
         scraper = ArticleScraper()
@@ -258,8 +257,6 @@ def schedule_digest(config_path: Optional[str] = typer.Option(None, "--config", 
 
 @app.command(name="generate-article-embeddings")
 def generate_article_embeddings_command(
-    db_path: str = typer.Option("data/digest_history.db", "--db-path", help="Path to the SQLite database file"),
-    openai_api_key: str = typer.Option(..., "--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key (or set OPENAI_API_KEY env var)")
 ):
     """
     Generate OpenAI embeddings for all articles in the database that do not have embeddings yet.
@@ -269,7 +266,7 @@ def generate_article_embeddings_command(
     logger = logging.getLogger(__name__)
     logger.info("Starting article embedding generation process...")
     try:
-        clusterer = ArticleClusterer(db_path, openai_api_key)
+        clusterer = ArticleClusterer()
         logger.info("Generating embeddings for articles without embeddings...")
         clusterer.generate_embeddings()
         logger.info("Embedding generation complete.")

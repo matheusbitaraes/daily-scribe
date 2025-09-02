@@ -58,6 +58,7 @@ class DatabaseService:
                         source_id INTEGER NOT NULL,
                         url TEXT NOT NULL,
                         is_enabled BOOLEAN NOT NULL DEFAULT 1,
+                        parser TEXT NOT NULL DEFAULT 'DefaultParser',
                         FOREIGN KEY (source_id) REFERENCES sources(id)
                     );
                 """)
@@ -75,6 +76,7 @@ class DatabaseService:
                         published_at TIMESTAMP,
                         processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         source_id INTEGER NOT NULL,
+                        raw_content TEXT,
                         FOREIGN KEY (source_id) REFERENCES sources(id)
                     );
                 """)
@@ -135,24 +137,12 @@ class DatabaseService:
                     FOREIGN KEY (user_preferences_id) REFERENCES user_preferences(id)
                 )
             ''')
-
-            # Create article_content table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS article_content (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    article_id INTEGER NOT NULL,
-                    url TEXT NOT NULL,
-                    raw_content TEXT,
-                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (article_id) REFERENCES articles(id)
-                )
-            ''')
             conn.commit()
         except sqlite3.Error as e:
             self.logger.error(f"Error creating database tables: {e}")
             raise
 
-    def add_article_content(self, article_id: int, url: str, raw_content: str) -> None:
+    def add_article_content(self, article_id: int, raw_content: str) -> None:
         """
         Store the raw content of an article.
         """
@@ -160,8 +150,8 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO article_content (article_id, url, raw_content) VALUES (?, ?, ?)",
-                    (article_id, url, raw_content)
+                    "UPDATE articles SET raw_content = ? WHERE id = ?",
+                    (raw_content, article_id)
                 )
                 conn.commit()
         except sqlite3.Error as e:
@@ -180,7 +170,7 @@ class DatabaseService:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, url, title, summary, sentiment, keywords, category, region, published_at, processed_at, source_id FROM articles WHERE url = ?", (url,))
+                cursor.execute("SELECT id, url, title, summary, sentiment, keywords, category, region, published_at, processed_at, source_id, raw_content FROM articles WHERE url = ?", (url,))
                 row = cursor.fetchone()
                 if row:
                     columns = [desc[0] for desc in cursor.description]
@@ -390,7 +380,7 @@ class DatabaseService:
                    a.published_at, a.processed_at, a.source_id, s.name as source_name
             FROM articles a
             LEFT JOIN sources s ON a.source_id = s.id
-            WHERE 1=1
+            WHERE a.summary is not null
         """
         params = []
         if start_date:
@@ -730,10 +720,9 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT a.id, a.url, ac.raw_content
+                    SELECT a.id, a.url, a.raw_content
                     FROM articles a
-                    JOIN article_content ac ON a.id = ac.article_id
-                    WHERE a.summary IS NULL
+                    WHERE a.summary IS NULL AND a.raw_content IS NOT NULL
                 ''')
                 columns = [desc[0] for desc in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -799,6 +788,27 @@ class DatabaseService:
                 return None
         except sqlite3.Error as e:
             self.logger.error(f"Error getting source_id by feed_url: {e}")
+            return None
+
+    def get_feed_details_by_url(self, feed_url: str) -> Optional[dict]:
+        """
+        Get details for a given feed_url from the rss_feeds table.
+        Args:
+            feed_url: The RSS feed URL.
+        Returns:
+            A dict with feed details or None if not found.
+        """
+        try:
+            with self._get_connection() as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("SELECT source_id, parser FROM rss_feeds WHERE url = ?", (feed_url,))
+                row = cursor.fetchone()
+                if row:
+                    return dict(row)
+                return None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error getting feed details by url: {e}")
             return None
 
     def has_user_received_digest_today(self, email_address: str) -> bool:

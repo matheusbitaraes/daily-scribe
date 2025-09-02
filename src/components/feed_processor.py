@@ -23,7 +23,7 @@ class Article:
     """Represents a single article from an RSS feed."""
     
     def __init__(self, title, url, published_date, feed_source, description=None, author=None, 
-                 content=None, summary=None, summary_generated=False, source_id=None):
+                 content=None, summary=None, summary_generated=False, source_id=None, raw_entry=None):
         self.title = title
         self.url = url
         self.published_date = published_date
@@ -34,6 +34,7 @@ class Article:
         self.summary = summary  # Generated summary
         self.summary_generated = summary_generated  # Whether summary was generated
         self.source_id = source_id
+        self.raw_entry = raw_entry
 
 
 class FeedResult:
@@ -50,7 +51,7 @@ class FeedResult:
 class RSSFeedProcessor:
     """Handles fetching and parsing RSS feeds with concurrent processing."""
     
-    def __init__(self, timeout: int = 15, db_path: Optional[str] = None):
+    def __init__(self, timeout: int = 5, db_path: Optional[str] = None):
         """
         Initialize the RSS feed processor.
         
@@ -252,7 +253,8 @@ class RSSFeedProcessor:
                     feed_source=feed_source,
                     source_id=source_id,
                     description=description.strip() if description else None,
-                    author=author.strip() if author else None
+                    author=author.strip() if author else None,
+                    raw_entry=entry
                 )
                 
                 articles.append(article)

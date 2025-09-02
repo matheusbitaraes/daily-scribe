@@ -7,12 +7,13 @@ and falling back to web scraping if necessary.
 
 import logging
 from typing import Optional, Tuple
+import importlib
+import json
 
 from components.feed_processor import Article
 from components.scraper import ArticleScraper
-from components.summarizer import Summarizer
 from components.database import DatabaseService
-
+from components.feed_parsers.base_parser import BaseParser
 
 class ContentExtractor:
     """Handles extracting and summarizing article content."""
@@ -23,11 +24,26 @@ class ContentExtractor:
 
         Args:
             scraper: An instance of ArticleScraper.
-            db_service: An instance of DatabaseService.
         """
         self.logger = logging.getLogger(__name__)
         self.scraper = scraper
         self.db_service = DatabaseService()
+        self.parsers = {}
+
+    def _get_parser(self, parser_name: str) -> BaseParser:
+        """
+        Dynamically load and instantiate a parser.
+        """
+        if parser_name not in self.parsers:
+            try:
+                module = importlib.import_module(f"components.feed_parsers.{parser_name.lower()}")
+                parser_class = getattr(module, parser_name)
+                self.parsers[parser_name] = parser_class()
+            except (ImportError, AttributeError) as e:
+                self.logger.error(f"Could not load parser {parser_name}: {e}. Using DefaultParser.")
+                from components.feed_parsers.default_parser import DefaultParser
+                self.parsers[parser_name] = DefaultParser()
+        return self.parsers[parser_name]
 
     def extract_and_save(self, article: Article) -> None:
         """
@@ -41,21 +57,24 @@ class ContentExtractor:
         """
         content_to_save = None
 
+        feed_details = self.db_service.get_feed_details_by_url(article.feed_source)
+        parser_name = feed_details.get('parser', 'DefaultParser') if feed_details else 'DefaultParser'
+        parser = self._get_parser(parser_name)
+        
         # 1. Try to use content from RSS feed first
-        if article.content:
-            content_to_save = article.content
-            self.logger.debug(f"Using full content from RSS for {article.title}")
-        elif article.description:
-            content_to_save = article.description
-            self.logger.debug(f"Using description from RSS for {article.title}")
+        content_parts = parser.parse(article.raw_entry)
+        
+        # Serialize the list of ContentPart objects to a JSON string
+        content_to_save = json.dumps([part.__dict__ for part in content_parts])
 
         # If RSS content is too short, try scraping
-        if not content_to_save or len(content_to_save) < 30:
+        if not content_parts:
             self.logger.debug(f"RSS content insufficient for {article.title}, attempting to scrape.")
             try:
                 scraped_content, _ = self.scraper.extract_article_content(article.url)
                 if scraped_content:
-                    content_to_save = scraped_content
+                    # For scraped content, we can create a default structure
+                    content_to_save = json.dumps([{'text': scraped_content, 'type': 'scraped'}])
                     self.logger.debug(f"Successfully scraped content for {article.title}")
                 else:
                     self.logger.warning(f"Scraping failed for {article.url}. No content to save.")
@@ -70,7 +89,7 @@ class ContentExtractor:
         
         db_article = self.db_service.get_article_by_url(article.url)
         if db_article:
-            self.db_service.add_article_content(db_article['id'], article.url, content_to_save)
+            self.db_service.add_article_content(db_article['id'], content_to_save)
             self.logger.info(f"Saved content for {article.title}")
         else:
             # This case should ideally not happen if we process articles correctly
