@@ -125,7 +125,7 @@ class DatabaseService:
                 )
             ''')
             
-            # Create user_preferences_embeddings table
+                # Create user_preferences_embeddings table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS user_preferences_embeddings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,10 +135,37 @@ class DatabaseService:
                     FOREIGN KEY (user_preferences_id) REFERENCES user_preferences(id)
                 )
             ''')
+
+            # Create article_content table
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS article_content (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    article_id INTEGER NOT NULL,
+                    url TEXT NOT NULL,
+                    raw_content TEXT,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (article_id) REFERENCES articles(id)
+                )
+            ''')
             conn.commit()
         except sqlite3.Error as e:
             self.logger.error(f"Error creating database tables: {e}")
             raise
+
+    def add_article_content(self, article_id: int, url: str, raw_content: str) -> None:
+        """
+        Store the raw content of an article.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "INSERT INTO article_content (article_id, url, raw_content) VALUES (?, ?, ?)",
+                    (article_id, url, raw_content)
+                )
+                conn.commit()
+        except sqlite3.Error as e:
+            self.logger.error(f"Error adding article content to database: {e}")
 
     def get_article_by_url(self, url: str) -> Optional[dict]:
         """
@@ -694,6 +721,52 @@ class DatabaseService:
         except Exception as e:
             self.logger.error(f"Error retrieving user embedding: {e}")
             return None
+
+    def get_articles_to_summarize(self) -> list:
+        """
+        Return articles that have raw content but have not been summarized yet.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT a.id, a.url, ac.raw_content
+                    FROM articles a
+                    JOIN article_content ac ON a.id = ac.article_id
+                    WHERE a.summary IS NULL
+                ''')
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        except Exception as e:
+            self.logger.error(f"Error fetching articles to summarize: {e}")
+            return []
+
+    def update_article_summary(self, article_id: int, metadata: dict) -> None:
+        """
+        Update an article with its summary and other metadata.
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                keywords_str = ','.join(metadata.get('keywords', [])) if metadata.get('keywords') else None
+                cursor.execute(
+                    """
+                    UPDATE articles
+                    SET summary = ?, sentiment = ?, keywords = ?, category = ?, region = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        metadata.get('summary'),
+                        metadata.get('sentiment'),
+                        keywords_str,
+                        metadata.get('category'),
+                        metadata.get('region'),
+                        article_id
+                    )
+                )
+                conn.commit()
+        except sqlite3.Error as e:
+            self.logger.error(f"Error updating article summary in database: {e}")
 
     def get_all_user_email_addresses(self) -> list:
         """

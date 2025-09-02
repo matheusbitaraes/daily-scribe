@@ -43,7 +43,7 @@ def setup_logging() -> None:
 
 def fetch_news(config_path: Optional[str] = None) -> None:
     """
-    Fetch news articles, summarize, and save to DB (no email sending).
+    Fetch news articles, extract content, and save to DB (no summarization).
     """
     logger = logging.getLogger(__name__)
     logger.info("Starting news fetch and save...")
@@ -52,8 +52,7 @@ def fetch_news(config_path: Optional[str] = None) -> None:
         db_service = DatabaseService()
         feed_processor = RSSFeedProcessor()
         scraper = ArticleScraper()
-        summarizer = Summarizer(config.gemini)
-        content_extractor = ContentExtractor(scraper, summarizer)
+        content_extractor = ContentExtractor(scraper)
         
         # Get all enabled RSS feeds and their source_ids from the database
         feed_url_to_source_id = {}
@@ -71,24 +70,55 @@ def fetch_news(config_path: Optional[str] = None) -> None:
         logger.info(f"Found {len(new_articles)} new articles to process.")
         for article in new_articles:
             try:
-                metadata = content_extractor.extract_and_summarize(article)
-                if not metadata or not metadata.get('summary'):
-                    logger.warning(f"Could not summarize {article.url}. Skipping.")
-                    continue
+                # First, add the article to the articles table to get an ID
                 published_at = None
                 if hasattr(article, 'published_date') and article.published_date:
                     try:
                         published_at = article.published_date.isoformat()
                     except Exception:
                         published_at = str(article.published_date)
-
-                db_service.mark_as_processed(article.url, metadata, published_at, title=article.title, source_id=article.source_id)
-                logger.info(f"Processed and saved: {article.title}")
+                
+                db_service.mark_as_processed(article.url, {}, published_at, title=article.title, source_id=article.source_id)
+                
+                # Now extract and save the content
+                content_extractor.extract_and_save(article)
+                
+                logger.info(f"Processed and saved content for: {article.title}")
             except Exception as e:
                 logger.error(f"Failed to process article {article.url}: {e}")
         logger.info("News fetch and save complete.")
     except Exception as e:
         logger.error(f"An error occurred during news fetch: {e}")
+
+
+def summarize_articles(config_path: Optional[str] = None) -> None:
+    """
+    Summarize articles that have been fetched and stored.
+    """
+    logger = logging.getLogger(__name__)
+    logger.info("Starting article summarization...")
+    try:
+        config = load_config(config_path)
+        db_service = DatabaseService()
+        summarizer = Summarizer(config.gemini)
+        
+        articles_to_summarize = db_service.get_articles_to_summarize()
+        logger.info(f"Found {len(articles_to_summarize)} articles to summarize.")
+        
+        for article in articles_to_summarize:
+            try:
+                metadata = summarizer.summarize(article['raw_content'])
+                if not metadata or not metadata.get('summary'):
+                    logger.warning(f"Could not summarize {article['url']}. Skipping.")
+                    continue
+                
+                db_service.update_article_summary(article['id'], metadata)
+                logger.info(f"Summarized and saved: {article['url']}")
+            except Exception as e:
+                logger.error(f"Failed to summarize article {article['url']}: {e}")
+        logger.info("Article summarization complete.")
+    except Exception as e:
+        logger.error(f"An error occurred during article summarization: {e}")
 
 
 def send_digest(
@@ -147,6 +177,15 @@ def fetch_news_command(config_path: Optional[str] = typer.Option(None, "--config
     """
     setup_logging()
     fetch_news(config_path)
+
+
+@app.command(name="summarize-articles")
+def summarize_articles_command(config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to configuration file")):
+    """
+    Summarize articles that have been fetched and stored.
+    """
+    setup_logging()
+    summarize_articles(config_path)
 
 
 @app.command(name="send-digest")
@@ -248,9 +287,11 @@ def full_run_command(
     """
     setup_logging()
     logger = logging.getLogger(__name__)
-    logger.info("[1/2] Fetching articles...")
+    logger.info("[1/3] Fetching articles...")
     fetch_news(config_path)
-    logger.info("[2/2] Generating embeddings...")
+    logger.info("[2/3] Summarizing articles...")
+    summarize_articles(config_path)
+    logger.info("[3/3] Generating embeddings...")
     if not openai_api_key:
         import os
         openai_api_key = os.environ.get("OPENAI_API_KEY")
