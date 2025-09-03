@@ -1,14 +1,16 @@
 """
 Summarization service for Daily Scribe application.
 
-This module handles summarizing article text using the Gemini API.
+This module handles summarizing article text using the Gemini API and OpenAI API.
 """
 
 import logging
 import re
 import time
 import datetime
+import os
 import google.generativeai as genai
+import openai
 from components.config import GeminiConfig
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any
@@ -21,34 +23,47 @@ class NewsMetadata(BaseModel):
     region: str = Field(description="The primary geographical place the news is about (e.g., Brazil, USA, Europe, Asia).")
 
 class Summarizer:
-    """Handles summarizing text using the Gemini API."""
+    """Handles summarizing text using the Gemini API and OpenAI API."""
 
-    def __init__(self, config: GeminiConfig):
+    def __init__(self, config: GeminiConfig, openai_api_key: str = None):
         """
         Initialize the summarizer.
 
         Args:
             config: The Gemini API configuration.
+            openai_api_key: OpenAI API key (optional, will try to get from environment if not provided).
         """
         self.logger = logging.getLogger(__name__)
         self.config = config
         self._initialize_gemini()
         
+        # Initialize OpenAI client
+        self.openai_client = None
+        self._initialize_openai(openai_api_key)
+        
         # Store quota exceeded status for each model in a dict
         self._quota_exceeded = {
+            # Gemini models
             'gemini-2.5-pro': True, # not using pro for now
             'gemini-2.5-flash': False,
             'gemini-2.5-flash-lite': False,
             'gemini-2.0-flash': False,
             'gemini-2.0-flash-lite': False,
+            # OpenAI models
+            'gpt-4o-mini': False,
+            'gpt-4o': False,
+            'gpt-3.5-turbo': False,
         }
-        # List of model names in order of preference
+        # List of model names in order of preference (mix of Gemini and OpenAI)
         self._model_order = [
             'gemini-2.0-flash-lite',
             'gemini-2.5-flash-lite',
             'gemini-2.0-flash',
             'gemini-2.5-flash',
             'gemini-2.5-pro',
+            'gpt-4o-mini',
+            'gpt-3.5-turbo',
+            'gpt-4o',
         ]
         # Track per-minute rate limit for each model
         self._rate_limited_until = {model: None for model in self._model_order}
@@ -65,9 +80,45 @@ class Summarizer:
             self.logger.error(f"Failed to initialize Gemini client: {e}")
             raise
 
+    def _initialize_openai(self, api_key: str = None):
+        """
+        Initialize the OpenAI client.
+        """
+        try:
+            openai_key = api_key or os.environ.get("OPENAI_API_KEY")
+            if openai_key:
+                self.openai_client = openai.OpenAI(api_key=openai_key)
+                self.logger.info("OpenAI client initialized successfully.")
+            else:
+                self.logger.warning("OpenAI API key not provided. OpenAI models will be skipped.")
+                # Mark all OpenAI models as quota exceeded so they won't be used
+                for model in self._model_order:
+                    if model.startswith('gpt-'):
+                        self._quota_exceeded[model] = True
+        except Exception as e:
+            self.logger.error(f"Failed to initialize OpenAI client: {e}")
+            # Mark all OpenAI models as quota exceeded
+            for model in self._model_order:
+                if model.startswith('gpt-'):
+                    self._quota_exceeded[model] = True
+
     def summarize(self, text: str, max_retries: int = 3) -> Dict[str, Any]:
         """
         Summarize the given text and extract metadata.
+        """
+        
+        # Normal summarization flow
+        return self._generate_full_metadata(text, max_retries)
+    
+    def _generate_full_metadata(self, text: str, max_retries: int = 3) -> Dict[str, Any]:
+        """
+        Generate full metadata including summary.
+        """
+        return self._generate_with_schema(text, NewsMetadata, max_retries, "Extract the requested metadata from the following news content")
+
+    def _generate_with_schema(self, text: str, schema_class, max_retries: int, prompt_prefix: str) -> Dict[str, Any]:
+        """
+        Generate content using the specified schema with both Gemini and OpenAI models.
         """
         while True: # start all models iteration
             any_model_usable = False
@@ -82,43 +133,20 @@ class Summarizer:
                         soonest_ready = until
                     continue
                 any_model_usable = True
-                model = genai.GenerativeModel(model_name)
-                prompt = f"Extract the requested metadata from the following news content: {text}"
-                for attempt in range(max_retries):
-                    try:
-                        response = model.generate_content(
-                            prompt,
-                            generation_config=genai.types.GenerationConfig(
-                                response_mime_type="application/json",
-                                response_schema=NewsMetadata,
-                            )
-                        )
-                        try:
-                            part = response.candidates[0].content.parts[0]
-                            if hasattr(part, 'text'):
-                                import json
-                                return json.loads(part.text)
-                            if isinstance(part, dict):
-                                return part
-                        except Exception as parse_exc:
-                            self.logger.error(f"Failed to parse Gemini response as JSON: {parse_exc}")
-                            return {}
-                    except Exception as e:
-                        error_message = str(e)
-                        self.logger.warning(f"[{model_name}] Attempt {attempt + 1} failed: {error_message}")
-                        if "GenerateRequestsPerDayPerProjectPerModel" in error_message:
-                            self.logger.error(f"Gemini API daily quota exceeded for {model_name}. Will not use this model anymore today.")
-                            self._quota_exceeded[model_name] = True
-                            break
-                        if "GenerateRequestsPerMinutePerProjectPerModel" in error_message:
-                            wait_time = self._extract_wait_time(error_message) or 60
-                            until = datetime.datetime.now() + datetime.timedelta(seconds=wait_time)
-                            self._rate_limited_until[model_name] = until
-                            self.logger.info(f"Model {model_name} is rate-limited until {until:%Y-%m-%d %H:%M:%S}.")
-                            break
-                        else:
-                            self.logger.error(f"An unexpected error occurred: {error_message}")
-                            break
+                
+                # Try the current model
+                self.logger.info(f"Trying summarization with model: {model_name}")
+                if model_name.startswith('gemini-'):
+                    result = self._try_gemini_model(model_name, text, schema_class, prompt_prefix, max_retries)
+                elif model_name.startswith('gpt-'):
+                    result = self._try_openai_model(model_name, text, schema_class, prompt_prefix, max_retries)
+                else:
+                    continue
+                
+                if result is not None:
+                    self.logger.info(f"Model {model_name} succeeded generating metadata.")
+                    return result
+                    
             if any_model_usable:
                 # We tried all usable models, none succeeded, so exit
                 break
@@ -128,12 +156,165 @@ class Summarizer:
                 time.sleep(sleep_seconds)
             else:
                 break
-        self.logger.error("Failed to summarize text after trying all available Gemini models and retries.")
+        self.logger.error("Failed to generate metadata after trying all available models and retries.")
         return {}
+
+    def _try_gemini_model(self, model_name: str, text: str, schema_class, prompt_prefix: str, max_retries: int) -> Dict[str, Any]:
+        """
+        Try to generate content using a Gemini model.
+        """
+        model = genai.GenerativeModel(model_name)
+        prompt = f"{prompt_prefix}: {text}"
+        for attempt in range(max_retries):
+            try:
+                response = model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        response_mime_type="application/json",
+                        response_schema=schema_class,
+                    )
+                )
+                try:
+                    part = response.candidates[0].content.parts[0]
+                    if hasattr(part, 'text'):
+                        import json
+                        return json.loads(part.text)
+                    if isinstance(part, dict):
+                        return part
+                except Exception as parse_exc:
+                    self.logger.error(f"Failed to parse Gemini response as JSON: {parse_exc}")
+                    return {}
+            except Exception as e:
+                error_message = str(e)
+                self.logger.warning(f"[{model_name}] Attempt {attempt + 1} failed: {error_message}")
+                if "GenerateRequestsPerDayPerProjectPerModel" in error_message:
+                    self.logger.error(f"Gemini API daily quota exceeded for {model_name}. Will not use this model anymore today.")
+                    self._quota_exceeded[model_name] = True
+                    break
+                if "GenerateRequestsPerMinutePerProjectPerModel" in error_message:
+                    wait_time = self._extract_wait_time(error_message) or 60
+                    until = datetime.datetime.now() + datetime.timedelta(seconds=wait_time)
+                    self._rate_limited_until[model_name] = until
+                    self.logger.info(f"Model {model_name} is rate-limited until {until:%Y-%m-%d %H:%M:%S}.")
+                    break
+                else:
+                    self.logger.error(f"An unexpected error occurred with {model_name}: {error_message}")
+                    break
+        return None
+
+    def _try_openai_model(self, model_name: str, text: str, schema_class, prompt_prefix: str, max_retries: int) -> Dict[str, Any]:
+        """
+        Try to generate content using an OpenAI model.
+        """
+        if not self.openai_client:
+            self.logger.warning(f"OpenAI client not available, skipping {model_name}")
+            self._quota_exceeded[model_name] = True
+            return None
+            
+        # Build JSON Schema from the Pydantic model for structured outputs
+        schema_name = getattr(schema_class, "__name__", "ResponseSchema")
+        try:
+            schema_dict = schema_class.model_json_schema()
+        except Exception:
+            # Pydantic v1 fallback (not expected here, but safe)
+            schema_dict = schema_class.schema() if hasattr(schema_class, "schema") else {}
+
+        # Enforce additionalProperties: false recursively to satisfy OpenAI structured outputs
+        try:
+            import copy
+            schema_for_openai = copy.deepcopy(schema_dict)
+            self._enforce_no_additional_properties(schema_for_openai)
+        except Exception as _:
+            schema_for_openai = schema_dict
+        
+        messages = [
+            {"role": "system", "content": f"{prompt_prefix}. Follow the JSON schema exactly and return only JSON, no prose."},
+            {"role": "user", "content": text}
+        ]
+        
+        for attempt in range(max_retries):
+            try:
+                # First try OpenAI structured outputs with JSON Schema (strict)
+                response = self.openai_client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    response_format={
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": schema_name,
+                            "schema": schema_for_openai,
+                            "strict": True
+                        }
+                    },
+                    temperature=0.1,
+                    max_tokens=1000
+                )
+                
+                content = response.choices[0].message.content
+                if content:
+                    try:
+                        import json
+                        result = json.loads(content)
+                        # Validate against schema
+                        validated = schema_class(**result)
+                        return validated.model_dump()
+                    except Exception as parse_exc:
+                        self.logger.error(f"Failed to parse OpenAI response as JSON or validate schema: {parse_exc}")
+                        continue
+                        
+            except Exception as e:
+                error_message = str(e)
+                self.logger.warning(f"[{model_name}] Attempt {attempt + 1} failed: {error_message}")
+                # Fallback: model may not support json_schema response_format; try JSON mode with explicit schema instructions
+                if "response_format" in error_message.lower() or "json_schema" in error_message.lower():
+                    try:
+                        fallback_messages = [
+                            {
+                                "role": "system",
+                                "content": (
+                                    f"{prompt_prefix}. You MUST respond with a JSON object that conforms to this JSON Schema. "
+                                    f"Do not include any extra fields. Do not include any text outside JSON. "
+                                    f"Schema: {schema_dict}"
+                                )
+                            },
+                            {"role": "user", "content": text}
+                        ]
+                        response = self.openai_client.chat.completions.create(
+                            model=model_name,
+                            messages=fallback_messages,
+                            response_format={"type": "json_object"},
+                            temperature=0.1,
+                            max_tokens=1000
+                        )
+                        content = response.choices[0].message.content
+                        if content:
+                            import json
+                            result = json.loads(content)
+                            validated = schema_class(**result)
+                            return validated.model_dump()
+                    except Exception as fallback_exc:
+                        self.logger.warning(f"Fallback JSON mode also failed: {fallback_exc}")
+                        # continue to rate limit/other error handling below
+                if "rate_limit_exceeded" in error_message.lower() or "quota" in error_message.lower():
+                    if "daily" in error_message.lower():
+                        self.logger.error(f"OpenAI API daily quota exceeded for {model_name}. Will not use this model anymore today.")
+                        self._quota_exceeded[model_name] = True
+                        break
+                    else:
+                        # Rate limit, extract wait time and set rate limit
+                        wait_time = self._extract_openai_wait_time(error_message) or 60
+                        until = datetime.datetime.now() + datetime.timedelta(seconds=wait_time)
+                        self._rate_limited_until[model_name] = until
+                        self.logger.info(f"Model {model_name} is rate-limited until {until:%Y-%m-%d %H:%M:%S}.")
+                        break
+                else:
+                    self.logger.error(f"An unexpected error occurred with {model_name}: {error_message}")
+                    break
+        return None
 
     def _extract_wait_time(self, error_message: str) -> int:
         """
-        Extract the wait time from the error message.
+        Extract the wait time from the Gemini error message.
 
         Args:
             error_message: The error message from the API.
@@ -154,3 +335,55 @@ class Summarizer:
         if match:
             return int(match.group(1))
         return None
+
+    def _extract_openai_wait_time(self, error_message: str) -> int:
+        """
+        Extract the wait time from the OpenAI error message.
+
+        Args:
+            error_message: The error message from the API.
+
+        Returns:
+            The wait time in seconds, or None if not found.
+        """
+        # Try to extract "retry after N seconds"
+        match = re.search(r"retry after (\d+) seconds?", error_message, re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+        # Try to extract "Please try again in N seconds"
+        match = re.search(r"try again in (\d+) seconds?", error_message, re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+        # Default wait time for OpenAI rate limits
+        return 60
+
+    def _enforce_no_additional_properties(self, schema: Dict[str, Any]):
+        """
+        Recursively enforce additionalProperties: false on JSON schema objects for OpenAI structured outputs.
+        This helps avoid 400 errors requiring additionalProperties=false.
+        """
+        if not isinstance(schema, dict):
+            return
+        schema_type = schema.get("type")
+        if schema_type == "object":
+            # Ensure properties exists
+            props = schema.get("properties", {})
+            schema["properties"] = props
+            # Disallow extra properties
+            schema["additionalProperties"] = False
+            # Recurse into nested object properties
+            for prop_schema in props.values():
+                self._enforce_no_additional_properties(prop_schema)
+            # Handle patternProperties if present
+            if "patternProperties" in schema and isinstance(schema["patternProperties"], dict):
+                for pat_schema in schema["patternProperties"].values():
+                    self._enforce_no_additional_properties(pat_schema)
+        elif schema_type == "array":
+            items = schema.get("items")
+            if items:
+                self._enforce_no_additional_properties(items)
+        # Handle oneOf/anyOf/allOf branches
+        for key in ("oneOf", "anyOf", "allOf"):
+            if key in schema and isinstance(schema[key], list):
+                for subschema in schema[key]:
+                    self._enforce_no_additional_properties(subschema)
