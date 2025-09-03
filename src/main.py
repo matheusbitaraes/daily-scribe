@@ -161,7 +161,7 @@ def send_digest(
 
         html_digest = DigestBuilder.build_html_digest(clustered_curated_articles)
         notifier = EmailNotifier(config.email.__dict__)
-        subject = f"Your Daily Digest for {time.strftime('%Y-%m-%d')} [BETA]"
+        subject = f"Daily Scribe Digest {time.strftime('%Y-%m-%d')} [BETA]"
         notifier.send_digest(html_digest, email_address, subject)
         # Mark all sent articles in sent_articles table
         digest_id = uuid.uuid4()

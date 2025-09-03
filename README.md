@@ -166,6 +166,10 @@ This project is for personal use only.
       - create a layer for translating each different rss?
 - [x] clean html encodings on rss parsing
 - [ ] Web interface for configuration management
+   - be able to check and experiment some news grouping and experiment clusters
+   - visual map of the current news?
+   - be able to test email digests
+   - 
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 
 - [ ] Web interface to subscription
 - [ ] Local LLM integration for summarization
