@@ -720,7 +720,7 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT a.id, a.url, a.raw_content
+                    SELECT a.id, a.url, a.title, a.raw_content
                     FROM articles a
                     WHERE a.summary IS NULL AND a.raw_content IS NOT NULL
                 ''')

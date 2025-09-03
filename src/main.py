@@ -106,13 +106,19 @@ def summarize_articles(config_path: Optional[str] = None) -> None:
         
         for article in articles_to_summarize:
             try:
-                metadata = summarizer.summarize(article['raw_content'])
+                raw_content = article.get('raw_content')
+
+                if not raw_content:
+                    logger.warning(f"Article {article['url']} has no raw content, skipping.")
+                    continue
+
+                metadata = summarizer.summarize(raw_content)
                 if not metadata or not metadata.get('summary'):
                     logger.warning(f"Could not summarize {article['url']}. Skipping.")
                     continue
                 
                 db_service.update_article_summary(article['id'], metadata)
-                logger.info(f"Summarized and saved: {article['url']}")
+                logger.info(f"Summarized and saved: id: {article['id']}, title: {article['title']}")
             except Exception as e:
                 logger.error(f"Failed to summarize article {article['url']}: {e}")
         logger.info("Article summarization complete.")

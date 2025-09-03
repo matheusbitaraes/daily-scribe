@@ -161,9 +161,10 @@ This project is for personal use only.
 - [x] Similar news showing clustered
 - [x] send source in digest
 - [x] fix ordering
-- [ ] split article fetch from article summarization 
+- [x] split article fetch from article summarization 
       - store originals 
       - create a layer for translating each different rss?
+- [x] clean html encodings on rss parsing
 - [ ] Web interface for configuration management
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 
 - [ ] Web interface to subscription

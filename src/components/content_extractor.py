@@ -64,8 +64,8 @@ class ContentExtractor:
         # 1. Try to use content from RSS feed first
         content_parts = parser.parse(article.raw_entry)
         
-        # Serialize the list of ContentPart objects to a JSON string
-        content_to_save = json.dumps([part.__dict__ for part in content_parts])
+        # Serialize the list of ContentPart objects to a JSON string with proper UTF-8 encoding
+        content_to_save = json.dumps([part.__dict__ for part in content_parts], ensure_ascii=False)
 
         # If RSS content is too short, try scraping
         if not content_parts:
@@ -74,7 +74,7 @@ class ContentExtractor:
                 scraped_content, _ = self.scraper.extract_article_content(article.url)
                 if scraped_content:
                     # For scraped content, we can create a default structure
-                    content_to_save = json.dumps([{'text': scraped_content, 'type': 'scraped'}])
+                    content_to_save = json.dumps([{'text': scraped_content, 'type': 'scraped'}], ensure_ascii=False)
                     self.logger.debug(f"Successfully scraped content for {article.title}")
                 else:
                     self.logger.warning(f"Scraping failed for {article.url}. No content to save.")

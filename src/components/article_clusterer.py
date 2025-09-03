@@ -29,8 +29,50 @@ class ArticleClusterer:
             parts.append(f"Category: {article['category']}")
         if article.get('keywords'):
             parts.append(f"Keywords: {article['keywords']}")
+        
+        # Parse raw_content JSON and extract text by type
         if article.get('raw_content'):
-            parts.append(f"Content: {article['raw_content']}")
+            try:
+                import json
+                content_parts = json.loads(article['raw_content'])
+                content_by_type = {}
+                
+                for part in content_parts:
+                    if isinstance(part, dict) and part.get('text') and part.get('type'):
+                        content_type = part['type']
+                        text = part['text'].strip()
+                        if text:  # Only include non-empty text
+                            if content_type not in content_by_type:
+                                content_by_type[content_type] = []
+                            content_by_type[content_type].append(text)
+                
+                # Add content by type in a structured way
+                for content_type, texts in content_by_type.items():
+                    if content_type == 'title':
+                        # Skip title if we already have it from the article metadata
+                        if not article.get('title'):
+                            parts.append(f"Title: {' | '.join(texts)}")
+                    elif content_type == 'summary':
+                        # Skip summary if we already have it from the article metadata
+                        if not article.get('summary'):
+                            parts.append(f"Summary: {' | '.join(texts)}")
+                    elif content_type == 'content':
+                        parts.append(f"Content: {' | '.join(texts)}")
+                    elif content_type == 'description':
+                        parts.append(f"Description: {' | '.join(texts)}")
+                    elif content_type == 'subtitle':
+                        parts.append(f"Subtitle: {' | '.join(texts)}")
+                    elif content_type == 'scraped':
+                        parts.append(f"Article Text: {' | '.join(texts)}")
+                    else:
+                        # For any other content types
+                        parts.append(f"{content_type.capitalize()}: {' | '.join(texts)}")
+                        
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning(f"Failed to parse raw_content as JSON for article ID {article.get('id')}: {e}")
+                # Fallback to using raw_content as-is
+                parts.append(f"Content: {article['raw_content']}")
+        
         return " | ".join(parts)
 
     def get_embedding(self, text: str) -> List[float]:
