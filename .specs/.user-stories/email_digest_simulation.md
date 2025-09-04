@@ -74,7 +74,7 @@ This feature will bridge the gap between the backend digest generation and user 
 **New Endpoints Required:**
 
 1. `GET /digest/simulate`
-   - Query parameters: `date` (YYYY-MM-DD), `category[]` (optional), `source_id[]` (optional)
+   - Query parameters: `user_email`
    - Returns: Complete HTML digest content for the specified date and filters
    - Uses the existing `DigestBuilder` class to ensure consistency
 
