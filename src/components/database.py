@@ -363,14 +363,17 @@ class DatabaseService:
             self.logger.error(f"Error getting RSS feeds: {e}")
             return []
 
-    def get_articles(self, start_date: Optional[str] = None, end_date: Optional[str] = None, categories: Optional[list] = None) -> list:
+    def get_articles(self, start_date: Optional[str] = None, end_date: Optional[str] = None, categories: Optional[list] = None, source_id: Optional[int] = None, limit: int = 100, offset: int = 0) -> list:
         """
-        Retrieve articles from the database filtered by date range and categories.
+        Retrieve articles from the database filtered by date range, categories, and source_id.
 
         Args:
             start_date: ISO format string (inclusive), filter articles published after this date.
             end_date: ISO format string (inclusive), filter articles published before this date.
             categories: List of category strings to filter by.
+            source_id: The id of the source to filter by.
+            limit: The maximum number of articles to return.
+            offset: The number of articles to skip.
 
         Returns:
             List of dicts with article data including source_name.
@@ -392,6 +395,13 @@ class DatabaseService:
         if categories:
             query += " AND a.category IN ({})".format(",".join(["?"] * len(categories)))
             params.extend(categories)
+        if source_id is not None:
+            query += " AND a.source_id = ?"
+            params.append(source_id)
+        
+        query += " ORDER BY a.published_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
