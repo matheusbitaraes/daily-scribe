@@ -34,8 +34,8 @@ class NewsCurator:
             email_address,
             start_date=start_date_str,
             end_date=end_date_str,
-            enabled_sources=[str(s) for s in enabled_sources] if enabled_sources else None,
-            enabled_categories=enabled_categories
+            source_ids=[str(s) for s in enabled_sources] if enabled_sources else None,
+            categories=enabled_categories
         )
 
         # Try to get user embedding
@@ -126,8 +126,8 @@ class NewsCurator:
             email_address,
             start_date=start_date_str,
             end_date=end_date_str,
-            enabled_sources=[str(s) for s in enabled_sources] if enabled_sources else None,
-            enabled_categories=enabled_categories
+            source_ids=[str(s) for s in enabled_sources] if enabled_sources else None,
+            categories=enabled_categories
         )
 
         if not articles:

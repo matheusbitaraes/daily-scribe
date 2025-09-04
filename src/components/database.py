@@ -363,7 +363,7 @@ class DatabaseService:
             self.logger.error(f"Error getting RSS feeds: {e}")
             return []
 
-    def get_articles(self, start_date: Optional[str] = None, end_date: Optional[str] = None, categories: Optional[list] = None, source_id: Optional[int] = None, limit: int = 100, offset: int = 0) -> list:
+    def get_articles(self, start_date: Optional[str] = None, end_date: Optional[str] = None, categories: Optional[list] = None, source_ids: Optional[list] = None, limit: int = 100, offset: int = 0) -> list:
         """
         Retrieve articles from the database filtered by date range, categories, and source_id.
 
@@ -395,10 +395,10 @@ class DatabaseService:
         if categories:
             query += " AND a.category IN ({})".format(",".join(["?"] * len(categories)))
             params.extend(categories)
-        if source_id is not None:
-            query += " AND a.source_id = ?"
-            params.append(source_id)
-        
+        if source_ids is not None:
+            query += " AND a.source_id IN ({})".format(",".join(["?"] * len(source_ids)))
+            params.extend(source_ids)
+
         query += " ORDER BY a.published_at DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
@@ -425,12 +425,12 @@ class DatabaseService:
             self.logger.error(f"Error getting sent article IDs: {e}")
             return set()
 
-    def get_unsent_articles(self, email_address: str, start_date: Optional[str] = None, end_date: Optional[str] = None, categories: Optional[list] = None, enabled_sources: Optional[list] = None, enabled_categories: Optional[list] = None) -> list:
+    def get_unsent_articles(self, email_address: str, start_date: Optional[str] = None, end_date: Optional[str] = None, categories: Optional[list] = None, source_ids: Optional[list] = None) -> list:
         """
         Retrieve articles that have NOT been sent to the given email address, filtered by date, category, and user preferences.
         """
         sent_ids = self.get_sent_article_ids_for_email(email_address)
-        all_articles = self.get_articles(start_date, end_date, categories)
+        all_articles = self.get_articles(start_date, end_date, categories, source_ids)
         if not sent_ids:
             filtered = all_articles
         else:
@@ -447,20 +447,6 @@ class DatabaseService:
             except sqlite3.Error as e:
                 self.logger.error(f"Error filtering unsent articles: {e}")
                 filtered = all_articles
-        # Apply enabled_sources and enabled_categories filters
-        if enabled_sources:
-            enabled_sources_set = set(str(s) for s in enabled_sources)
-            filtered = [a for a in filtered if str(a.get('source_id')) in enabled_sources_set]
-        if enabled_categories:
-            enabled_categories_set = set(enabled_categories)
-            def has_enabled_category(article):
-                cats = article.get('category')
-                if not cats:
-                    cats = ['uncategorized']
-                elif isinstance(cats, str):
-                    cats = [cats]
-                return bool(set(cats) & enabled_categories_set)
-            filtered = [a for a in filtered if has_enabled_category(a)]
         return filtered
 
     def get_user_preferences(self, email_address: str) -> Optional[dict]:
