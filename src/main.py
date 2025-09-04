@@ -26,6 +26,7 @@ from components.notifier import EmailNotifier
 from components.content_extractor import ContentExtractor
 from components.digest_builder import DigestBuilder
 from components.news_curator import NewsCurator
+from components.digest_service import DigestService
 
 app = typer.Typer()
 
@@ -138,39 +139,28 @@ def send_digest(
     """
     logger = logging.getLogger(__name__)
     logger.info("Starting digest generation and sending...")
+    
     try:
         config = load_config(config_path)
-        db_service = DatabaseService()
         email_address = email_address or config.email.to
-
-        # Safety switch: check if user has received a digest today
-        if not force and db_service.has_user_received_digest_today(email_address):
-            logger.warning(f"Digest already sent to {email_address} today. Use --force to override.")
-            return
-
-        # Update user embedding before curation
-        from components.article_clusterer import ArticleClusterer
-        clusterer = ArticleClusterer()
-        clusterer.update_user_embedding(email_address)
-
-        curator = NewsCurator()
-        clustered_curated_articles = curator.curate_and_cluster_for_user(email_address)
-        if not clustered_curated_articles:
-            logger.info("No curated articles to send after applying curation rules.")
-            return
-
-        html_digest = DigestBuilder.build_html_digest(clustered_curated_articles)
-        notifier = EmailNotifier(config.email.__dict__)
-        subject = f"Daily Scribe Digest {time.strftime('%Y-%m-%d')} [BETA]"
-        notifier.send_digest(html_digest, email_address, subject)
-        # Mark all sent articles in sent_articles table
-        digest_id = uuid.uuid4()
-        all_sent_articles = [article for cluster in clustered_curated_articles for article in cluster]
-        for article in all_sent_articles:
-            db_article = db_service.get_article_by_url(article['url'])
-            if db_article:
-                db_service.add_sent_article(db_article['id'], digest_id=digest_id, email_address=email_address)
-        logger.info("Digest generated and sent successfully.")
+        
+        # Use DigestService to handle digest generation and sending
+        digest_service = DigestService()
+        result = digest_service.send_digest_to_user(
+            email_address=email_address,
+            config_dict=config.email.__dict__,
+            force=force,
+            use_alt_method=False
+        )
+        
+        if result["success"]:
+            logger.info(f"Digest sent successfully: {result['message']}")
+        else:
+            if result.get("reason") == "already_sent_today":
+                logger.warning(result["message"])
+            else:
+                logger.error(f"Failed to send digest: {result['message']}")
+                
     except Exception as e:
         logger.error(f"An error occurred during digest sending: {e}")
 
