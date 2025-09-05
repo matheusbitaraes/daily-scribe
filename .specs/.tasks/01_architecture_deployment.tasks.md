@@ -404,13 +404,13 @@ Implement comprehensive monitoring for the Daily Scribe deployment including upt
 - Document monitoring procedures
 
 ### Acceptance Criteria
-- [ ] External uptime monitoring is configured
-- [ ] Internal health checks are working
-- [ ] Log rotation prevents disk filling
-- [ ] Alerts are sent for service failures
-- [ ] System metrics are collected
-- [ ] Dashboard shows current system status
-- [ ] Alert fatigue is minimized
+- [x] External uptime monitoring is configured
+- [x] Internal health checks are working
+- [x] Log rotation prevents disk filling
+- [x] Alerts are sent for service failures
+- [x] System metrics are collected
+- [x] Dashboard shows current system status
+- [x] Alert fatigue is minimized
 
 ### Notes/Considerations
 - Start with basic monitoring and expand
@@ -753,3 +753,20 @@ This comprehensive task breakdown provides a production-ready deployment path fo
 - `scripts/test-connectivity.sh` - External connectivity testing script for port forwarding validation
 - `scripts/network-config.sh` - Network configuration script for static IP setup and DHCP reservation guidance
 - `scripts/validate-port-forwarding.sh` - Comprehensive validation script for port forwarding, DDNS, and security testing
+
+### Monitoring and Alerting Files
+- `docs/monitoring-setup.md` - Comprehensive monitoring and alerting setup guide with architecture overview and configuration instructions
+- `docs/monitoring-runbook.md` - Operational procedures, alert response guidelines, and maintenance schedules for monitoring system
+- `scripts/setup-monitoring.sh` - Automated monitoring setup script for Prometheus, Grafana, AlertManager, and Loki configuration
+- `scripts/test-monitoring.sh` - Comprehensive monitoring validation script with health checks, service testing, and reporting
+- `scripts/external-monitor.sh` - External monitoring integration script for UptimeRobot, Healthchecks.io, and StatusCake
+- `docker-compose.monitoring.yml` - Complete monitoring stack with Prometheus, Grafana, AlertManager, Loki, Promtail, and Node Exporter
+- `monitoring/config/prometheus.yml` - Prometheus configuration with scrape targets, alert rules, and service discovery
+- `monitoring/config/alertmanager.yml` - AlertManager configuration with email, Slack, and webhook notification routing
+- `monitoring/alerts/daily-scribe.yml` - Comprehensive alert rules for service health, performance, and business metrics
+- `monitoring/config/loki.yml` - Loki log aggregation configuration with retention policies and storage settings
+- `monitoring/config/promtail.yml` - Promtail log collection configuration for Docker containers and system logs
+- `monitoring/grafana/datasources/prometheus.yml` - Grafana datasource configuration for Prometheus and Loki integration
+- `monitoring/dashboards/daily-scribe-overview.json` - Grafana dashboard for Daily Scribe system overview and key metrics
+- `static/status.html` - Lightweight HTML status dashboard with real-time health monitoring and automatic refresh
+- `src/api.py` - Enhanced with `/metrics` endpoint for Prometheus monitoring, request tracking, and application metrics collection

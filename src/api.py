@@ -4,10 +4,11 @@ import logging
 import time
 import sys
 import os
+import shutil
 
 from fastapi import FastAPI, Query, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from components.database import DatabaseService
 from components.digest_service import DigestService
@@ -15,6 +16,42 @@ from components.digest_service import DigestService
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+# Metrics collection for monitoring
+app_metrics = {
+    "requests_total": 0,
+    "requests_by_endpoint": {},
+    "errors_total": 0,
+    "database_queries_total": 0,
+    "database_query_duration_total": 0.0,
+    "articles_processed_total": 0,
+    "digests_generated_total": 0,
+    "start_time": time.time()
+}
+
+# Middleware to collect metrics
+@app.middleware("http")
+async def metrics_middleware(request, call_next):
+    start_time = time.time()
+    
+    # Increment request counter
+    app_metrics["requests_total"] += 1
+    
+    # Track requests by endpoint
+    endpoint = f"{request.method} {request.url.path}"
+    app_metrics["requests_by_endpoint"][endpoint] = app_metrics["requests_by_endpoint"].get(endpoint, 0) + 1
+    
+    try:
+        response = await call_next(request)
+        
+        # Track errors
+        if response.status_code >= 400:
+            app_metrics["errors_total"] += 1
+            
+        return response
+    except Exception as e:
+        app_metrics["errors_total"] += 1
+        raise
 
 # Allow CORS for local development
 app.add_middleware(
@@ -92,6 +129,117 @@ def health_check() -> JSONResponse:
         status_code=200,
         content=health_data
     )
+
+
+@app.get("/metrics", response_class=PlainTextResponse)
+def get_metrics():
+    """
+    Prometheus metrics endpoint for monitoring.
+    
+    Returns metrics in Prometheus exposition format.
+    """
+    try:
+        # Calculate uptime
+        uptime_seconds = time.time() - app_metrics["start_time"]
+        
+        # Get system metrics
+        disk_usage = shutil.disk_usage(".")
+        disk_total = disk_usage.total
+        disk_free = disk_usage.free
+        disk_used = disk_total - disk_free
+        disk_usage_percent = (disk_used / disk_total) * 100 if disk_total > 0 else 0
+        
+        # Build Prometheus metrics
+        metrics_lines = [
+            "# HELP daily_scribe_requests_total Total number of HTTP requests",
+            "# TYPE daily_scribe_requests_total counter",
+            f"daily_scribe_requests_total {app_metrics['requests_total']}",
+            "",
+            "# HELP daily_scribe_errors_total Total number of HTTP errors",
+            "# TYPE daily_scribe_errors_total counter", 
+            f"daily_scribe_errors_total {app_metrics['errors_total']}",
+            "",
+            "# HELP daily_scribe_database_queries_total Total number of database queries",
+            "# TYPE daily_scribe_database_queries_total counter",
+            f"daily_scribe_database_queries_total {app_metrics['database_queries_total']}",
+            "",
+            "# HELP daily_scribe_database_query_duration_seconds Total time spent on database queries",
+            "# TYPE daily_scribe_database_query_duration_seconds counter",
+            f"daily_scribe_database_query_duration_seconds {app_metrics['database_query_duration_total']:.2f}",
+            "",
+            "# HELP daily_scribe_articles_processed_total Total number of articles processed",
+            "# TYPE daily_scribe_articles_processed_total counter",
+            f"daily_scribe_articles_processed_total {app_metrics['articles_processed_total']}",
+            "",
+            "# HELP daily_scribe_digests_generated_total Total number of digests generated",
+            "# TYPE daily_scribe_digests_generated_total counter",
+            f"daily_scribe_digests_generated_total {app_metrics['digests_generated_total']}",
+            "",
+            "# HELP daily_scribe_uptime_seconds Application uptime in seconds",
+            "# TYPE daily_scribe_uptime_seconds gauge",
+            f"daily_scribe_uptime_seconds {uptime_seconds:.2f}",
+            "",
+            "# HELP daily_scribe_disk_usage_percent Disk usage percentage",
+            "# TYPE daily_scribe_disk_usage_percent gauge",
+            f"daily_scribe_disk_usage_percent {disk_usage_percent:.2f}",
+            "",
+            "# HELP daily_scribe_disk_free_bytes Free disk space in bytes",
+            "# TYPE daily_scribe_disk_free_bytes gauge",
+            f"daily_scribe_disk_free_bytes {disk_free}",
+            "",
+            "# HELP daily_scribe_info Application information",
+            "# TYPE daily_scribe_info gauge",
+            f'daily_scribe_info{{version="1.0.0",python_version="{sys.version.split()[0]}",platform="{sys.platform}"}} 1',
+            ""
+        ]
+        
+        # Add per-endpoint request metrics
+        if app_metrics["requests_by_endpoint"]:
+            metrics_lines.extend([
+                "# HELP daily_scribe_requests_by_endpoint_total Requests by endpoint",
+                "# TYPE daily_scribe_requests_by_endpoint_total counter"
+            ])
+            for endpoint, count in app_metrics["requests_by_endpoint"].items():
+                method, path = endpoint.split(" ", 1)
+                metrics_lines.append(f'daily_scribe_requests_by_endpoint_total{{method="{method}",path="{path}"}} {count}')
+            metrics_lines.append("")
+        
+        # Check database health for metrics
+        try:
+            db_start = time.time()
+            with db_service._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+            db_query_time = time.time() - db_start
+            
+            app_metrics["database_queries_total"] += 1
+            app_metrics["database_query_duration_total"] += db_query_time
+            
+            metrics_lines.extend([
+                "# HELP daily_scribe_database_health Database connectivity status",
+                "# TYPE daily_scribe_database_health gauge",
+                "daily_scribe_database_health 1",
+                "",
+                "# HELP daily_scribe_database_last_query_duration_seconds Last database query duration",
+                "# TYPE daily_scribe_database_last_query_duration_seconds gauge",
+                f"daily_scribe_database_last_query_duration_seconds {db_query_time:.4f}",
+                ""
+            ])
+        except Exception as e:
+            logger.warning(f"Database health check failed in metrics: {e}")
+            metrics_lines.extend([
+                "# HELP daily_scribe_database_health Database connectivity status",
+                "# TYPE daily_scribe_database_health gauge",
+                "daily_scribe_database_health 0",
+                ""
+            ])
+        
+        return "\n".join(metrics_lines)
+        
+    except Exception as e:
+        logger.error(f"Error generating metrics: {e}")
+        return f"# Error generating metrics: {e}\n"
 
 
 @app.get("/articles")
