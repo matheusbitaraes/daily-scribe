@@ -180,6 +180,25 @@ services:
     # Remove dependency to avoid circular dependency
     # Litestream can start independently and will wait for database to be available
 
+  # Database Administration Tool
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: daily-scribe-cloudbeaver
+    restart: unless-stopped
+    ports:
+      - "8080:8978"
+    volumes:
+      - ./data:/opt/cloudbeaver/data:ro  # Read-only access to database files
+      - cloudbeaver_workspace:/opt/cloudbeaver/workspace
+    environment:
+      - CB_SERVER_NAME=Daily Scribe Database
+    networks:
+      - daily_scribe_internal
+    depends_on:
+      - app
+    profiles:
+      - admin
+
 # Named volumes for data persistence
 volumes:
   daily_scribe_data:
@@ -193,6 +212,8 @@ volumes:
   caddy_config:
     driver: local
   ddns_cache:
+    driver: local
+  cloudbeaver_workspace:
     driver: local
 
 # Networks for service isolation and communication

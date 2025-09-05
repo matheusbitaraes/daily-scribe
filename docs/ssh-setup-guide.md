@@ -73,6 +73,12 @@ cd /Users/Matheus/daily-scribe
 ./scripts/deploy-to-server.sh --skip-firewall
 ```
 
+### 4. Enable database administration (optional)
+```bash
+# Start CloudBeaver for database management
+ssh matheus@192.168.15.55 'cd daily-scribe && docker-compose --profile admin up -d cloudbeaver'
+```
+
 ## What the Deployment Script Does
 
 1. **Tests SSH connectivity** to your server
@@ -126,8 +132,44 @@ After deployment with monitoring enabled:
 
 - **Application**: http://192.168.15.55:8000
 - **Grafana**: http://192.168.15.55:3000 (admin/admin)
-- **Prometheus**: http://192.168.15.55:9090
+- **Prometheus**: http://192.168.15.55:9092
+- **Database Admin (CloudBeaver)**: http://192.168.15.55:8080
 - **Status Page**: http://192.168.15.55:8000/static/status.html
+
+### Database Access with CloudBeaver
+
+To access and manipulate your SQLite database:
+
+1. **Start CloudBeaver** (if not already running):
+   ```bash
+   ssh matheus@192.168.15.55 'cd daily-scribe && docker-compose --profile admin up -d cloudbeaver'
+   ```
+
+2. **Open CloudBeaver** in your browser: http://192.168.15.55:8080
+
+3. **Initial Setup** (first time only):
+   - **Admin Username**: admin
+   - **Admin Password**: admin
+   - Complete the initial configuration wizard
+
+4. **Add SQLite Database Connection**:
+   - Click "**+ Add**" to create a new connection
+   - Select "**SQLite**" as the database type
+   - **Database path**: `/data/digest_history.db`
+   - **Name**: Daily Scribe Database (or any name you prefer)
+   - Click "**Create**" and then "**Connect**"
+
+5. **Browse and edit** your database:
+   - Navigate through database tables in the left panel
+   - Run SQL queries in the SQL editor
+   - View and edit data in a spreadsheet-like interface
+   - Export data in various formats
+   - Advanced features like query history, bookmarks, and more
+
+6. **Stop CloudBeaver** when done (optional):
+   ```bash
+   ssh matheus@192.168.15.55 'cd daily-scribe && docker-compose stop cloudbeaver'
+   ```
 
 ## Troubleshooting
 
