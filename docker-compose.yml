@@ -188,7 +188,7 @@ services:
     ports:
       - "8080:8978"
     volumes:
-      - ./data:/opt/cloudbeaver/data:ro  # Read-only access to database files
+      - ./data:/opt/cloudbeaver/data  # Read-write access to database files
       - cloudbeaver_workspace:/opt/cloudbeaver/workspace
     environment:
       - CB_SERVER_NAME=Daily Scribe Database

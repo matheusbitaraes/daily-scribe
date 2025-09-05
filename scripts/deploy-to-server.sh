@@ -209,6 +209,7 @@ deploy_application() {
         --exclude='.pytest_cache/' \
         --exclude='*.pyc' \
         --exclude='dev_data/' \
+        --exclude='data/' \
         --exclude='test_*.db*' \
         --exclude='.DS_Store' \
         --exclude='logs/' \
@@ -279,6 +280,9 @@ start_services() {
         
         # Start core services
         docker-compose up -d
+        
+        # Start admin services (CloudBeaver)
+        docker-compose --profile admin up -d
         
         # Wait for services to start
         echo 'Waiting for services to start...'
@@ -372,6 +376,7 @@ show_summary() {
     echo ""
     echo "4. Access services:"
     echo "   - Application: http://$SERVER_HOST:8000"
+    echo "   - CloudBeaver: http://$SERVER_HOST:8080 (admin/admin)"
     if [[ "$MONITORING_ENABLED" == true ]]; then
         echo "   - Grafana: http://$SERVER_HOST:3000 (admin/admin)"
         echo "   - Prometheus: http://$SERVER_HOST:9090"
