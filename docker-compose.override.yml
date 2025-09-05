@@ -1,0 +1,52 @@
+version: '3.8'
+
+# Development overrides for Docker Compose
+# This file is automatically loaded by Docker Compose when present
+# Use: docker-compose up -f docker-compose.yml -f docker-compose.override.yml
+
+services:
+  # Development overrides for the app service
+  app:
+    # Enable hot reloading and development mode
+    command: ["python", "-m", "uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=debug
+    volumes:
+      # Mount source code for hot reloading (extends base volumes)
+      - ./src:/app/src
+      - ./tests:/app/tests
+
+  # Development overrides for cron service
+  cron:
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=debug
+    volumes:
+      # Mount source code for development (extends base volumes)
+      - ./src:/app/src
+
+  # Development overrides for Caddy
+  caddy:
+    # Enable Caddy's admin API for development
+    environment:
+      - CADDY_ADMIN=0.0.0.0:2019
+    ports:
+      - "2019:2019"
+
+  # Litestream runs normally in development but with local storage
+  litestream:
+    # Override command to use local development configuration
+    command: ["echo", "Litestream disabled in development - using local database only"]
+    restart: "no"
+
+# Development volumes - simplified to avoid conflicts
+volumes:
+  # Remove the bind mount override to use the main configuration
+  daily_scribe_data: {}
+
+# Development network configuration
+networks:
+  daily_scribe_internal:
+    # Enable external connectivity for development debugging
+    internal: false

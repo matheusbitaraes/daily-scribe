@@ -1,55 +1,145 @@
 version: '3.8'
 
 services:
+  # Daily Scribe FastAPI Application
   app:
-    build: .
-    container_name: daily_scribe_app
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    image: daily-scribe:latest
+    container_name: daily-scribe-app
     restart: unless-stopped
-    command: /home/appuser/.local/bin/uvicorn src.api:app --host 0.0.0.0 --port 8000
+    environment:
+      - DB_PATH=/data/digest_history.db
+      - DB_TIMEOUT=${DB_TIMEOUT:-30}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - PYTHONPATH=/app/src:/app
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
     volumes:
-      - data:/app/data
-    env_file:
-      - .env
+      - ./data:/data:Z
+      - daily_scribe_logs:/var/log/daily-scribe
+      - ./config.json:/app/config.json:ro
+    networks:
+      - daily_scribe_internal
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - litestream
+    command: ["python", "-m", "uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
 
+  # Daily Scribe Cron Jobs
   cron:
-    build: .
-    container_name: daily_scribe_cron
+    build:
+      context: .
+      dockerfile: cron/Dockerfile
+    image: daily-scribe-cron:latest
+    container_name: daily-scribe-cron
     restart: unless-stopped
-    # This command will keep the container running.
-    # We will add the actual cron scheduling logic later.
-    command: tail -f /dev/null
+    environment:
+      - DB_PATH=/data/digest_history.db
+      - DB_TIMEOUT=${DB_TIMEOUT:-30}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - PYTHONPATH=/app/src:/app
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - TZ=${TZ:-UTC}
     volumes:
-      - data:/app/data
-    env_file:
-      - .env
+      - ./data:/data:Z
+      - daily_scribe_logs:/var/log/daily-scribe
+      - daily_scribe_cron_logs:/var/log/cron
+      - ./config.json:/app/config.json:ro
+    networks:
+      - daily_scribe_internal
+    depends_on:
+      - app
+      - litestream
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "supercronic"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
+  # Caddy Reverse Proxy with Automatic HTTPS
   caddy:
-    image: caddy:2
-    container_name: daily_scribe_caddy
+    image: caddy:2.7-alpine
+    container_name: daily-scribe-caddy
     restart: unless-stopped
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - CADDY_ADMIN=${CADDY_ADMIN:-0.0.0.0:2019}
     ports:
       - "80:80"
       - "443:443"
+      - "2019:2019"  # Caddy admin interface
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-
-  litestream:
-    image: litestream/litestream:latest
-    container_name: daily_scribe_litestream
-    restart: unless-stopped
-    command: replicate -config /etc/litestream.yml
-    volumes:
-      - data:/app/data
-      - ./litestream.yml:/etc/litestream.yml
-    env_file:
-      - .env
+      - daily_scribe_logs:/var/log/daily-scribe
+    networks:
+      - daily_scribe_internal
+      - daily_scribe_external
     depends_on:
       - app
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
 
+  # Litestream for Database Backup and Replication
+  litestream:
+    image: litestream/litestream:0.3.13
+    container_name: daily-scribe-litestream
+    restart: unless-stopped
+    environment:
+      - LITESTREAM_ACCESS_KEY_ID=${LITESTREAM_ACCESS_KEY_ID}
+      - LITESTREAM_SECRET_ACCESS_KEY=${LITESTREAM_SECRET_ACCESS_KEY}
+      - GCS_BUCKET=${GCS_BUCKET}
+      - GCS_PATH=${GCS_PATH:-daily-scribe}
+    volumes:
+      - daily_scribe_data:/data
+      - ./litestream.yml:/etc/litestream.yml:ro
+      - daily_scribe_logs:/var/log/daily-scribe
+    networks:
+      - daily_scribe_internal
+    command: replicate
+    healthcheck:
+      test: ["CMD", "litestream", "version"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Named volumes for data persistence
 volumes:
-  data:
+  daily_scribe_data:
+    driver: local
+  daily_scribe_logs:
+    driver: local
+  daily_scribe_cron_logs:
     driver: local
   caddy_data:
+    driver: local
   caddy_config:
+    driver: local
+
+# Networks for service isolation and communication
+networks:
+  daily_scribe_internal:
+    driver: bridge
+    internal: false
+  daily_scribe_external:
+    driver: bridge
