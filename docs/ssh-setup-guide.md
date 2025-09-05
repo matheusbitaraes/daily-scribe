@@ -16,7 +16,7 @@ ssh-keygen -t rsa -b 4096 -C "your-email@example.com"
 ### 2. Copy SSH key to server
 ```bash
 # Copy your public key to the server
-ssh-copy-id Matheus@192.168.15.55
+ssh-copy-id matheus@192.168.15.55
 
 # You'll be prompted for the server password
 ```
@@ -24,7 +24,7 @@ ssh-copy-id Matheus@192.168.15.55
 ### 3. Test SSH connection
 ```bash
 # Test passwordless SSH login
-ssh Matheus@192.168.15.55 'echo "SSH key setup successful"'
+ssh matheus@192.168.15.55 'echo "SSH key setup successful"'
 ```
 
 ## Option 2: Password Authentication (Less Secure)
@@ -33,7 +33,7 @@ If you prefer password authentication:
 
 ### 1. Test SSH connection with password
 ```bash
-ssh Matheus@192.168.15.55
+ssh matheus@192.168.15.55
 # Enter password when prompted
 ```
 
@@ -90,7 +90,7 @@ cd /Users/Matheus/daily-scribe
 
 ### 1. Configure environment variables on server
 ```bash
-ssh Matheus@192.168.15.55
+ssh matheus@192.168.15.55
 cd daily-scribe
 nano .env
 ```
@@ -109,7 +109,7 @@ DDNS_TOKEN=your-duckdns-token
 
 ### 4. Test the deployment
 ```bash
-ssh Matheus@192.168.15.55
+ssh matheus@192.168.15.55
 cd daily-scribe
 ./scripts/validate-deployment.sh
 ```
@@ -134,22 +134,22 @@ After deployment with monitoring enabled:
 ### SSH Issues
 ```bash
 # Check SSH service on server
-ssh Matheus@192.168.15.55 'sudo systemctl status ssh'
+ssh matheus@192.168.15.55 'sudo systemctl status ssh'
 
 # Check firewall on server
-ssh Matheus@192.168.15.55 'sudo ufw status'
+ssh matheus@192.168.15.55 'sudo ufw status'
 ```
 
 ### Deployment Issues
 ```bash
 # Check Docker status
-ssh Matheus@192.168.15.55 'docker --version && docker-compose --version'
+ssh matheus@192.168.15.55 'docker --version && docker-compose --version'
 
 # Check running services
-ssh Matheus@192.168.15.55 'cd daily-scribe && docker-compose ps'
+ssh matheus@192.168.15.55 'cd daily-scribe && docker-compose ps'
 
 # View logs
-ssh Matheus@192.168.15.55 'cd daily-scribe && docker-compose logs'
+ssh matheus@192.168.15.55 'cd daily-scribe && docker-compose logs'
 ```
 
 ## Security Notes

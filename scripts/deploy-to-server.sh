@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-SERVER_USER="${SERVER_USER:-$(whoami)}"
+SERVER_USER="matheus"
 SERVER_HOST="${SERVER_HOST:-192.168.15.55}"
 DEPLOY_PATH="${DEPLOY_PATH:-/home/$SERVER_USER/daily-scribe}"
 PRODUCTION_MODE=false
