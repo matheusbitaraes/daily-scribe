@@ -276,7 +276,10 @@ start_services() {
         cd '$DEPLOY_PATH'
         
         # Pull latest images
-        docker-compose pull
+        docker-compose pull || echo 'Some images need to be built locally'
+        
+        # Build any containers that need building (app, cron)
+        docker-compose build
         
         # Start core services
         docker-compose up -d
@@ -376,10 +379,10 @@ show_summary() {
     echo ""
     echo "4. Access services:"
     echo "   - Application: http://$SERVER_HOST:8000"
-    echo "   - CloudBeaver: http://$SERVER_HOST:8080 (admin/admin)"
+    echo "   - CloudBeaver: http://$SERVER_HOST:8080 (cbadmin)"
     if [[ "$MONITORING_ENABLED" == true ]]; then
         echo "   - Grafana: http://$SERVER_HOST:3000 (admin/admin)"
-        echo "   - Prometheus: http://$SERVER_HOST:9090"
+        echo "   - Prometheus: http://$SERVER_HOST:9092"
     fi
     echo ""
     echo "5. Monitor logs:"
