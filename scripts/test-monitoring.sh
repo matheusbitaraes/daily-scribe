@@ -169,7 +169,6 @@ test_monitoring_config() {
     
     local config_files=(
         "monitoring/config/prometheus.yml:Prometheus Config"
-        "monitoring/config/alertmanager.yml:AlertManager Config"
         "monitoring/alerts/daily-scribe.yml:Alert Rules"
         "monitoring/config/loki.yml:Loki Config"
         "monitoring/config/promtail.yml:Promtail Config"
@@ -219,7 +218,6 @@ test_monitoring_services() {
     
     local services=(
         "prometheus:daily-scribe-prometheus:Prometheus"
-        "alertmanager:daily-scribe-alertmanager:AlertManager"
         "grafana:daily-scribe-grafana:Grafana"
         "node-exporter:daily-scribe-node-exporter:Node Exporter"
         "loki:daily-scribe-loki:Loki"
@@ -254,16 +252,6 @@ test_monitoring_services() {
                     else
                         log_error "Not accessible (HTTP $response)"
                         add_result "Grafana Web UI" "FAIL" "HTTP $response"
-                    fi
-                    ;;
-                "alertmanager")
-                    echo -n "AlertManager API: "
-                    if response=$(test_http_endpoint "http://localhost:9093/-/healthy" "200" 5); then
-                        log_success "Accessible (HTTP $response)"
-                        add_result "AlertManager API" "PASS" "HTTP $response"
-                    else
-                        log_error "Not accessible (HTTP $response)"
-                        add_result "AlertManager API" "FAIL" "HTTP $response"
                     fi
                     ;;
                 "loki")

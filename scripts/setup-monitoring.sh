@@ -91,7 +91,6 @@ create_directories() {
         "$MONITORING_DIR/loki"
         "$MONITORING_DIR/promtail"
         "$MONITORING_DIR/prometheus"
-        "$MONITORING_DIR/alertmanager"
     )
     
     for dir in "${dirs[@]}"; do
@@ -116,12 +115,6 @@ global:
 
 rule_files:
   - "/etc/prometheus/alerts/*.yml"
-
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets:
-          - alertmanager:9093
 
 scrape_configs:
   - job_name: 'daily-scribe-app'
@@ -215,71 +208,6 @@ groups:
         annotations:
           summary: "DDNS update failure"
           description: "DDNS has not updated successfully in the last 2 hours"
-EOF
-
-    # Create alertmanager configuration
-    cat > "$CONFIG_DIR/alertmanager.yml" << 'EOF'
-global:
-  smtp_smarthost: '${SMTP_HOST:-localhost:587}'
-  smtp_from: '${SMTP_FROM:-daily-scribe@localhost}'
-  smtp_auth_username: '${SMTP_USERNAME:-}'
-  smtp_auth_password: '${SMTP_PASSWORD:-}'
-
-route:
-  group_by: ['alertname']
-  group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
-  receiver: 'default'
-  routes:
-    - match:
-        severity: critical
-      receiver: 'critical'
-    - match:
-        severity: warning
-      receiver: 'warning'
-
-receivers:
-  - name: 'default'
-    email_configs:
-      - to: '${ALERT_EMAIL:-admin@localhost}'
-        subject: '[Daily Scribe] {{ .GroupLabels.alertname }}'
-        body: |
-          {{ range .Alerts }}
-          Alert: {{ .Annotations.summary }}
-          Description: {{ .Annotations.description }}
-          {{ end }}
-
-  - name: 'critical'
-    email_configs:
-      - to: '${ALERT_EMAIL:-admin@localhost}'
-        subject: '[CRITICAL] Daily Scribe Alert: {{ .GroupLabels.alertname }}'
-        body: |
-          {{ range .Alerts }}
-          CRITICAL ALERT: {{ .Annotations.summary }}
-          Description: {{ .Annotations.description }}
-          Labels: {{ range .Labels.SortedPairs }}{{ .Name }}={{ .Value }} {{ end }}
-          {{ end }}
-    webhook_configs:
-      - url: '${SLACK_WEBHOOK_URL:-}'
-        send_resolved: true
-
-  - name: 'warning'
-    email_configs:
-      - to: '${ALERT_EMAIL:-admin@localhost}'
-        subject: '[WARNING] Daily Scribe Alert: {{ .GroupLabels.alertname }}'
-        body: |
-          {{ range .Alerts }}
-          Warning: {{ .Annotations.summary }}
-          Description: {{ .Annotations.description }}
-          {{ end }}
-
-inhibit_rules:
-  - source_match:
-      severity: 'critical'
-    target_match:
-      severity: 'warning'
-    equal: ['alertname', 'instance']
 EOF
 
     log_success "Internal monitoring configuration created"
@@ -553,9 +481,6 @@ schema_config:
         prefix: index_
         period: 24h
 
-ruler:
-  alertmanager_url: http://alertmanager:9093
-
 limits_config:
   reject_old_samples: true
   reject_old_samples_max_age: 168h
@@ -656,24 +581,6 @@ services:
       - daily-scribe-network
     restart: unless-stopped
 
-  alertmanager:
-    image: prom/alertmanager:v0.25.0
-    container_name: daily-scribe-alertmanager
-    ports:
-      - "9093:9093"
-    volumes:
-      - ./monitoring/config/alertmanager.yml:/etc/alertmanager/alertmanager.yml
-      - alertmanager-data:/alertmanager
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
-    networks:
-      - daily-scribe-network
-    restart: unless-stopped
-    env_file:
-      - .env
-
   node-exporter:
     image: prom/node-exporter:v1.6.0
     container_name: daily-scribe-node-exporter
@@ -737,7 +644,6 @@ services:
 
 volumes:
   prometheus-data:
-  alertmanager-data:
   grafana-data:
   loki-data:
 
@@ -939,7 +845,6 @@ test_monitoring() {
     # Check configuration files
     local config_files=(
         "$CONFIG_DIR/prometheus.yml"
-        "$CONFIG_DIR/alertmanager.yml"
         "$ALERTS_DIR/daily-scribe.yml"
     )
     
@@ -971,7 +876,7 @@ Daily Scribe Monitoring Setup Script
 Usage: $0 [OPTIONS]
 
 OPTIONS:
-    --internal              Setup internal monitoring (Prometheus, AlertManager)
+    --internal              Setup internal monitoring (Prometheus)
     --external              Setup external monitoring configuration
     --grafana              Setup Grafana dashboards
     --loki                 Setup Loki logging

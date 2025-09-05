@@ -22,24 +22,6 @@ services:
       - daily-scribe-network
     restart: unless-stopped
 
-  alertmanager:
-    image: prom/alertmanager:v0.25.0
-    container_name: daily-scribe-alertmanager
-    ports:
-      - "9093:9093"
-    volumes:
-      - ./monitoring/config/alertmanager.yml:/etc/alertmanager/alertmanager.yml
-      - alertmanager-data:/alertmanager
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
-    networks:
-      - daily-scribe-network
-    restart: unless-stopped
-    env_file:
-      - .env
-
   node-exporter:
     image: prom/node-exporter:v1.6.0
     container_name: daily-scribe-node-exporter
@@ -104,7 +86,6 @@ services:
 
 volumes:
   prometheus-data:
-  alertmanager-data:
   grafana-data:
   loki-data:
   daily_scribe_cron_logs:
