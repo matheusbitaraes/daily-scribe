@@ -36,7 +36,10 @@ class ContentExtractor:
         """
         if parser_name not in self.parsers:
             try:
-                module = importlib.import_module(f"components.feed_parsers.{parser_name.lower()}")
+                # Convert CamelCase to snake_case for module name
+                module_name = ''.join(['_' + c.lower() if c.isupper() and i > 0 else c.lower() 
+                                     for i, c in enumerate(parser_name)])
+                module = importlib.import_module(f"components.feed_parsers.{module_name}")
                 parser_class = getattr(module, parser_name)
                 self.parsers[parser_name] = parser_class()
             except (ImportError, AttributeError) as e:
