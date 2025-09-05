@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.pytest_cache/
+
+# VSCode
+.vscode/
+
+# Development files
+tests/
+.tasks/
+.specs/
+models/
+data/
+digest.log
+digest.txt
+cron.log
+query.sql
+query_database.sh
+
+# Frontend (not needed for backend container)
+frontend/
+
+# Documentation
+README.md
+
+# Development configs
+docker-compose.yml
+litestream.yml
+
+# Specs
+.specs/
+
+# Data
+data/
+*.db
+*.db-journal
+
+# Logs
+*.log

@@ -1,0 +1,10 @@
+# litestream.yml
+# This file configures Litestream to replicate the database to Google Cloud Storage.
+
+dbs:
+  - path: /app/data/digest_history.db
+    replicas:
+      - type: gcs
+        # The name of your Google Cloud Storage bucket.
+        # This is read from the GCS_BUCKET_NAME environment variable.
+        bucket: ${GCS_BUCKET_NAME}

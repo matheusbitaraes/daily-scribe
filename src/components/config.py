@@ -19,6 +19,14 @@ class GeminiConfig:
         self.api_key = api_key
 
 
+class DatabaseConfig:
+    """Database configuration settings."""
+    
+    def __init__(self, path: str, timeout: float):
+        self.path = path
+        self.timeout = timeout
+
+
 class EmailConfig:
     """Email configuration settings."""
     
@@ -41,11 +49,12 @@ class ScheduleConfig:
 class AppConfig:
     """Main application configuration."""
     
-    def __init__(self, rss_feeds, email, schedule, gemini):
+    def __init__(self, rss_feeds, email, schedule, gemini, database):
         self.rss_feeds = rss_feeds
         self.email = email
         self.schedule = schedule
         self.gemini = gemini
+        self.database = database
 
 
 class ConfigLoader:
@@ -161,7 +170,19 @@ class ConfigLoader:
         if not gemini_api_key:
             raise ValueError("Gemini API key is not set. Please set the GEMINI_API_KEY environment variable.")
         
+        # Configure database settings (using environment variables with fallbacks)
+        db_path = os.getenv('DB_PATH', 'data/digest_history.db')
+        db_timeout = float(os.getenv('DB_TIMEOUT', '30'))
+        
+        if db_timeout <= 0:
+            raise ValueError("Database timeout must be a positive number")
+        
         # Create and return validated config
+        database_config = DatabaseConfig(
+            path=db_path,
+            timeout=db_timeout
+        )
+        
         email_config = EmailConfig(
             to=email_data['to'],
             smtp_server=email_data['smtp_server'],
@@ -183,7 +204,8 @@ class ConfigLoader:
             rss_feeds=rss_feeds,
             email=email_config,
             schedule=schedule_config,
-            gemini=gemini_config
+            gemini=gemini_config,
+            database=database_config
         )
 
 

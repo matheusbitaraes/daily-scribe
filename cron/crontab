@@ -1,0 +1,17 @@
+# Daily Scribe Cron Schedule
+# Format: minute hour day month weekday command
+#
+# This crontab implements the scheduling strategy from the architecture document:
+# - Send digest emails every hour from 7 AM to 11 AM UTC
+# - Perform a full enrichment run every 2 hours
+#
+# All times are in UTC. Adjust as needed for your timezone.
+
+# send-digest every hour from 7 AM to 11 AM UTC
+0 7-11 * * * cd /app && python -m src.main send-digest >> /var/log/cron/send-digest.log 2>&1
+
+# full enrichment run every 2 hours
+30 */2 * * * cd /app && python -m src.main full-run >> /var/log/cron/full-run.log 2>&1
+
+# Log rotation and cleanup - run weekly at 3 AM Sunday UTC
+0 3 * * 0 find /var/log/cron -name "*.log" -mtime +7 -delete >> /var/log/cron/cleanup.log 2>&1

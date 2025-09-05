@@ -1,9 +1,13 @@
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import logging
+import time
+import sys
+import os
 
 from fastapi import FastAPI, Query, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from components.database import DatabaseService
 from components.digest_service import DigestService
@@ -22,6 +26,72 @@ app.add_middleware(
 )
 
 db_service = DatabaseService()
+
+
+@app.get("/healthz")
+def health_check() -> JSONResponse:
+    """
+    Health check endpoint for monitoring and load balancer integration.
+    
+    Returns:
+        JSONResponse: HTTP 200 if healthy, HTTP 503 if unhealthy
+    """
+    start_time = time.time()
+    health_data: Dict[str, Any] = {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "service": "daily-scribe-api",
+        "version": "1.0.0",
+        "checks": {}
+    }
+    
+    try:
+        # Test database connectivity with a simple query
+        db_start = time.time()
+        with db_service._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            result = cursor.fetchone()
+            if result[0] != 1:
+                raise Exception("Database query returned unexpected result")
+        
+        db_time = time.time() - db_start
+        health_data["checks"]["database"] = {
+            "status": "healthy",
+            "response_time_ms": round(db_time * 1000, 2)
+        }
+        
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        health_data["status"] = "unhealthy"
+        health_data["checks"]["database"] = {
+            "status": "unhealthy",
+            "error": str(e)
+        }
+        
+        # Return 503 Service Unavailable when database is down
+        response_time = round((time.time() - start_time) * 1000, 2)
+        health_data["response_time_ms"] = response_time
+        return JSONResponse(
+            status_code=503,
+            content=health_data
+        )
+    
+    # Add basic system information
+    health_data["system"] = {
+        "python_version": sys.version.split()[0],
+        "platform": sys.platform,
+        "pid": os.getpid()
+    }
+    
+    # Calculate total response time
+    response_time = round((time.time() - start_time) * 1000, 2)
+    health_data["response_time_ms"] = response_time
+    
+    return JSONResponse(
+        status_code=200,
+        content=health_data
+    )
 
 
 @app.get("/articles")

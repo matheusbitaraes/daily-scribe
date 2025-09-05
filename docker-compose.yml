@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: daily_scribe_app
+    restart: unless-stopped
+    command: /home/appuser/.local/bin/uvicorn src.api:app --host 0.0.0.0 --port 8000
+    volumes:
+      - data:/app/data
+    env_file:
+      - .env
+
+  cron:
+    build: .
+    container_name: daily_scribe_cron
+    restart: unless-stopped
+    # This command will keep the container running.
+    # We will add the actual cron scheduling logic later.
+    command: tail -f /dev/null
+    volumes:
+      - data:/app/data
+    env_file:
+      - .env
+
+  caddy:
+    image: caddy:2
+    container_name: daily_scribe_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+  litestream:
+    image: litestream/litestream:latest
+    container_name: daily_scribe_litestream
+    restart: unless-stopped
+    command: replicate -config /etc/litestream.yml
+    volumes:
+      - data:/app/data
+      - ./litestream.yml:/etc/litestream.yml
+    env_file:
+      - .env
+    depends_on:
+      - app
+
+volumes:
+  data:
+    driver: local
+  caddy_data:
+  caddy_config:

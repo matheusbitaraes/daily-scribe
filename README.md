@@ -98,6 +98,38 @@ The application uses a `config.json` file for configuration. Here's the structur
 - `hour`: Hour of day to run (0-23)
 - `minute`: Minute of hour to run (0-59)
 
+## Environment Variables
+
+The following environment variables are supported for configuration:
+
+### Required Environment Variables
+- `GEMINI_API_KEY`: Your Gemini API key for content summarization
+- `SMTP_PASSWORD`: SMTP password for email delivery
+
+### Optional Environment Variables
+- `DB_PATH`: Path to SQLite database file (default: `data/digest_history.db`)
+- `DB_TIMEOUT`: Database connection timeout in seconds (default: `30`)
+
+### Example Environment Setup
+
+Create a `.env` file in the project root (this file is git-ignored):
+
+```bash
+# Required
+GEMINI_API_KEY=your-gemini-api-key-here
+SMTP_PASSWORD=your-smtp-password-here
+
+# Optional database configuration
+DB_PATH=/custom/path/to/database.db
+DB_TIMEOUT=45
+```
+
+Load environment variables before running:
+```bash
+source .env  # or use python-dotenv
+python -m src.main
+```
+
 ## Project Structure
 
 ```

@@ -6,6 +6,7 @@ including storing and retrieving processed article URLs.
 """
 
 import logging
+import os
 import sqlite3
 import uuid
 from pathlib import Path
@@ -15,27 +16,56 @@ from typing import List, Optional
 class DatabaseService:
     """Handles all interactions with the SQLite database."""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, timeout: Optional[float] = None):
         """
         Initialize the database service.
 
         Args:
-            db_path: Path to the SQLite database file. If None, defaults to 'data/digest_history.db'.
+            db_path: Path to the SQLite database file. If None, uses DB_PATH environment 
+                    variable or defaults to 'data/digest_history.db'.
+            timeout: Connection timeout in seconds. If None, uses DB_TIMEOUT environment
+                    variable or defaults to 30 seconds.
         """
-        self.db_path = db_path or "data/digest_history.db"
+        self.db_path = db_path or os.getenv('DB_PATH', 'data/digest_history.db')
+        self.timeout = timeout if timeout is not None else float(os.getenv('DB_TIMEOUT', '30'))
         self.logger = logging.getLogger(__name__)
-        self._create_table_if_not_exists()
+        self._initialize_database()
 
     def _get_connection(self) -> sqlite3.Connection:
         """
-        Get a connection to the SQLite database.
+        Get a connection to the SQLite database with proper timeout and thread safety.
 
         Returns:
-            A SQLite database connection.
+            A SQLite database connection with WAL mode enabled.
         """
         # Ensure the data directory exists
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        return sqlite3.connect(self.db_path)
+        
+        # Create connection with timeout
+        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
+        
+        # Enable WAL mode for better concurrency (only needs to be set once, but it's idempotent)
+        conn.execute("PRAGMA journal_mode=WAL")
+        
+        # Additional pragmas for better performance and reliability
+        conn.execute("PRAGMA synchronous=NORMAL")  # Good balance of safety and performance
+        conn.execute("PRAGMA cache_size=1000")     # Reasonable cache size
+        conn.execute("PRAGMA temp_store=MEMORY")   # Store temp tables in memory
+        
+        return conn
+
+    def _initialize_database(self) -> None:
+        """
+        Initialize the database with proper configuration and create tables if needed.
+        This method is idempotent and can be called multiple times safely.
+        """
+        try:
+            self.logger.info(f"Initializing database at {self.db_path}")
+            self._create_table_if_not_exists()
+            self.logger.info("Database initialization completed successfully")
+        except Exception as e:
+            self.logger.error(f"Failed to initialize database: {e}")
+            raise
 
     def _create_table_if_not_exists(self) -> None:
         """

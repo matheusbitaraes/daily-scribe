@@ -22,17 +22,136 @@ def db_service():
     service = DatabaseService(db_path=db_path)
     yield service
     # Clean up the temporary database file
-    os.remove(db_path)
+    if os.path.exists(db_path):
+        os.remove(db_path)
 
 
 def test_database_creation(db_service):
     """Test that the database and table are created correctly."""
     assert os.path.exists(db_service.db_path)
+
+
+def test_database_environment_variables():
+    """Test that DatabaseService respects environment variables."""
+    # Test DB_PATH environment variable
+    test_db_path = "test_env_db.db"
+    original_db_path = os.environ.get('DB_PATH')
+    original_db_timeout = os.environ.get('DB_TIMEOUT')
     
-    with sqlite3.connect(db_service.db_path) as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='articles'")
-        assert cursor.fetchone() is not None
+    try:
+        os.environ['DB_PATH'] = test_db_path
+        os.environ['DB_TIMEOUT'] = '45'
+        
+        service = DatabaseService()
+        assert service.db_path == test_db_path
+        assert service.timeout == 45.0
+        
+        # Clean up
+        if os.path.exists(test_db_path):
+            os.remove(test_db_path)
+            
+    finally:
+        # Restore original environment
+        if original_db_path is not None:
+            os.environ['DB_PATH'] = original_db_path
+        elif 'DB_PATH' in os.environ:
+            del os.environ['DB_PATH']
+            
+        if original_db_timeout is not None:
+            os.environ['DB_TIMEOUT'] = original_db_timeout
+        elif 'DB_TIMEOUT' in os.environ:
+            del os.environ['DB_TIMEOUT']
+
+
+def test_database_default_values():
+    """Test that DatabaseService uses proper default values."""
+    # Ensure no environment variables are set
+    original_db_path = os.environ.get('DB_PATH')
+    original_db_timeout = os.environ.get('DB_TIMEOUT')
+    
+    try:
+        if 'DB_PATH' in os.environ:
+            del os.environ['DB_PATH']
+        if 'DB_TIMEOUT' in os.environ:
+            del os.environ['DB_TIMEOUT']
+            
+        service = DatabaseService()
+        assert service.db_path == 'data/digest_history.db'
+        assert service.timeout == 30.0
+        
+    finally:
+        # Restore original environment
+        if original_db_path is not None:
+            os.environ['DB_PATH'] = original_db_path
+        if original_db_timeout is not None:
+            os.environ['DB_TIMEOUT'] = original_db_timeout
+
+
+def test_database_wal_mode():
+    """Test that WAL mode is enabled on database connections."""
+    db_path = "test_wal_db.db"
+    service = DatabaseService(db_path=db_path)
+    
+    try:
+        with service._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA journal_mode")
+            result = cursor.fetchone()
+            assert result[0].upper() == 'WAL'
+            
+    finally:
+        # Clean up
+        if os.path.exists(db_path):
+            os.remove(db_path)
+        # Also clean up WAL files that might be created
+        wal_file = db_path + '-wal'
+        shm_file = db_path + '-shm'
+        if os.path.exists(wal_file):
+            os.remove(wal_file)
+        if os.path.exists(shm_file):
+            os.remove(shm_file)
+
+
+def test_database_timeout_configuration():
+    """Test that timeout is properly configured."""
+    db_path = "test_timeout_db.db"
+    timeout = 60
+    service = DatabaseService(db_path=db_path, timeout=timeout)
+    
+    try:
+        assert service.timeout == timeout
+        # The actual timeout testing is challenging without complex scenarios,
+        # but we can verify the parameter is stored correctly
+        
+    finally:
+        # Clean up
+        if os.path.exists(db_path):
+            os.remove(db_path)
+
+
+def test_database_initialization_idempotent():
+    """Test that database initialization can be called multiple times safely."""
+    db_path = "test_idempotent_db.db"
+    service = DatabaseService(db_path=db_path)
+    
+    try:
+        # Initialize multiple times
+        service._initialize_database()
+        service._initialize_database()
+        
+        # Verify database still works
+        assert os.path.exists(db_path)
+        
+        with service._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='articles'")
+            assert cursor.fetchone() is not None
+            
+    finally:
+        # Clean up
+        if os.path.exists(db_path):
+            os.remove(db_path)
+
 
 def test_mark_as_processed_and_get_urls(db_service):
     """Test that URLs can be marked as processed and retrieved."""
