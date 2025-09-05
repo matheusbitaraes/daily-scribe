@@ -96,6 +96,7 @@ services:
       - /var/log:/var/log:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - ./monitoring/config/promtail.yml:/etc/promtail/config.yml
+      - daily_scribe_cron_logs:/app/cron-logs:ro
     command: -config.file=/etc/promtail/config.yml
     networks:
       - daily-scribe-network
@@ -106,6 +107,9 @@ volumes:
   alertmanager-data:
   grafana-data:
   loki-data:
+  daily_scribe_cron_logs:
+    external: true
+    name: daily-scribe_daily_scribe_cron_logs
 
 networks:
   daily-scribe-network:

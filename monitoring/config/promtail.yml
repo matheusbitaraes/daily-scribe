@@ -46,3 +46,23 @@ scrape_configs:
         labels:
           job: syslog
           __path__: /var/log/syslog
+
+  - job_name: cronlogs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: cronlogs
+          __path__: /app/cron-logs/*.log
+
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<logger>\S+) - (?P<level>\S+) - (?P<message>.*)'
+      - timestamp:
+          format: '2006-01-02 15:04:05,000'
+          source: timestamp
+      - labels:
+          level:
+          logger:
+      - output:
+          source: message
