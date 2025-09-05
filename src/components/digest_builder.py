@@ -100,7 +100,11 @@ class DigestBuilder:
             </style>
         </head>
         <body>
+
         <div class="content">
+        <div style="background-color: #f0f8ff; border: 1px solid #0a97f5; border-radius: 6px; padding: 12px; margin-bottom: 20px; font-size: 14px; color: #0066cc;">
+            <strong>Você está em Beta!</strong> Se tiver algum feedback sobre as notícias, pode responder nesse próprio email.
+        </div>
         """
 
         # Process categories in the specified order
