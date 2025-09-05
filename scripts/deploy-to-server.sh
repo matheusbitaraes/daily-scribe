@@ -20,8 +20,8 @@ SERVER_HOST="${SERVER_HOST:-192.168.15.55}"
 DEPLOY_PATH="${DEPLOY_PATH:-/home/$SERVER_USER/daily-scribe}"
 PRODUCTION_MODE=false
 MONITORING_ENABLED=true
-SKIP_FIREWALL=false
-SKIP_DOCKER_INSTALL=false
+SKIP_FIREWALL=true
+SKIP_DOCKER_INSTALL=true
 
 # Logging functions
 log_info() {
@@ -404,15 +404,12 @@ OPTIONS:
     --path PATH           Deployment path (default: $DEPLOY_PATH)
     --production          Enable production mode
     --no-monitoring       Skip monitoring setup
-    --skip-firewall       Skip firewall configuration
-    --skip-docker         Skip Docker installation
     -h, --help           Show this help message
 
 EXAMPLES:
     $0                                          # Deploy with defaults
     $0 --server 192.168.1.100 --user admin     # Custom server and user
     $0 --production --no-monitoring             # Production without monitoring
-    $0 --skip-docker --skip-firewall           # Skip system setup
 
 ENVIRONMENT VARIABLES:
     SERVER_HOST           Target server hostname/IP
@@ -495,14 +492,6 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-monitoring)
             MONITORING_ENABLED=false
-            shift
-            ;;
-        --skip-firewall)
-            SKIP_FIREWALL=true
-            shift
-            ;;
-        --skip-docker)
-            SKIP_DOCKER_INSTALL=true
             shift
             ;;
         -h|--help)
