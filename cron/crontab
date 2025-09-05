@@ -7,11 +7,11 @@
 #
 # All times are in UTC. Adjust as needed for your timezone.
 
-# send-digest every hour from 10 AM to 14 AM UTC
-25 10-14 * * * cd /app && python -m src.main send-digest >> /var/log/cron/send-digest.log 2>&1
+# send-digest every hour from 10 to 16 UTC
+30 10-14 * * * cd /app && python -m src.main send-digest >> /var/log/cron/send-digest.log 2>&1
 
-# full enrichment run every 2 hours
-30 */2 * * * cd /app && python -m src.main full-run >> /var/log/cron/full-run.log 2>&1
+# full enrichment run hourly
+0 * * * * cd /app && python -m src.main full-run >> /var/log/cron/full-run.log 2>&1
 
 # Log rotation and cleanup - run weekly at 3 AM Sunday UTC
 0 3 * * 0 find /var/log/cron -name "*.log" -mtime +7 -delete >> /var/log/cron/cleanup.log 2>&1
