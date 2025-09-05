@@ -188,7 +188,7 @@ class Summarizer:
                 error_message = str(e)
                 self.logger.warning(f"[{model_name}] Attempt {attempt + 1} failed: {error_message}")
                 if "GenerateRequestsPerDayPerProjectPerModel" in error_message:
-                    self.logger.error(f"Gemini API daily quota exceeded for {model_name}. Will not use this model anymore today.")
+                    self.logger.warning(f"Gemini API daily quota exceeded for {model_name}. Will not use this model anymore today.")
                     self._quota_exceeded[model_name] = True
                     break
                 if "GenerateRequestsPerMinutePerProjectPerModel" in error_message:
