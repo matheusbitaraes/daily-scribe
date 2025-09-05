@@ -1,0 +1,47 @@
+[Unit]
+Description=Daily Scribe Dynamic DNS Update Service
+Documentation=https://github.com/daily-scribe/daily-scribe
+After=network-online.target
+Wants=network-online.target
+Requires=network.target
+
+[Service]
+Type=simple
+User=daily-scribe
+Group=daily-scribe
+WorkingDirectory=/opt/daily-scribe
+ExecStart=/opt/daily-scribe/scripts/ddns-update.sh daemon
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+RestartSec=30
+StartLimitInterval=300
+StartLimitBurst=5
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/daily-scribe /var/cache/daily-scribe /var/run
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_INET AF_INET6
+
+# Environment
+Environment=DDNS_CONFIG_FILE=/etc/daily-scribe/ddns.conf
+Environment=LOG_FILE=/var/log/daily-scribe/ddns.log
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ddns-update
+
+[Install]
+WantedBy=multi-user.target

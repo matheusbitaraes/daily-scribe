@@ -99,6 +99,48 @@ services:
       retries: 3
       start_period: 5s
 
+  # Dynamic DNS Update Service
+  ddns:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ddns
+    image: daily-scribe-ddns:latest
+    container_name: daily-scribe-ddns
+    restart: unless-stopped
+    environment:
+      # DDNS Provider Configuration (required)
+      - DDNS_PROVIDERS=${DDNS_PROVIDERS}
+      # Update interval in seconds (default: 300 = 5 minutes)
+      - UPDATE_INTERVAL=${DDNS_UPDATE_INTERVAL:-300}
+      # Maximum retry attempts (default: 3)
+      - MAX_RETRIES=${DDNS_MAX_RETRIES:-3}
+      # HTTP request timeout in seconds (default: 30)
+      - TIMEOUT=${DDNS_TIMEOUT:-30}
+      # Log level: DEBUG, INFO, WARN, ERROR (default: INFO)
+      - LOG_LEVEL=${DDNS_LOG_LEVEL:-INFO}
+      # Force update even if IP hasn't changed (default: false)
+      - FORCE_UPDATE=${DDNS_FORCE_UPDATE:-false}
+      # Custom IP check URLs (optional)
+      - IP_CHECK_URLS=${DDNS_IP_CHECK_URLS:-}
+    volumes:
+      # Logs volume for DDNS monitoring
+      - daily_scribe_logs:/var/log/daily-scribe
+      # Cache directory for IP change detection
+      - ddns_cache:/var/cache/daily-scribe
+    networks:
+      - daily_scribe_external
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/ddns-update.sh", "health"]
+      interval: 30m
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      - app
+    profiles:
+      - ddns
+      - production
+
   # Litestream for Database Backup and Replication
   litestream:
     image: litestream/litestream:0.3.13
@@ -149,6 +191,8 @@ volumes:
   caddy_data:
     driver: local
   caddy_config:
+    driver: local
+  ddns_cache:
     driver: local
 
 # Networks for service isolation and communication
