@@ -33,6 +33,9 @@ services:
       - CADDY_ADMIN=0.0.0.0:2019
     ports:
       - "2019:2019"
+    volumes:
+      # Use development-specific Caddyfile
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
 
   # Litestream runs normally in development but with local storage
   litestream:
