@@ -34,8 +34,7 @@ ENV/
 .env.*.local
 
 # Database
-data/*.db
-data/*.sqlite
+data/*
 
 # Logs
 *.log
