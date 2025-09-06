@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import './DigestFilters.css';
 
 const DigestFilters = ({ 
@@ -7,6 +8,8 @@ const DigestFilters = ({
   selectedSources = [],
   isLoading = false 
 }) => {
+  console.log('DigestFilters props:', { selectedCategories, selectedSources, isLoading });
+  
   const [categories, setCategories] = useState([]);
   const [sources, setSources] = useState([]);
   const [isLoadingFilters, setIsLoadingFilters] = useState(true);
@@ -23,10 +26,38 @@ const DigestFilters = ({
       setError(null);
       
       try {
-        // For now, we'll use mock data since the API endpoints for categories/sources 
-        // might not exist yet. In a real implementation, these would come from API calls.
+        // Load real data from API endpoints
+        const [categoriesResponse, sourcesResponse] = await Promise.all([
+          axios.get('http://localhost:8000/categories'),
+          axios.get('http://localhost:8000/sources')
+        ]);
         
-        // Mock categories - these would typically come from /api/categories
+        // Transform categories data to expected format
+        const categoriesData = Array.isArray(categoriesResponse.data) 
+          ? categoriesResponse.data.map(cat => ({
+              id: typeof cat === 'string' ? cat : cat.id || cat.name,
+              name: typeof cat === 'string' ? cat.charAt(0).toUpperCase() + cat.slice(1) : cat.name || cat.id,
+              count: cat.count || 0
+            }))
+          : [];
+        
+        // Transform sources data to expected format  
+        const sourcesData = Array.isArray(sourcesResponse.data)
+          ? sourcesResponse.data.map(source => ({
+              id: typeof source === 'string' ? source : source.id || source.name,
+              name: typeof source === 'string' ? source : source.name || source.id,
+              count: source.count || 0
+            }))
+          : [];
+
+        setCategories(categoriesData);
+        setSources(sourcesData);
+        
+        console.log('Loaded filter options - Categories:', categoriesData, 'Sources:', sourcesData);
+      } catch (err) {
+        console.error('Error loading filters from API, falling back to mock data:', err);
+        
+        // Fallback to mock data if API calls fail
         const mockCategories = [
           { id: 'technology', name: 'Technology', count: 45 },
           { id: 'business', name: 'Business', count: 32 },
@@ -38,7 +69,6 @@ const DigestFilters = ({
           { id: 'world', name: 'World News', count: 38 }
         ];
 
-        // Mock sources - these would typically come from /api/sources
         const mockSources = [
           { id: 'techcrunch', name: 'TechCrunch', count: 25 },
           { id: 'bbc', name: 'BBC News', count: 42 },
@@ -52,9 +82,7 @@ const DigestFilters = ({
 
         setCategories(mockCategories);
         setSources(mockSources);
-      } catch (err) {
-        setError('Failed to load filter options');
-        console.error('Error loading filters:', err);
+        setError('Using fallback data - API connection failed');
       } finally {
         setIsLoadingFilters(false);
       }
@@ -69,6 +97,8 @@ const DigestFilters = ({
       ? selectedCategories.filter(id => id !== categoryId)
       : [...selectedCategories, categoryId];
     
+    console.log('Category change:', categoryId, 'New selection:', newSelectedCategories);
+    
     onFiltersChange({
       categories: newSelectedCategories,
       sources: selectedSources
@@ -80,6 +110,8 @@ const DigestFilters = ({
     const newSelectedSources = selectedSources.includes(sourceId)
       ? selectedSources.filter(id => id !== sourceId)
       : [...selectedSources, sourceId];
+    
+    console.log('Source change:', sourceId, 'New selection:', newSelectedSources);
     
     onFiltersChange({
       categories: selectedCategories,

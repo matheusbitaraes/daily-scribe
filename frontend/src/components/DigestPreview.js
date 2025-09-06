@@ -6,12 +6,9 @@ const DigestPreview = ({
   digestContent, 
   digestMetadata, 
   isLoading = false, 
-  error = null,
-  onCopyToClipboard,
-  onExport 
+  error = null 
 }) => {
   const iframeRef = useRef(null);
-  const contentRef = useRef(null);
 
   // Sanitize HTML content for security
   const sanitizedContent = digestContent 
@@ -144,44 +141,6 @@ const DigestPreview = ({
     }
   }, [sanitizedContent]);
 
-  // Copy HTML content to clipboard
-  const handleCopyToClipboard = async () => {
-    if (!digestContent) return;
-    
-    try {
-      await navigator.clipboard.writeText(digestContent);
-      if (onCopyToClipboard) {
-        onCopyToClipboard('success');
-      }
-    } catch (err) {
-      console.error('Failed to copy to clipboard:', err);
-      if (onCopyToClipboard) {
-        onCopyToClipboard('error');
-      }
-    }
-  };
-
-  // Export functionality
-  const handleExport = (format) => {
-    if (!digestContent) return;
-    
-    if (format === 'html') {
-      const blob = new Blob([digestContent], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `digest-${new Date().toISOString().split('T')[0]}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-    
-    if (onExport) {
-      onExport(format);
-    }
-  };
-
   // Loading state
   if (isLoading) {
     return (
@@ -264,67 +223,9 @@ const DigestPreview = ({
     <div className="digest-preview">
       <div className="preview-header">
         <h2>Digest Preview</h2>
-        <div className="preview-actions">
-          <button 
-            onClick={handleCopyToClipboard}
-            className="action-button copy-button"
-            title="Copy HTML to clipboard"
-          >
-            📋 Copy HTML
-          </button>
-          <button 
-            onClick={() => handleExport('html')}
-            className="action-button export-button"
-            title="Download as HTML file"
-          >
-            💾 Export HTML
-          </button>
-        </div>
       </div>
 
-      {digestMetadata && (
-        <div className="preview-metadata">
-          <div className="metadata-item">
-            <span className="metadata-label">Articles:</span>
-            <span className="metadata-value">{digestMetadata.article_count || 0}</span>
-          </div>
-          <div className="metadata-item">
-            <span className="metadata-label">Clusters:</span>
-            <span className="metadata-value">{digestMetadata.clusters || 0}</span>
-          </div>
-          <div className="metadata-item">
-            <span className="metadata-label">Generated:</span>
-            <span className="metadata-value">
-              {digestMetadata.generated_at 
-                ? new Date(digestMetadata.generated_at).toLocaleString()
-                : new Date().toLocaleString()
-              }
-            </span>
-          </div>
-        </div>
-      )}
-
       <div className="preview-content">
-        <div className="preview-mode-selector">
-          <label className="mode-option">
-            <input 
-              type="radio" 
-              name="previewMode" 
-              value="iframe" 
-              defaultChecked 
-            />
-            <span>Email View (Recommended)</span>
-          </label>
-          <label className="mode-option">
-            <input 
-              type="radio" 
-              name="previewMode" 
-              value="raw" 
-            />
-            <span>Raw HTML</span>
-          </label>
-        </div>
-
         <div className="iframe-container">
           <iframe
             ref={iframeRef}
@@ -333,15 +234,6 @@ const DigestPreview = ({
             sandbox="allow-same-origin"
           />
         </div>
-
-        <details className="raw-html-details">
-          <summary>View Raw HTML</summary>
-          <div className="raw-html-container">
-            <pre ref={contentRef} className="raw-html-content">
-              {digestContent}
-            </pre>
-          </div>
-        </details>
       </div>
 
       <div className="preview-footer">

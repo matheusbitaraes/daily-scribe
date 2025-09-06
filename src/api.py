@@ -294,6 +294,56 @@ def get_sources():
     return sources
 
 
+@app.get("/user/preferences")
+def get_user_preferences(
+    user_email: str = Query(..., description="User email address to get preferences for")
+):
+    """
+    Get user preferences including enabled categories, sources, and settings.
+    Returns default preferences if none are set for the user.
+    """
+    try:
+        preferences = db_service.get_user_preferences(user_email)
+        
+        # If no preferences are found, return sensible defaults
+        if not preferences:
+            # Get available categories and sources to provide defaults
+            articles = db_service.get_articles()
+            all_categories = sorted(set(a.get('category') for a in articles if a.get('category')))
+            all_sources = sorted(set(str(a.get('source_id')) for a in articles if a.get('source_id') is not None))
+            
+            # Default to enabling some common categories
+            default_categories = []
+            for cat in ['technology', 'business', 'science', 'health']:
+                if cat in all_categories:
+                    default_categories.append(cat)
+            
+            return {
+                "user_email": user_email,
+                "enabled_categories": default_categories,
+                "enabled_sources": all_sources,  # Enable all sources by default
+                "max_news_per_category": 10,
+                "keywords": [],
+                "is_default": True
+            }
+        
+        return {
+            "user_email": user_email,
+            "enabled_categories": preferences.get('enabled_categories', []),
+            "enabled_sources": preferences.get('enabled_sources', []),
+            "max_news_per_category": preferences.get('max_news_per_category', 10),
+            "keywords": preferences.get('keywords', []),
+            "is_default": False
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting user preferences: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error while getting user preferences: {str(e)}"
+        )
+
+
 @app.get("/digest/simulate")
 def simulate_digest(
     user_email: str = Query(..., description="User email address for personalization"),

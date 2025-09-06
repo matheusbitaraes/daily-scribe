@@ -12,8 +12,8 @@ const DigestSimulator = () => {
     userEmail: 'matheusbitaraesdenovaes@gmail.com', // Default for testing
     selectedDate: null,
     filters: {
-      categories: [],
-      sources: []
+      categories: [], // Will be populated from user preferences
+      sources: []     // Will be populated from user preferences
     },
     
     // Data from API
@@ -47,8 +47,17 @@ const DigestSimulator = () => {
   useEffect(() => {
     loadAvailableDates();
     loadFilterOptions();
+    loadUserPreferences();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load user preferences when email changes
+  useEffect(() => {
+    if (state.userEmail.trim()) {
+      loadUserPreferences();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.userEmail]);
 
   // Load available dates from API
   const loadAvailableDates = async () => {
@@ -93,6 +102,50 @@ const DigestSimulator = () => {
     } catch (error) {
       console.error('Error loading filter options:', error);
       // Don't show error for filter options as it's not critical
+    }
+  };
+
+  // Load user preferences to pre-select categories and sources
+  const loadUserPreferences = async () => {
+    if (!state.userEmail.trim()) return;
+    
+    try {
+      const response = await axios.get(`${API_BASE_URL}/user/preferences`, {
+        params: { user_email: state.userEmail.trim() }
+      });
+      
+      const data = response.data;
+      console.log('Raw user preferences response:', data);
+      
+      // Ensure we have arrays and convert to strings if needed
+      const enabledCategories = Array.isArray(data.enabled_categories) 
+        ? data.enabled_categories.map(cat => String(cat))
+        : [];
+      
+      const enabledSources = Array.isArray(data.enabled_sources)
+        ? data.enabled_sources.map(source => String(source))
+        : [];
+      
+      console.log('Processed preferences - Categories:', enabledCategories, 'Sources:', enabledSources);
+      
+      // Update filters with user preferences
+      updateState({
+        filters: {
+          categories: enabledCategories,
+          sources: enabledSources
+        }
+      });
+      
+      console.log('Updated state filters with user preferences');
+    } catch (error) {
+      console.error('Error loading user preferences:', error);
+      // Fall back to empty arrays if preferences can't be loaded
+      updateState({
+        filters: {
+          categories: [],
+          sources: []
+        }
+      });
     }
   };
 
@@ -214,12 +267,13 @@ const DigestSimulator = () => {
         </div>
       )}
 
-      <div className="simulator-content">
+      {/* Controls Sidebar */}
+      <div className="simulator-controls">
         {/* User Input Section */}
         <div className="simulator-section">
-          <h2>User Configuration</h2>
+          <h2>User</h2>
           <div className="user-input">
-            <label htmlFor="userEmail">User Email:</label>
+            <label htmlFor="userEmail">Email:</label>
             <input
               id="userEmail"
               type="email"
@@ -258,21 +312,21 @@ const DigestSimulator = () => {
             disabled={state.isLoadingDigest || !state.userEmail.trim()}
             className="generate-button"
           >
-            {state.isLoadingDigest ? 'Generating Digest...' : 'Generate Digest Preview'}
+            {state.isLoadingDigest ? 'Generating...' : 'Generate Preview'}
           </button>
         </div>
+      </div>
 
-        {/* Preview Section */}
-        <div className="simulator-section">
-          <DigestPreview
-            digestContent={state.digestContent}
-            digestMetadata={state.digestMetadata}
-            isLoading={state.isLoadingDigest}
-            error={state.digestError}
-            onCopyToClipboard={handleCopyToClipboard}
-            onExport={handleExport}
-          />
-        </div>
+      {/* Preview Section */}
+      <div className="simulator-preview">
+        <DigestPreview
+          digestContent={state.digestContent}
+          digestMetadata={state.digestMetadata}
+          isLoading={state.isLoadingDigest}
+          error={state.digestError}
+          onCopyToClipboard={handleCopyToClipboard}
+          onExport={handleExport}
+        />
       </div>
     </div>
   );

@@ -1,11 +1,10 @@
-/* DigestFilters.css */
+/* DigestFilters.css - Compact Version */
 
 .digest-filters {
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   padding: 0;
-  margin-bottom: 20px;
   border: 1px solid #e2e8f0;
 }
 
@@ -13,31 +12,33 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
+  padding: 0.75rem;
   border-bottom: 1px solid #e2e8f0;
   background: #f8fafc;
-  border-radius: 12px 12px 0 0;
+  border-radius: 6px 6px 0 0;
 }
 
 .filters-header h2 {
   margin: 0;
   color: #2d3748;
-  font-size: 1.25rem;
+  font-size: 0.9rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .filter-summary {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .selected-count {
   background: #3182ce;
   color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
   font-weight: 500;
 }
 
@@ -45,9 +46,9 @@
   background: transparent;
   border: 1px solid #e53e3e;
   color: #e53e3e;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -63,18 +64,18 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 24px;
+  padding: 1rem;
   color: #718096;
 }
 
 .loading-spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #e2e8f0;
-  border-top: 3px solid #3182ce;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #e2e8f0;
+  border-top: 2px solid #3182ce;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 @keyframes spin {
@@ -83,27 +84,29 @@
 }
 
 .error-state {
-  padding: 24px;
+  padding: 1rem;
   text-align: center;
   color: #e53e3e;
+  font-size: 0.8rem;
 }
 
 .retry-button {
   background: #3182ce;
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
   cursor: pointer;
-  margin-top: 12px;
+  margin-top: 8px;
   transition: background-color 0.2s ease;
+  font-size: 0.7rem;
 }
 
 .retry-button:hover {
   background: #2c5aa0;
 }
 
-/* Filter Sections */
+/* Filter Sections - Compact */
 .filter-section {
   border-bottom: 1px solid #e2e8f0;
 }
@@ -116,7 +119,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
+  padding: 0.5rem 0.75rem;
   cursor: pointer;
   transition: background-color 0.2s ease;
   user-select: none;
@@ -127,35 +130,37 @@
 }
 
 .section-header:focus {
-  outline: 2px solid #3182ce;
-  outline-offset: -2px;
+  outline: 1px solid #3182ce;
+  outline-offset: -1px;
 }
 
 .section-header h3 {
   margin: 0;
   color: #2d3748;
-  font-size: 1rem;
+  font-size: 0.8rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .section-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
 }
 
 .selection-count {
   color: #718096;
-  font-size: 0.875rem;
+  font-size: 0.7rem;
 }
 
 .select-all-button {
   background: transparent;
   border: 1px solid #3182ce;
   color: #3182ce;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.65rem;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -172,7 +177,7 @@
 
 .expand-icon {
   color: #718096;
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   transition: transform 0.2s ease;
 }
 
@@ -180,23 +185,24 @@
   transform: rotate(180deg);
 }
 
-/* Filter Options */
+/* Filter Options - Compact Grid */
 .filter-options {
-  padding: 0 24px 16px;
-  max-height: 300px;
+  padding: 0.5rem;
+  max-height: 120px;
   overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.25rem;
 }
 
 .filter-option {
   display: flex;
   align-items: center;
-  padding: 8px 0;
+  padding: 0.25rem;
   cursor: pointer;
   transition: background-color 0.2s ease;
-  border-radius: 4px;
-  padding-left: 8px;
-  padding-right: 8px;
-  margin: 2px 0;
+  border-radius: 3px;
+  font-size: 0.75rem;
 }
 
 .filter-option:hover {
@@ -204,9 +210,9 @@
 }
 
 .filter-option input[type="checkbox"] {
-  margin-right: 12px;
-  width: 16px;
-  height: 16px;
+  margin-right: 0.4rem;
+  width: 12px;
+  height: 12px;
   accent-color: #3182ce;
   cursor: pointer;
 }
@@ -214,33 +220,38 @@
 .option-name {
   flex: 1;
   color: #2d3748;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .option-count {
   color: #718096;
-  font-size: 0.75rem;
-  margin-left: 8px;
+  font-size: 0.65rem;
+  margin-left: 0.25rem;
 }
 
-/* Applied Filters */
+/* Applied Filters - Compact */
 .applied-filters {
-  padding: 16px 24px;
+  padding: 0.5rem;
   background: #f7fafc;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 6px 6px;
 }
 
 .applied-filters h4 {
-  margin: 0 0 12px 0;
+  margin: 0 0 0.5rem 0;
   color: #2d3748;
-  font-size: 0.875rem;
+  font-size: 0.7rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .filter-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0.25rem;
 }
 
 .filter-tag {
@@ -248,11 +259,11 @@
   align-items: center;
   background: white;
   border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 4px 8px 4px 12px;
-  font-size: 0.75rem;
+  border-radius: 10px;
+  padding: 2px 4px 2px 6px;
+  font-size: 0.65rem;
   color: #2d3748;
-  gap: 6px;
+  gap: 3px;
 }
 
 .filter-tag.category-tag {
