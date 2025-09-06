@@ -1059,3 +1059,120 @@ class DatabaseService:
         except sqlite3.Error as e:
             self.logger.error(f"Error retrieving user preferences by email: {e}")
             return None
+
+    def update_user_preferences(
+        self, 
+        preferences_id: int, 
+        enabled_sources: Optional[str] = None,
+        enabled_categories: Optional[str] = None,
+        keywords: Optional[str] = None,
+        max_news_per_category: Optional[int] = None
+    ) -> bool:
+        """
+        Update user preferences by ID.
+        
+        Args:
+            preferences_id: User preferences ID
+            enabled_sources: Comma-separated enabled sources
+            enabled_categories: Comma-separated enabled categories
+            keywords: Comma-separated keywords
+            max_news_per_category: Maximum news articles per category
+            
+        Returns:
+            True if update successful, False otherwise
+        """
+        try:
+            # Build dynamic update query based on provided parameters
+            update_fields = []
+            params = []
+            
+            if enabled_sources is not None:
+                update_fields.append("enabled_sources = ?")
+                params.append(enabled_sources)
+            
+            if enabled_categories is not None:
+                update_fields.append("enabled_categories = ?")
+                params.append(enabled_categories)
+            
+            if keywords is not None:
+                update_fields.append("keywords = ?")
+                params.append(keywords)
+            
+            if max_news_per_category is not None:
+                update_fields.append("max_news_per_category = ?")
+                params.append(max_news_per_category)
+            
+            if not update_fields:
+                self.logger.warning("No fields provided for user preferences update")
+                return False
+            
+            # Add updated timestamp
+            update_fields.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(preferences_id)
+            
+            query = f"""
+                UPDATE user_preferences 
+                SET {', '.join(update_fields)}
+                WHERE id = ?
+            """
+            
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                
+                if cursor.rowcount == 0:
+                    self.logger.warning(f"No user preferences found with ID: {preferences_id}")
+                    return False
+                
+                conn.commit()
+                self.logger.info(f"Updated user preferences for ID: {preferences_id}")
+                return True
+                
+        except sqlite3.Error as e:
+            self.logger.error(f"Error updating user preferences: {e}")
+            return False
+
+    def add_user_preferences(
+        self,
+        email_address: str,
+        enabled_sources: Optional[List[str]] = None,
+        enabled_categories: Optional[List[str]] = None,
+        keywords: Optional[List[str]] = None,
+        max_news_per_category: int = 10
+    ) -> Optional[int]:
+        """
+        Add new user preferences.
+        
+        Args:
+            email_address: User's email address
+            enabled_sources: List of enabled sources
+            enabled_categories: List of enabled categories
+            keywords: List of keywords
+            max_news_per_category: Maximum news per category
+            
+        Returns:
+            User preferences ID if successful, None otherwise
+        """
+        try:
+            # Convert lists to comma-separated strings
+            sources_str = ','.join(enabled_sources) if enabled_sources else ''
+            categories_str = ','.join(enabled_categories) if enabled_categories else ''
+            keywords_str = ','.join(keywords) if keywords else ''
+            
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO user_preferences 
+                    (email_address, enabled_sources, enabled_categories, keywords, max_news_per_category)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (email_address, sources_str, categories_str, keywords_str, max_news_per_category))
+                
+                preferences_id = cursor.lastrowid
+                conn.commit()
+                
+                self.logger.info(f"Added user preferences for {email_address} with ID: {preferences_id}")
+                return preferences_id
+                
+        except sqlite3.Error as e:
+            self.logger.error(f"Error adding user preferences: {e}")
+            return None

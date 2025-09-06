@@ -6,12 +6,23 @@ import sys
 import os
 import shutil
 
-from fastapi import FastAPI, Query, HTTPException, Path
+from fastapi import FastAPI, Query, HTTPException, Path, Request, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.security import HTTPAuthorizationCredentials
 
-from components.database import DatabaseService
-from components.digest_service import DigestService
+from .components.database import DatabaseService
+from .components.digest_service import DigestService
+from .components.security.token_manager import SecureTokenManager, TokenValidationResult
+from .middleware.auth import require_valid_token, get_auth_middleware, security
+from .models.preferences import (
+    UserPreferencesResponse,
+    UserPreferencesUpdateRequest,
+    PreferenceResetResponse,
+    TokenValidationResponse,
+    ErrorResponse,
+    AvailableOptionsResponse
+)
 
 logger = logging.getLogger(__name__)
 
@@ -526,5 +537,341 @@ def get_digest_metadata(
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error while fetching digest metadata: {str(e)}"
+        )
+
+
+# =============================================================================
+# PREFERENCE MANAGEMENT ENDPOINTS
+# =============================================================================
+
+@app.get(
+    "/preferences/{token}",
+    response_model=UserPreferencesResponse,
+    responses={
+        200: {"description": "User preferences retrieved successfully"},
+        401: {"model": ErrorResponse, "description": "Invalid or missing token"},
+        403: {"model": ErrorResponse, "description": "Token expired or exhausted"},
+        404: {"model": ErrorResponse, "description": "User preferences not found"},
+        500: {"model": ErrorResponse, "description": "Internal server error"}
+    },
+    summary="Get User Preferences",
+    description="Retrieve user's email preference configuration using a secure token."
+)
+async def get_user_preferences(
+    token: str = Path(..., description="Secure preference access token"),
+    request: Request = None,
+    token_validation: TokenValidationResult = Depends(require_valid_token)
+) -> UserPreferencesResponse:
+    """
+    Retrieve user preferences with token validation.
+    
+    Args:
+        token: Secure preference access token
+        request: FastAPI request object
+        token_validation: Token validation result from middleware
+        
+    Returns:
+        UserPreferencesResponse: User's current preferences
+        
+    Raises:
+        HTTPException: If user preferences not found or other errors
+    """
+    try:
+        # Get user preferences from database
+        user_prefs = db_service.get_user_preferences_by_email(token_validation.user_email)
+        
+        if not user_prefs:
+            logger.error(f"User preferences not found for email: {token_validation.user_email}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse(
+                    error="PREFERENCES_NOT_FOUND",
+                    message="User preferences not found"
+                ).dict()
+            )
+        
+        # Parse comma-separated fields
+        enabled_sources = []
+        if user_prefs.get('enabled_sources'):
+            enabled_sources = [s.strip() for s in user_prefs['enabled_sources'].split(',') if s.strip()]
+        
+        enabled_categories = []
+        if user_prefs.get('enabled_categories'):
+            enabled_categories = [c.strip() for c in user_prefs['enabled_categories'].split(',') if c.strip()]
+        
+        keywords = []
+        if user_prefs.get('keywords'):
+            keywords = [k.strip() for k in user_prefs['keywords'].split(',') if k.strip()]
+        
+        return UserPreferencesResponse(
+            email_address=user_prefs['email_address'],
+            enabled_sources=enabled_sources,
+            enabled_categories=enabled_categories,
+            keywords=keywords,
+            max_news_per_category=user_prefs.get('max_news_per_category', 10),
+            updated_at=user_prefs.get('updated_at')
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving user preferences: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="RETRIEVAL_ERROR",
+                message="Unable to retrieve user preferences"
+            ).dict()
+        )
+
+
+@app.put(
+    "/preferences/{token}",
+    response_model=UserPreferencesResponse,
+    responses={
+        200: {"description": "User preferences updated successfully"},
+        400: {"model": ErrorResponse, "description": "Invalid request data"},
+        401: {"model": ErrorResponse, "description": "Invalid or missing token"},
+        403: {"model": ErrorResponse, "description": "Token expired or exhausted"},
+        404: {"model": ErrorResponse, "description": "User preferences not found"},
+        500: {"model": ErrorResponse, "description": "Internal server error"}
+    },
+    summary="Update User Preferences",
+    description="Update user's email preference configuration using a secure token."
+)
+async def update_user_preferences(
+    token: str = Path(..., description="Secure preference access token"),
+    preferences: UserPreferencesUpdateRequest = None,
+    request: Request = None,
+    token_validation: TokenValidationResult = Depends(require_valid_token)
+) -> UserPreferencesResponse:
+    """
+    Update user preferences with token validation.
+    
+    Args:
+        token: Secure preference access token
+        preferences: Updated preference values
+        request: FastAPI request object
+        token_validation: Token validation result from middleware
+        
+    Returns:
+        UserPreferencesResponse: Updated user preferences
+        
+    Raises:
+        HTTPException: If update fails or validation errors
+    """
+    try:
+        # Get current preferences
+        current_prefs = db_service.get_user_preferences_by_email(token_validation.user_email)
+        
+        if not current_prefs:
+            logger.error(f"User preferences not found for email: {token_validation.user_email}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse(
+                    error="PREFERENCES_NOT_FOUND",
+                    message="User preferences not found"
+                ).dict()
+            )
+        
+        # Prepare update data
+        update_data = {}
+        
+        if preferences.enabled_sources is not None:
+            update_data['enabled_sources'] = ','.join(preferences.enabled_sources)
+        
+        if preferences.enabled_categories is not None:
+            update_data['enabled_categories'] = ','.join(preferences.enabled_categories)
+        
+        if preferences.keywords is not None:
+            update_data['keywords'] = ','.join(preferences.keywords)
+        
+        if preferences.max_news_per_category is not None:
+            update_data['max_news_per_category'] = preferences.max_news_per_category
+        
+        # Update preferences in database
+        success = db_service.update_user_preferences(
+            current_prefs['id'],
+            **update_data
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=ErrorResponse(
+                    error="UPDATE_FAILED",
+                    message="Failed to update user preferences"
+                ).dict()
+            )
+        
+        # Return updated preferences
+        return await get_user_preferences(token, request, token_validation)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user preferences: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="UPDATE_ERROR",
+                message="Unable to update user preferences"
+            ).dict()
+        )
+
+
+@app.post(
+    "/preferences/{token}/reset",
+    response_model=PreferenceResetResponse,
+    responses={
+        200: {"description": "User preferences reset successfully"},
+        401: {"model": ErrorResponse, "description": "Invalid or missing token"},
+        403: {"model": ErrorResponse, "description": "Token expired or exhausted"},
+        404: {"model": ErrorResponse, "description": "User preferences not found"},
+        500: {"model": ErrorResponse, "description": "Internal server error"}
+    },
+    summary="Reset User Preferences",
+    description="Reset user's email preferences to default values using a secure token."
+)
+async def reset_user_preferences(
+    token: str = Path(..., description="Secure preference access token"),
+    request: Request = None,
+    token_validation: TokenValidationResult = Depends(require_valid_token)
+) -> PreferenceResetResponse:
+    """
+    Reset user preferences to defaults with token validation.
+    
+    Args:
+        token: Secure preference access token
+        request: FastAPI request object
+        token_validation: Token validation result from middleware
+        
+    Returns:
+        PreferenceResetResponse: Reset operation result and new preferences
+        
+    Raises:
+        HTTPException: If reset fails or validation errors
+    """
+    try:
+        # Get current preferences
+        current_prefs = db_service.get_user_preferences_by_email(token_validation.user_email)
+        
+        if not current_prefs:
+            logger.error(f"User preferences not found for email: {token_validation.user_email}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=ErrorResponse(
+                    error="PREFERENCES_NOT_FOUND",
+                    message="User preferences not found"
+                ).dict()
+            )
+        
+        # Reset to default values
+        default_preferences = {
+            'enabled_sources': '',
+            'enabled_categories': '',
+            'keywords': '',
+            'max_news_per_category': 10
+        }
+        
+        # Update preferences in database
+        success = db_service.update_user_preferences(
+            current_prefs['id'],
+            **default_preferences
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=ErrorResponse(
+                    error="RESET_FAILED",
+                    message="Failed to reset user preferences"
+                ).dict()
+            )
+        
+        # Get updated preferences
+        updated_prefs = await get_user_preferences(token, request, token_validation)
+        
+        return PreferenceResetResponse(
+            message="Preferences reset to defaults successfully",
+            preferences=updated_prefs
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resetting user preferences: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="RESET_ERROR",
+                message="Unable to reset user preferences"
+            ).dict()
+        )
+
+
+@app.get(
+    "/preferences/options",
+    response_model=AvailableOptionsResponse,
+    responses={
+        200: {"description": "Available options retrieved successfully"},
+        500: {"model": ErrorResponse, "description": "Internal server error"}
+    },
+    summary="Get Available Options",
+    description="Retrieve available news sources and categories for preference configuration."
+)
+async def get_available_options() -> AvailableOptionsResponse:
+    """
+    Get available sources and categories for preference configuration.
+    
+    This endpoint does not require authentication as it provides public
+    information about available options.
+    
+    Returns:
+        AvailableOptionsResponse: Available sources and categories
+        
+    Raises:
+        HTTPException: If unable to retrieve options
+    """
+    try:
+        # Get available sources from database
+        sources = db_service.get_all_sources()
+        source_names = [source['name'] for source in sources]
+        
+        # Get available categories from recent articles
+        # This could be enhanced to maintain a predefined list
+        articles = db_service.get_articles_by_date(
+            target_date=date.today(),
+            limit=1000
+        )
+        
+        categories = set()
+        for article in articles:
+            if article.get('category'):
+                categories.add(article['category'])
+        
+        # Sort categories alphabetically
+        category_list = sorted(list(categories))
+        
+        # If no categories found, provide some defaults
+        if not category_list:
+            category_list = [
+                "Technology", "Business", "Health", "Science", "Sports",
+                "Politics", "Entertainment", "World News", "Finance"
+            ]
+        
+        return AvailableOptionsResponse(
+            sources=sorted(source_names),
+            categories=category_list
+        )
+        
+    except Exception as e:
+        logger.error(f"Error retrieving available options: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="OPTIONS_ERROR",
+                message="Unable to retrieve available options"
+            ).dict()
         )
     

@@ -12,3 +12,4 @@ pandas
 scikit-learn
 fastapi
 uvicorn
+PyJWT>=2.0.0

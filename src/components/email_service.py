@@ -1,0 +1,196 @@
+"""
+Email service for Daily Scribe application.
+
+This module handles email generation with preference configuration tokens
+and secure button integration for user preference management.
+"""
+
+import logging
+from typing import Optional, Dict, Any
+from urllib.parse import urlencode
+
+from .database import DatabaseService
+from .security.token_manager import SecureTokenManager
+from .digest_builder import DigestBuilder
+
+logger = logging.getLogger(__name__)
+
+
+class EmailService:
+    """Service for generating emails with preference configuration capabilities."""
+    
+    def __init__(self, db_service: Optional[DatabaseService] = None):
+        """
+        Initialize the email service.
+        
+        Args:
+            db_service: Database service instance (optional, creates new if None)
+        """
+        self.db_service = db_service or DatabaseService()
+        self.token_manager = SecureTokenManager(self.db_service)
+    
+    def generate_preference_token(
+        self,
+        email_address: str,
+        user_agent: str = "Email Client",
+        ip_address: str = "unknown"
+    ) -> Optional[str]:
+        """
+        Generate a secure token for preference access.
+        
+        Args:
+            email_address: User's email address
+            user_agent: Client user agent (defaults to "Email Client")
+            ip_address: Client IP address (defaults to "unknown")
+            
+        Returns:
+            Secure token string if successful, None otherwise
+        """
+        try:
+            # Ensure user preferences exist
+            user_prefs = self.db_service.get_user_preferences_by_email(email_address)
+            if not user_prefs:
+                # Create default preferences for new user
+                prefs_id = self.db_service.add_user_preferences(
+                    email_address=email_address,
+                    enabled_sources=[],
+                    enabled_categories=[],
+                    keywords=[],
+                    max_news_per_category=10
+                )
+                if not prefs_id:
+                    logger.error(f"Failed to create default preferences for {email_address}")
+                    return None
+                logger.info(f"Created default preferences for new user: {email_address}")
+            
+            # Generate token
+            token = self.token_manager.create_preference_token(
+                user_email=email_address,
+                user_agent=user_agent,
+                ip_address=ip_address
+            )
+            
+            if token:
+                logger.info(f"Generated preference token for {email_address}")
+                return token
+            else:
+                logger.error(f"Failed to generate preference token for {email_address}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error generating preference token for {email_address}: {e}")
+            return None
+    
+    def build_preference_button_html(
+        self,
+        token: str,
+        base_url: str = "https://daily-scribe.com",
+        button_text: str = "⚙️ Configurar Preferências"
+    ) -> str:
+        """
+        Build HTML for the preference configuration button.
+        
+        Args:
+            token: Secure preference access token
+            base_url: Base URL for the preference page
+            button_text: Text to display on the button
+            
+        Returns:
+            HTML string for the preference button
+        """
+        # Build the preference URL with token
+        preference_url = f"{base_url}/preferences/{token}"
+        
+        # Create responsive button HTML that works across email clients
+        button_html = f"""
+        <div style="margin: 8px 0; text-align: center;">
+            <!-- Main button (works in most email clients) -->
+            <table cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                <tr>
+                    <td style="background-color: #0a97f5; border-radius: 4px; text-align: center;">
+                        <a href="{preference_url}" 
+                           target="_blank" 
+                           rel="noopener"
+                           style="display: inline-block; padding: 6px 12px; color: #ffffff; text-decoration: none; font-weight: 500; font-size: 12px; border-radius: 4px; border: none;">
+                            {button_text}
+                        </a>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        """
+        
+        return button_html
+    
+    def build_digest_with_preferences(
+        self,
+        clustered_summaries: list,
+        email_address: str,
+        user_agent: str = "Email Client",
+        ip_address: str = "unknown",
+        base_url: str = "https://daily-scribe.com"
+    ) -> Dict[str, Any]:
+        """
+        Build a complete email digest with preference configuration button.
+        
+        Args:
+            clustered_summaries: List of article clusters for the digest
+            email_address: Recipient's email address
+            user_agent: Client user agent
+            ip_address: Client IP address
+            base_url: Base URL for preference page
+            
+        Returns:
+            Dict containing html_content, preference_token, and metadata
+        """
+        try:
+            # Generate preference token
+            preference_token = self.generate_preference_token(
+                email_address=email_address,
+                user_agent=user_agent,
+                ip_address=ip_address
+            )
+            
+            if not preference_token:
+                logger.warning(f"Failed to generate preference token for {email_address}, building digest without preference button")
+                preference_button_html = ""
+            else:
+                # Build preference button HTML
+                preference_button_html = self.build_preference_button_html(
+                    token=preference_token,
+                    base_url=base_url
+                )
+            
+            # Build the main digest HTML with preference button included
+            digest_html = DigestBuilder.build_html_digest(
+                clustered_summaries=clustered_summaries,
+                preference_button_html=preference_button_html if preference_button_html else ""
+            )
+            
+            return {
+                "html_content": digest_html,
+                "preference_token": preference_token,
+                "email_address": email_address,
+                "has_preference_button": preference_token is not None,
+                "metadata": {
+                    "clusters_count": len(clustered_summaries),
+                    "articles_count": sum(len(cluster) for cluster in clustered_summaries),
+                    "preference_url": f"{base_url}/preferences/{preference_token}" if preference_token else None
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error building digest with preferences for {email_address}: {e}")
+            # Fallback to basic digest without preference button
+            return {
+                "html_content": DigestBuilder.build_html_digest(clustered_summaries),
+                "preference_token": None,
+                "email_address": email_address,
+                "has_preference_button": False,
+                "metadata": {
+                    "clusters_count": len(clustered_summaries),
+                    "articles_count": sum(len(cluster) for cluster in clustered_summaries),
+                    "preference_url": None,
+                    "error": str(e)
+                }
+            }

@@ -15,6 +15,7 @@ from components.digest_builder import DigestBuilder
 from components.article_clusterer import ArticleClusterer
 from components.news_curator import NewsCurator
 from components.notifier import EmailNotifier
+from components.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class DigestService:
     
     def __init__(self):
         self.db_service = DatabaseService()
+        self.email_service = EmailService()
     
     def generate_digest_for_user(
         self,
@@ -67,8 +69,20 @@ class DigestService:
                 "message": "No curated articles found for user after applying preferences."
             }
         
-        # Generate HTML digest
-        html_content = DigestBuilder.build_html_digest(clustered_articles)
+        # Generate HTML digest with preference button
+        digest_result = self.email_service.build_digest_with_preferences(
+            clustered_summaries=clustered_articles,
+            email_address=email_address
+        )
+        
+        # Extract HTML content from the result
+        if isinstance(digest_result, dict):
+            html_content = digest_result.get("html_content", "")
+            preference_metadata = digest_result.get("metadata", {})
+        else:
+            # Fallback for string result
+            html_content = digest_result
+            preference_metadata = {}
         
         # Count total articles
         total_articles = sum(len(cluster) for cluster in clustered_articles)
@@ -78,7 +92,9 @@ class DigestService:
             "article_count": total_articles,
             "clusters": len(clustered_articles),
             "method": "alt" if use_alt_method else "standard",
-            "generated_at": time.strftime('%Y-%m-%d %H:%M:%S')
+            "generated_at": time.strftime('%Y-%m-%d %H:%M:%S'),
+            "has_preference_button": preference_metadata.get("has_preference_button", False),
+            "preference_url": preference_metadata.get("preference_url")
         }
         
         return {
