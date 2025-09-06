@@ -153,6 +153,39 @@ daily-scribe/
 pytest tests/
 ```
 
+### Database Management
+
+#### Fetching Production Database
+To fetch the latest production database for local development:
+
+```bash
+# View what would be fetched (dry run)
+./scripts/fetch-production-db.sh --dry-run
+
+# Fetch with confirmation prompts (auto-detects if snapshot needed)
+./scripts/fetch-production-db.sh
+
+# Recommended: Always use snapshot for consistency
+./scripts/fetch-production-db.sh --snapshot --force
+
+# Direct file copy (use when containers are stopped)
+./scripts/fetch-production-db.sh --direct --force
+```
+
+The script will:
+1. Backup your existing local database to `digest_history_backup_YYYYMMDD.db`
+2. Create a consistent snapshot from the running container (if `--snapshot`) or copy directly from disk
+3. Fetch the production database via SSH/rsync
+4. Verify database integrity
+5. Show database statistics
+
+**Database Fetch Methods:**
+- `--snapshot`: Creates a consistent backup from running container (recommended)
+- `--direct`: Copies database file directly from host filesystem
+- Default: Auto-detects and offers snapshot if containers are running
+
+For more details, see [docs/fetch-production-db.md](docs/fetch-production-db.md).
+
 ### Code Quality
 
 The project uses:

@@ -7,12 +7,12 @@ configuration endpoints using the SecureTokenManager.
 
 import logging
 from typing import Optional, Tuple
-from fastapi import Request, HTTPException, status
+from fastapi import Request, HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from ..components.database import DatabaseService
-from ..components.security.token_manager import SecureTokenManager, TokenValidationResult
-from ..models.preferences import ErrorResponse
+from components.database import DatabaseService
+from components.security.token_manager import SecureTokenManager, TokenValidationResult
+from models.preferences import ErrorResponse
 
 logger = logging.getLogger(__name__)
 
@@ -148,15 +148,15 @@ def get_auth_middleware() -> TokenAuthMiddleware:
     Returns:
         TokenAuthMiddleware instance
     """
-    from ..components.database import DatabaseService
+    from components.database import DatabaseService
     db_service = DatabaseService()
     return TokenAuthMiddleware(db_service)
 
 
 async def require_valid_token(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = security,
-    auth_middleware: TokenAuthMiddleware = None
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    auth_middleware: TokenAuthMiddleware = Depends(get_auth_middleware)
 ) -> TokenValidationResult:
     """
     FastAPI dependency for token validation.
@@ -172,7 +172,146 @@ async def require_valid_token(
     Raises:
         HTTPException: If token is invalid
     """
-    if auth_middleware is None:
-        auth_middleware = get_auth_middleware()
-    
     return auth_middleware.validate_preference_token(request, credentials)
+
+
+def create_path_token_validator(token: str):
+    """
+    Create a path token validator for a specific token.
+    
+    Args:
+        token: Token from URL path
+        
+    Returns:
+        Dependency function for token validation
+    """
+    async def validate_path_token(
+        request: Request,
+        auth_middleware: TokenAuthMiddleware = Depends(get_auth_middleware)
+    ) -> TokenValidationResult:
+        """Validate the path token."""
+        user_agent, ip_address = auth_middleware.extract_client_info(request)
+        
+        # Validate token using SecureTokenManager
+        try:
+            result = auth_middleware.token_manager.validate_token(token, user_agent, ip_address)
+            
+            if not result.is_valid:
+                logger.warning(
+                    f"Invalid path token attempt from {ip_address} - {result.error_message}"
+                )
+                
+                # Determine appropriate error response based on error type
+                if "expired" in (result.error_message or "").lower():
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=ErrorResponse(
+                            error="TOKEN_EXPIRED",
+                            message="Token has expired"
+                        ).dict()
+                    )
+                elif "exhausted" in (result.error_message or "").lower():
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=ErrorResponse(
+                            error="TOKEN_EXHAUSTED", 
+                            message="Token usage limit exceeded"
+                        ).dict()
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail=ErrorResponse(
+                            error="INVALID_TOKEN",
+                            message="Invalid authentication token"
+                        ).dict()
+                    )
+            
+            logger.info(f"Valid token access from {ip_address} for user {result.user_email}")
+            return result
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Token validation error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=ErrorResponse(
+                    error="VALIDATION_ERROR",
+                    message="Token validation failed"
+                ).dict()
+            )
+    
+    return validate_path_token
+
+
+async def require_valid_path_token(
+    token: str,
+    request: Request,
+    auth_middleware: TokenAuthMiddleware = Depends(get_auth_middleware)
+) -> TokenValidationResult:
+    """
+    FastAPI dependency for path-based token validation.
+    
+    Args:
+        token: Token from URL path
+        request: FastAPI request object
+        auth_middleware: Authentication middleware instance
+        
+    Returns:
+        TokenValidationResult if token is valid
+        
+    Raises:
+        HTTPException: If token is invalid
+    """
+    user_agent, ip_address = auth_middleware.extract_client_info(request)
+    
+    # Validate token using SecureTokenManager
+    try:
+        result = auth_middleware.token_manager.validate_token(token, user_agent, ip_address)
+        
+        if not result.is_valid:
+            logger.warning(
+                f"Invalid path token attempt from {ip_address} - {result.error_message}"
+            )
+            
+            # Determine appropriate error response based on error type
+            if "expired" in (result.error_message or "").lower():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=ErrorResponse(
+                        error="TOKEN_EXPIRED",
+                        message="Token has expired"
+                    ).dict()
+                )
+            elif "exhausted" in (result.error_message or "").lower():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=ErrorResponse(
+                        error="TOKEN_EXHAUSTED", 
+                        message="Token usage limit exceeded"
+                    ).dict()
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=ErrorResponse(
+                        error="INVALID_TOKEN",
+                        message="Invalid authentication token"
+                    ).dict()
+                )
+        
+        logger.info(f"Valid token access from {ip_address} for user {result.user_email}")
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token validation error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="VALIDATION_ERROR",
+                message="Token validation failed"
+            ).dict()
+        )

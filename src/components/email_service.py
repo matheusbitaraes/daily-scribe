@@ -84,7 +84,7 @@ class EmailService:
     def build_preference_button_html(
         self,
         token: str,
-        base_url: str = "https://daily-scribe.com",
+        base_url: str = "http://localhost:3000",
         button_text: str = "⚙️ Configurar Preferências"
     ) -> str:
         """
@@ -128,7 +128,7 @@ class EmailService:
         email_address: str,
         user_agent: str = "Email Client",
         ip_address: str = "unknown",
-        base_url: str = "https://daily-scribe.com"
+        base_url: str = "http://localhost:3000"
     ) -> Dict[str, Any]:
         """
         Build a complete email digest with preference configuration button.
@@ -150,16 +150,20 @@ class EmailService:
                 user_agent=user_agent,
                 ip_address=ip_address
             )
+
+            isPreferenceButtonEnabled = email_address == "matheusbitaraesdenovaes@gmail.com"
             
             if not preference_token:
                 logger.warning(f"Failed to generate preference token for {email_address}, building digest without preference button")
                 preference_button_html = ""
-            else:
+            elif isPreferenceButtonEnabled:
                 # Build preference button HTML
                 preference_button_html = self.build_preference_button_html(
                     token=preference_token,
                     base_url=base_url
                 )
+            else:
+                preference_button_html = ""
             
             # Build the main digest HTML with preference button included
             digest_html = DigestBuilder.build_html_digest(

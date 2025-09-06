@@ -34,7 +34,7 @@ ENV/
 .env.*.local
 
 # Database
-data/*
+data/
 
 # Logs
 *.log

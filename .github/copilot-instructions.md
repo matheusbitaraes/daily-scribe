@@ -157,3 +157,10 @@
 - Keep styles close to components
 - Use proper imports/exports
 - Document complex component logic 
+
+
+# backend instructions
+to run the backend server locally, always call uvicorn api:app --app-dir src --reload
+
+# frontend instructions
+to run the frontend server locally, always call npm start inside the frontend folder

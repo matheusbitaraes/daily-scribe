@@ -6,16 +6,16 @@ import sys
 import os
 import shutil
 
-from fastapi import FastAPI, Query, HTTPException, Path, Request, Depends, status
+from fastapi import FastAPI, Query, HTTPException, Path, Request, Depends, status, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security import HTTPAuthorizationCredentials
 
-from .components.database import DatabaseService
-from .components.digest_service import DigestService
-from .components.security.token_manager import SecureTokenManager, TokenValidationResult
-from .middleware.auth import require_valid_token, get_auth_middleware, security
-from .models.preferences import (
+from components.database import DatabaseService
+from components.digest_service import DigestService
+from components.security.token_manager import SecureTokenManager, TokenValidationResult
+from middleware.auth import require_valid_token, require_valid_path_token, get_auth_middleware, security
+from models.preferences import (
     UserPreferencesResponse,
     UserPreferencesUpdateRequest,
     PreferenceResetResponse,
@@ -315,6 +315,8 @@ def get_user_preferences(
     """
     try:
         preferences = db_service.get_user_preferences(user_email)
+
+        print(preferences)
         
         # If no preferences are found, return sensible defaults
         if not preferences:
@@ -560,7 +562,7 @@ def get_digest_metadata(
 async def get_user_preferences(
     token: str = Path(..., description="Secure preference access token"),
     request: Request = None,
-    token_validation: TokenValidationResult = Depends(require_valid_token)
+    token_validation: TokenValidationResult = Depends(require_valid_path_token)
 ) -> UserPreferencesResponse:
     """
     Retrieve user preferences with token validation.
@@ -641,9 +643,9 @@ async def get_user_preferences(
 )
 async def update_user_preferences(
     token: str = Path(..., description="Secure preference access token"),
-    preferences: UserPreferencesUpdateRequest = None,
+    preferences: UserPreferencesUpdateRequest = Body(..., description="Updated preference values"),
     request: Request = None,
-    token_validation: TokenValidationResult = Depends(require_valid_token)
+    token_validation: TokenValidationResult = Depends(require_valid_path_token)
 ) -> UserPreferencesResponse:
     """
     Update user preferences with token validation.

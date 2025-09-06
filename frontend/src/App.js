@@ -2,7 +2,9 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import ArticleList from './ArticleList';
 import DigestSimulator from './components/DigestSimulator';
+import PreferencePage from './components/preferences/PreferencePage';
 import './App.css';
+import './styles/responsive.css';
 
 // Navigation component
 function Navigation() {
@@ -42,6 +44,7 @@ function App() {
           <Routes>
             <Route path="/" element={<ArticleList />} />
             <Route path="/digest-simulator" element={<DigestSimulator />} />
+            <Route path="/preferences/:token" element={<PreferencePage />} />
           </Routes>
         </main>
       </div>

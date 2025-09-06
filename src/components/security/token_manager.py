@@ -54,7 +54,13 @@ class SecureTokenManager:
         self.algorithm = "HS256"
         self.default_expiry_hours = 24
         self.default_max_usage = 10
-
+        
+        # Development mode: skip device fingerprint validation when ENV=dev
+        self.development_mode = os.getenv('ENV', '').lower() == 'local'
+        
+        if self.development_mode:
+            print("🔧 Development mode enabled: Device fingerprint validation disabled")
+        
     def _generate_default_secret(self) -> str:
         """Generate a default secret key for development purposes."""
         # In production, this should come from environment variables
@@ -217,82 +223,113 @@ class SecureTokenManager:
                     error_message="Invalid token format"
                 )
 
-            # Validate device fingerprint
-            current_device_fp = self._create_device_fingerprint(user_agent, ip_address)
-            if current_device_fp != stored_device_fp:
-                security_logger.log_device_mismatch(
+            # Validate device fingerprint (skip in development mode)
+            if not self.development_mode:
+                current_device_fp = self._create_device_fingerprint(user_agent, ip_address)
+                if current_device_fp != stored_device_fp:
+                    security_logger.log_device_mismatch(
+                        token_id=token_id,
+                        user_id=str(user_preferences_id),
+                        expected_fingerprint=stored_device_fp,
+                        actual_fingerprint=current_device_fp,
+                        ip_address=ip_address,
+                        user_agent=user_agent
+                    )
+                    return TokenValidationResult(
+                        is_valid=False,
+                        error_message="Device fingerprint mismatch"
+                    )
+            else:
+                # Development mode: log but don't enforce fingerprint validation
+                current_device_fp = self._create_device_fingerprint(user_agent, ip_address)
+                if current_device_fp != stored_device_fp:
+                    print(f"🔧 Dev mode: Device fingerprint mismatch ignored (expected: {stored_device_fp[:12]}..., actual: {current_device_fp[:12]}...)")
+
+            # Check token metadata in database (skip in development mode)
+            if not self.development_mode:
+                token_metadata = self.db.get_user_token(token_id)
+                if not token_metadata:
+                    security_logger.log_invalid_token(
+                        token_error="Token not found in database",
+                        ip_address=ip_address,
+                        user_agent=user_agent
+                    )
+                    return TokenValidationResult(
+                        is_valid=False,
+                        error_message="Token not found or expired"
+                    )
+
+                # Check usage limits
+                if token_metadata['usage_count'] >= token_metadata['max_usage']:
+                    security_logger.log_usage_exceeded(
+                        token_id=token_id,
+                        user_id=str(user_preferences_id),
+                        usage_count=token_metadata['usage_count'],
+                        max_usage=token_metadata['max_usage'],
+                        ip_address=ip_address,
+                        user_agent=user_agent
+                    )
+                    return TokenValidationResult(
+                        is_valid=False,
+                        error_message="Token usage limit exceeded"
+                    )
+
+                # Increment usage count
+                if not self.db.increment_token_usage(token_id):
+                    security_logger.log_security_event(
+                        event_type=SecurityEventType.TOKEN_VALIDATED,
+                        severity=SecurityEventSeverity.ERROR,
+                        details={"error": "Failed to increment usage count", "token_id": token_id},
+                        user_id=str(user_preferences_id),
+                        ip_address=ip_address,
+                        user_agent=user_agent
+                    )
+                    return TokenValidationResult(
+                        is_valid=False,
+                        error_message="Failed to update token usage"
+                    )
+                
+                remaining_usage = token_metadata['max_usage'] - token_metadata['usage_count'] - 1
+            else:
+                # Development mode: skip database checks and usage tracking
+                print(f"🔧 Dev mode: Skipping token database checks and usage limits")
+                token_metadata = {'usage_count': 0, 'max_usage': 999}  # Mock metadata
+                remaining_usage = 999
+
+            # Log successful validation (conditional in dev mode)
+            if not self.development_mode:
+                security_logger.log_token_validated(
                     token_id=token_id,
                     user_id=str(user_preferences_id),
-                    expected_fingerprint=stored_device_fp,
-                    actual_fingerprint=current_device_fp,
+                    usage_count=token_metadata['usage_count'] + 1,
                     ip_address=ip_address,
                     user_agent=user_agent
                 )
-                return TokenValidationResult(
-                    is_valid=False,
-                    error_message="Device fingerprint mismatch"
-                )
-
-            # Check token metadata in database
-            token_metadata = self.db.get_user_token(token_id)
-            if not token_metadata:
-                security_logger.log_invalid_token(
-                    token_error="Token not found in database",
-                    ip_address=ip_address,
-                    user_agent=user_agent
-                )
-                return TokenValidationResult(
-                    is_valid=False,
-                    error_message="Token not found or expired"
-                )
-
-            # Check usage limits
-            if token_metadata['usage_count'] >= token_metadata['max_usage']:
-                security_logger.log_usage_exceeded(
-                    token_id=token_id,
-                    user_id=str(user_preferences_id),
-                    usage_count=token_metadata['usage_count'],
-                    max_usage=token_metadata['max_usage'],
-                    ip_address=ip_address,
-                    user_agent=user_agent
-                )
-                return TokenValidationResult(
-                    is_valid=False,
-                    error_message="Token usage limit exceeded"
-                )
-
-            # Increment usage count
-            if not self.db.increment_token_usage(token_id):
-                security_logger.log_security_event(
-                    event_type=SecurityEventType.TOKEN_VALIDATED,
-                    severity=SecurityEventSeverity.ERROR,
-                    details={"error": "Failed to increment usage count", "token_id": token_id},
-                    user_id=str(user_preferences_id),
-                    ip_address=ip_address,
-                    user_agent=user_agent
-                )
-                return TokenValidationResult(
-                    is_valid=False,
-                    error_message="Failed to update token usage"
-                )
-
-            # Log successful validation
-            security_logger.log_token_validated(
-                token_id=token_id,
-                user_id=str(user_preferences_id),
-                usage_count=token_metadata['usage_count'] + 1,
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
+            else:
+                print(f"🔧 Dev mode: Token validation successful for {user_email}")
 
             return TokenValidationResult(
                 is_valid=True,
                 user_preferences_id=user_preferences_id,
                 user_email=user_email,
-                remaining_usage=token_metadata['max_usage'] - token_metadata['usage_count'] - 1
+                remaining_usage=remaining_usage
             )
 
         except jwt.ExpiredSignatureError:
+            if self.development_mode:
+                print("🔧 Dev mode: Token expired but validation allowed")
+                # In development, we can try to extract what we can from the expired token
+                try:
+                    payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm], options={"verify_exp": False})
+                    return TokenValidationResult(
+                        is_valid=True,
+                        user_preferences_id=payload.get("user_preferences_id"),
+                        user_email=payload.get("user_email"),
+                        remaining_usage=999
+                    )
+                except:
+                    pass
+            
             security_logger.log_expired_token(
                 token_id="unknown",
                 expired_at="unknown",
