@@ -47,6 +47,9 @@ class DatabaseService:
         # Enable WAL mode for better concurrency (only needs to be set once, but it's idempotent)
         conn.execute("PRAGMA journal_mode=WAL")
         
+        # Enable foreign key constraints
+        conn.execute("PRAGMA foreign_keys=ON")
+        
         # Additional pragmas for better performance and reliability
         conn.execute("PRAGMA synchronous=NORMAL")  # Good balance of safety and performance
         conn.execute("PRAGMA cache_size=1000")     # Reasonable cache size
@@ -133,6 +136,31 @@ class DatabaseService:
                         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
                 """)
+                
+                # Create user_tokens table for secure preference access
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS user_tokens (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        token_id TEXT NOT NULL UNIQUE,
+                        token_hash TEXT NOT NULL,
+                        user_preferences_id INTEGER NOT NULL,
+                        device_fingerprint TEXT NOT NULL,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        expires_at TIMESTAMP NOT NULL,
+                        usage_count INTEGER NOT NULL DEFAULT 0,
+                        max_usage INTEGER NOT NULL DEFAULT 10,
+                        is_revoked BOOLEAN NOT NULL DEFAULT 0,
+                        purpose TEXT NOT NULL DEFAULT 'email_preferences',
+                        version INTEGER NOT NULL DEFAULT 1,
+                        FOREIGN KEY (user_preferences_id) REFERENCES user_preferences(id) ON DELETE CASCADE
+                    );
+                """)
+                
+                # Create indexes for user_tokens table for performance
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_tokens_token_id ON user_tokens(token_id);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_tokens_token_hash ON user_tokens(token_hash);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_tokens_expires_at ON user_tokens(expires_at);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_tokens_user_preferences_id ON user_tokens(user_preferences_id);")
 
             # Create embeddings and clusters tables
             cursor.execute('''
@@ -854,3 +882,180 @@ class DatabaseService:
             self.logger.error(f"Error checking if user received digest today: {e}")
             # Fail safe: if check fails, better to not send than to send multiple times.
             return True
+
+    # Token Management Methods
+
+    def create_user_token(self, token_id: str, token_hash: str, user_preferences_id: int, 
+                         device_fingerprint: str, expires_at: str, max_usage: int = 10) -> Optional[int]:
+        """
+        Create a new user token for secure preference access.
+        
+        Args:
+            token_id: Unique token identifier
+            token_hash: Hashed version of the token for security
+            user_preferences_id: Foreign key to user_preferences table
+            device_fingerprint: Device fingerprint for additional security
+            expires_at: Token expiration timestamp
+            max_usage: Maximum number of times token can be used
+            
+        Returns:
+            The token record ID if successful, None otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO user_tokens (
+                        token_id, token_hash, user_preferences_id, device_fingerprint,
+                        expires_at, max_usage, purpose, version
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'email_preferences', 1)
+                """, (token_id, token_hash, user_preferences_id, device_fingerprint, expires_at, max_usage))
+                conn.commit()
+                return cursor.lastrowid
+        except sqlite3.Error as e:
+            self.logger.error(f"Error creating user token: {e}")
+            return None
+
+    def get_user_token(self, token_id: str) -> Optional[dict]:
+        """
+        Retrieve a user token by token_id.
+        
+        Args:
+            token_id: The token identifier
+            
+        Returns:
+            Dict with token data or None if not found
+        """
+        try:
+            with self._get_connection() as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT * FROM user_tokens 
+                    WHERE token_id = ? AND is_revoked = 0 AND expires_at > CURRENT_TIMESTAMP
+                """, (token_id,))
+                row = cursor.fetchone()
+                if row:
+                    return dict(row)
+                return None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error retrieving user token: {e}")
+            return None
+
+    def increment_token_usage(self, token_id: str) -> bool:
+        """
+        Increment the usage count for a token.
+        
+        Args:
+            token_id: The token identifier
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE user_tokens 
+                    SET usage_count = usage_count + 1
+                    WHERE token_id = ? AND is_revoked = 0 AND expires_at > CURRENT_TIMESTAMP
+                """, (token_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            self.logger.error(f"Error incrementing token usage: {e}")
+            return False
+
+    def revoke_user_token(self, token_id: str) -> bool:
+        """
+        Revoke a specific user token.
+        
+        Args:
+            token_id: The token identifier
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE user_tokens 
+                    SET is_revoked = 1
+                    WHERE token_id = ?
+                """, (token_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+        except sqlite3.Error as e:
+            self.logger.error(f"Error revoking user token: {e}")
+            return False
+
+    def revoke_user_tokens_by_preferences_id(self, user_preferences_id: int) -> bool:
+        """
+        Revoke all tokens for a specific user (by user_preferences_id).
+        
+        Args:
+            user_preferences_id: The user preferences ID
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE user_tokens 
+                    SET is_revoked = 1
+                    WHERE user_preferences_id = ?
+                """, (user_preferences_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            self.logger.error(f"Error revoking user tokens: {e}")
+            return False
+
+    def cleanup_expired_tokens(self) -> int:
+        """
+        Remove expired tokens from the database.
+        
+        Returns:
+            Number of tokens cleaned up
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    DELETE FROM user_tokens 
+                    WHERE expires_at <= CURRENT_TIMESTAMP OR is_revoked = 1
+                """)
+                conn.commit()
+                return cursor.rowcount
+        except sqlite3.Error as e:
+            self.logger.error(f"Error cleaning up expired tokens: {e}")
+            return 0
+
+    def get_user_preferences_by_email(self, email_address: str) -> Optional[dict]:
+        """
+        Get user preferences by email address.
+        
+        Args:
+            email_address: User's email address
+            
+        Returns:
+            Dict with user preferences or None if not found
+        """
+        try:
+            with self._get_connection() as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT * FROM user_preferences 
+                    WHERE email_address = ?
+                """, (email_address,))
+                row = cursor.fetchone()
+                if row:
+                    return dict(row)
+                return None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error retrieving user preferences by email: {e}")
+            return None

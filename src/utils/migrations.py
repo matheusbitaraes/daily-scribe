@@ -1,0 +1,205 @@
+"""
+Database migration utilities for Daily Scribe application.
+
+This module provides database migration functionality to handle 
+schema updates and data migrations safely.
+"""
+
+import logging
+import sqlite3
+from pathlib import Path
+from typing import Optional
+from datetime import datetime
+
+
+class DatabaseMigrator:
+    """Handles database schema migrations."""
+
+    def __init__(self, db_path: str):
+        """
+        Initialize the database migrator.
+        
+        Args:
+            db_path: Path to the SQLite database file
+        """
+        self.db_path = db_path
+        self.logger = logging.getLogger(__name__)
+        self._ensure_migrations_table()
+
+    def _get_connection(self) -> sqlite3.Connection:
+        """Get a connection to the SQLite database."""
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
+
+    def _ensure_migrations_table(self) -> None:
+        """Create the migrations tracking table if it doesn't exist."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS schema_migrations (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        migration_name TEXT NOT NULL UNIQUE,
+                        applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        description TEXT
+                    );
+                """)
+                conn.commit()
+        except sqlite3.Error as e:
+            self.logger.error(f"Error creating migrations table: {e}")
+            raise
+
+    def migration_applied(self, migration_name: str) -> bool:
+        """
+        Check if a migration has already been applied.
+        
+        Args:
+            migration_name: Name of the migration
+            
+        Returns:
+            True if migration was already applied, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT 1 FROM schema_migrations WHERE migration_name = ?",
+                    (migration_name,)
+                )
+                return cursor.fetchone() is not None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error checking migration status: {e}")
+            return False
+
+    def record_migration(self, migration_name: str, description: str = "") -> None:
+        """
+        Record that a migration has been applied.
+        
+        Args:
+            migration_name: Name of the migration
+            description: Optional description of the migration
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO schema_migrations (migration_name, description)
+                    VALUES (?, ?)
+                """, (migration_name, description))
+                conn.commit()
+        except sqlite3.Error as e:
+            self.logger.error(f"Error recording migration: {e}")
+            raise
+
+    def add_user_tokens_table(self) -> bool:
+        """
+        Migration to add the user_tokens table for secure preference access.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        migration_name = "001_add_user_tokens_table"
+        
+        if self.migration_applied(migration_name):
+            self.logger.info(f"Migration {migration_name} already applied, skipping")
+            return True
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Create user_tokens table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS user_tokens (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        token_id TEXT NOT NULL UNIQUE,
+                        token_hash TEXT NOT NULL,
+                        user_preferences_id INTEGER NOT NULL,
+                        device_fingerprint TEXT NOT NULL,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        expires_at TIMESTAMP NOT NULL,
+                        usage_count INTEGER NOT NULL DEFAULT 0,
+                        max_usage INTEGER NOT NULL DEFAULT 10,
+                        is_revoked BOOLEAN NOT NULL DEFAULT 0,
+                        purpose TEXT NOT NULL DEFAULT 'email_preferences',
+                        version INTEGER NOT NULL DEFAULT 1,
+                        FOREIGN KEY (user_preferences_id) REFERENCES user_preferences(id) ON DELETE CASCADE
+                    );
+                """)
+                
+                # Create indexes for performance
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_tokens_token_id ON user_tokens(token_id);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_tokens_token_hash ON user_tokens(token_hash);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_tokens_expires_at ON user_tokens(expires_at);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_tokens_user_preferences_id ON user_tokens(user_preferences_id);")
+                
+                conn.commit()
+                
+                # Record the migration
+                self.record_migration(
+                    migration_name, 
+                    "Add user_tokens table for secure email preference access"
+                )
+                
+                self.logger.info(f"Successfully applied migration: {migration_name}")
+                return True
+                
+        except sqlite3.Error as e:
+            self.logger.error(f"Error applying migration {migration_name}: {e}")
+            return False
+
+    def run_all_migrations(self) -> bool:
+        """
+        Run all pending migrations.
+        
+        Returns:
+            True if all migrations successful, False otherwise
+        """
+        try:
+            # Add future migrations here
+            migrations = [
+                self.add_user_tokens_table,
+            ]
+            
+            for migration in migrations:
+                if not migration():
+                    return False
+            
+            self.logger.info("All migrations completed successfully")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error running migrations: {e}")
+            return False
+
+
+def migrate_database(db_path: Optional[str] = None) -> bool:
+    """
+    Convenience function to run all database migrations.
+    
+    Args:
+        db_path: Path to database file, defaults to environment variable or default path
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    import os
+    
+    if db_path is None:
+        db_path = os.getenv('DB_PATH', 'data/digest_history.db')
+    
+    migrator = DatabaseMigrator(db_path)
+    return migrator.run_all_migrations()
+
+
+if __name__ == "__main__":
+    # Run migrations when called directly
+    logging.basicConfig(level=logging.INFO)
+    success = migrate_database()
+    if success:
+        print("Migrations completed successfully")
+    else:
+        print("Migration failed")
+        exit(1)

@@ -234,13 +234,13 @@ def test_add_rss_feed_duplicate_url_same_source(db_service):
     assert id1 != id2  # Should allow duplicate URLs, but IDs must differ
 
 def test_mark_as_processed_invalid_source_id(db_service):
-    """Test marking an article as processed with a non-existent source_id."""
+    """Test marking an article as processed with a non-existent source_id fails due to FK constraint."""
     url = "https://invalid.com/article"
     metadata = {"summary": "Summary", "sentiment": "Neutral", "keywords": ["a"], "category": "Test", "region": "US"}
-    # Use a source_id that does not exist
+    # Use a source_id that does not exist - should fail with FK constraint enabled
     db_service.mark_as_processed(url, metadata, published_at=None, title="Title", source_id=9999)
     processed_urls = db_service.get_processed_urls()
-    assert url in processed_urls  # Should still insert, but referential integrity is not enforced by default in SQLite
+    assert url not in processed_urls  # Should not insert due to foreign key constraint
 
 def test_get_processed_urls_after_deletion(db_service):
     """Test get_processed_urls after deleting an article."""
@@ -299,10 +299,10 @@ def test_database_initialization_creates_tables():
     os.remove(db_path)
 
 def test_add_rss_feed_invalid_source_id(db_service):
-    """Test adding a feed with a non-existent source_id."""
+    """Test adding a feed with a non-existent source_id fails due to FK constraint."""
     feed_url = "https://invalidsource.com/feed"
     feed_id = db_service.add_rss_feed(9999, feed_url, is_enabled=1)
-    assert feed_id != -1  # SQLite does not enforce foreign keys by default, so it will insert
+    assert feed_id == -1  # Should fail due to foreign key constraint
 
 def test_add_sent_article_uuid(db_service):
     """Test that sent_articles accepts and stores UUID digest_id correctly."""
@@ -353,3 +353,362 @@ def test_sent_articles_duplicate_digest(db_service):
         cursor.execute("SELECT COUNT(*) FROM sent_articles WHERE article_id=? AND email_address=?", (article["id"], email))
         count = cursor.fetchone()[0]
         assert count == 2
+
+
+# Token Management Tests
+
+def test_user_tokens_table_exists(db_service):
+    """Test that the user_tokens table is created correctly."""
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        # Check if table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_tokens'")
+        assert cursor.fetchone() is not None
+        
+        # Check table structure
+        cursor.execute("PRAGMA table_info(user_tokens)")
+        columns = cursor.fetchall()
+        column_names = [column[1] for column in columns]
+        
+        expected_columns = [
+            'id', 'token_id', 'token_hash', 'user_preferences_id', 'device_fingerprint',
+            'created_at', 'expires_at', 'usage_count', 'max_usage', 'is_revoked',
+            'purpose', 'version'
+        ]
+        
+        for col in expected_columns:
+            assert col in column_names, f"Column {col} not found in user_tokens table"
+
+
+def test_user_tokens_indexes_exist(db_service):
+    """Test that the required indexes are created for the user_tokens table."""
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='user_tokens'")
+        indexes = [row[0] for row in cursor.fetchall()]
+        
+        expected_indexes = [
+            'idx_user_tokens_token_id',
+            'idx_user_tokens_token_hash', 
+            'idx_user_tokens_expires_at',
+            'idx_user_tokens_user_preferences_id'
+        ]
+        
+        for index in expected_indexes:
+            assert index in indexes, f"Index {index} not found"
+
+
+def test_create_user_token(db_service):
+    """Test creating a new user token."""
+    # First create a user preference record
+    email = "test@example.com"
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_preferences (email_address, enabled_sources, enabled_categories)
+            VALUES (?, 'source1,source2', 'tech,business')
+        """, (email,))
+        user_preferences_id = cursor.lastrowid
+        conn.commit()
+    
+    # Create token
+    token_id = "test_token_123"
+    token_hash = "hashed_token_value"
+    device_fingerprint = "device_abc123"
+    expires_at = "2025-12-31 23:59:59"
+    
+    result = db_service.create_user_token(
+        token_id=token_id,
+        token_hash=token_hash,
+        user_preferences_id=user_preferences_id,
+        device_fingerprint=device_fingerprint,
+        expires_at=expires_at,
+        max_usage=5
+    )
+    
+    assert result is not None
+    assert isinstance(result, int)
+    
+    # Verify the token was created
+    token_data = db_service.get_user_token(token_id)
+    assert token_data is not None
+    assert token_data['token_id'] == token_id
+    assert token_data['token_hash'] == token_hash
+    assert token_data['user_preferences_id'] == user_preferences_id
+    assert token_data['device_fingerprint'] == device_fingerprint
+    assert token_data['max_usage'] == 5
+    assert token_data['usage_count'] == 0
+    assert token_data['is_revoked'] == 0
+
+
+def test_get_user_token_not_found(db_service):
+    """Test retrieving a non-existent token."""
+    result = db_service.get_user_token("nonexistent_token")
+    assert result is None
+
+
+def test_get_user_token_revoked(db_service):
+    """Test that revoked tokens are not returned."""
+    # Create user preference
+    email = "revoked@example.com"
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_preferences (email_address, enabled_sources)
+            VALUES (?, 'source1')
+        """, (email,))
+        user_preferences_id = cursor.lastrowid
+        conn.commit()
+    
+    # Create and revoke token
+    token_id = "revoked_token"
+    db_service.create_user_token(
+        token_id=token_id,
+        token_hash="hash",
+        user_preferences_id=user_preferences_id,
+        device_fingerprint="device",
+        expires_at="2025-12-31 23:59:59"
+    )
+    
+    # Revoke the token
+    db_service.revoke_user_token(token_id)
+    
+    # Should not be retrievable
+    result = db_service.get_user_token(token_id)
+    assert result is None
+
+
+def test_get_user_token_expired(db_service):
+    """Test that expired tokens are not returned."""
+    # Create user preference
+    email = "expired@example.com"
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_preferences (email_address, enabled_sources)
+            VALUES (?, 'source1')
+        """, (email,))
+        user_preferences_id = cursor.lastrowid
+        conn.commit()
+    
+    # Create expired token
+    token_id = "expired_token"
+    db_service.create_user_token(
+        token_id=token_id,
+        token_hash="hash",
+        user_preferences_id=user_preferences_id,
+        device_fingerprint="device",
+        expires_at="2020-01-01 00:00:00"  # Expired
+    )
+    
+    # Should not be retrievable
+    result = db_service.get_user_token(token_id)
+    assert result is None
+
+
+def test_increment_token_usage(db_service):
+    """Test incrementing token usage count."""
+    # Create user preference and token
+    email = "usage@example.com"
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_preferences (email_address, enabled_sources)
+            VALUES (?, 'source1')
+        """, (email,))
+        user_preferences_id = cursor.lastrowid
+        conn.commit()
+    
+    token_id = "usage_token"
+    db_service.create_user_token(
+        token_id=token_id,
+        token_hash="hash",
+        user_preferences_id=user_preferences_id,
+        device_fingerprint="device",
+        expires_at="2025-12-31 23:59:59"
+    )
+    
+    # Increment usage
+    result = db_service.increment_token_usage(token_id)
+    assert result is True
+    
+    # Check usage count
+    token_data = db_service.get_user_token(token_id)
+    assert token_data['usage_count'] == 1
+    
+    # Increment again
+    db_service.increment_token_usage(token_id)
+    token_data = db_service.get_user_token(token_id)
+    assert token_data['usage_count'] == 2
+
+
+def test_increment_usage_nonexistent_token(db_service):
+    """Test incrementing usage for non-existent token."""
+    result = db_service.increment_token_usage("nonexistent")
+    assert result is False
+
+
+def test_revoke_user_token(db_service):
+    """Test revoking a user token."""
+    # Create user preference and token
+    email = "revoke@example.com"
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_preferences (email_address, enabled_sources)
+            VALUES (?, 'source1')
+        """, (email,))
+        user_preferences_id = cursor.lastrowid
+        conn.commit()
+    
+    token_id = "revoke_token"
+    db_service.create_user_token(
+        token_id=token_id,
+        token_hash="hash",
+        user_preferences_id=user_preferences_id,
+        device_fingerprint="device",
+        expires_at="2025-12-31 23:59:59"
+    )
+    
+    # Token should be retrievable
+    assert db_service.get_user_token(token_id) is not None
+    
+    # Revoke token
+    result = db_service.revoke_user_token(token_id)
+    assert result is True
+    
+    # Token should no longer be retrievable
+    assert db_service.get_user_token(token_id) is None
+
+
+def test_revoke_user_tokens_by_preferences_id(db_service):
+    """Test revoking all tokens for a user."""
+    # Create user preference
+    email = "revoke_all@example.com"
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_preferences (email_address, enabled_sources)
+            VALUES (?, 'source1')
+        """, (email,))
+        user_preferences_id = cursor.lastrowid
+        conn.commit()
+    
+    # Create multiple tokens
+    token_ids = ["token1", "token2", "token3"]
+    for token_id in token_ids:
+        db_service.create_user_token(
+            token_id=token_id,
+            token_hash=f"hash_{token_id}",
+            user_preferences_id=user_preferences_id,
+            device_fingerprint="device",
+            expires_at="2025-12-31 23:59:59"
+        )
+    
+    # All tokens should be retrievable
+    for token_id in token_ids:
+        assert db_service.get_user_token(token_id) is not None
+    
+    # Revoke all tokens for user
+    result = db_service.revoke_user_tokens_by_preferences_id(user_preferences_id)
+    assert result is True
+    
+    # No tokens should be retrievable
+    for token_id in token_ids:
+        assert db_service.get_user_token(token_id) is None
+
+
+def test_cleanup_expired_tokens(db_service):
+    """Test cleaning up expired and revoked tokens."""
+    # Create user preference
+    email = "cleanup@example.com"
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_preferences (email_address, enabled_sources)
+            VALUES (?, 'source1')
+        """, (email,))
+        user_preferences_id = cursor.lastrowid
+        conn.commit()
+    
+    # Create expired token
+    db_service.create_user_token(
+        token_id="expired_cleanup",
+        token_hash="hash1",
+        user_preferences_id=user_preferences_id,
+        device_fingerprint="device",
+        expires_at="2020-01-01 00:00:00"  # Expired
+    )
+    
+    # Create valid token and revoke it
+    db_service.create_user_token(
+        token_id="revoked_cleanup",
+        token_hash="hash2",
+        user_preferences_id=user_preferences_id,
+        device_fingerprint="device",
+        expires_at="2025-12-31 23:59:59"
+    )
+    db_service.revoke_user_token("revoked_cleanup")
+    
+    # Create valid active token
+    db_service.create_user_token(
+        token_id="active_cleanup",
+        token_hash="hash3",
+        user_preferences_id=user_preferences_id,
+        device_fingerprint="device",
+        expires_at="2025-12-31 23:59:59"
+    )
+    
+    # Run cleanup
+    cleaned_count = db_service.cleanup_expired_tokens()
+    assert cleaned_count == 2  # Should clean up expired and revoked tokens
+    
+    # Check that active token still exists
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM user_tokens")
+        remaining_count = cursor.fetchone()[0]
+        assert remaining_count == 1
+
+
+def test_get_user_preferences_by_email(db_service):
+    """Test retrieving user preferences by email address."""
+    email = "prefs@example.com"
+    
+    # Create user preferences
+    with db_service._get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO user_preferences (email_address, enabled_sources, enabled_categories, keywords)
+            VALUES (?, 'source1,source2', 'tech,business', 'ai,machine learning')
+        """, (email,))
+        conn.commit()
+    
+    # Retrieve preferences
+    prefs = db_service.get_user_preferences_by_email(email)
+    assert prefs is not None
+    assert prefs['email_address'] == email
+    assert prefs['enabled_sources'] == 'source1,source2'
+    assert prefs['enabled_categories'] == 'tech,business'
+    assert prefs['keywords'] == 'ai,machine learning'
+
+
+def test_get_user_preferences_by_email_not_found(db_service):
+    """Test retrieving non-existent user preferences."""
+    result = db_service.get_user_preferences_by_email("nonexistent@example.com")
+    assert result is None
+
+
+def test_user_tokens_foreign_key_constraint(db_service):
+    """Test that foreign key constraints work for user_tokens table."""
+    # Try to create token with non-existent user_preferences_id
+    result = db_service.create_user_token(
+        token_id="invalid_fk",
+        token_hash="hash",
+        user_preferences_id=99999,  # Non-existent
+        device_fingerprint="device",
+        expires_at="2025-12-31 23:59:59"
+    )
+    
+    # Should fail due to foreign key constraint
+    assert result is None
