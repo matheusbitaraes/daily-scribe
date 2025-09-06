@@ -159,4 +159,4 @@ Create a new FastAPI endpoint that generates HTML digest content for a specified
 
 Remember to be thorough, practical, and consider the maintainability of the solution within the existing project architecture.
 
-create a {index}_{user_story}.tasks.md inside folder `.tasks/`. If the file or folder doesn't exist, create it.
+create a {index}_{user_story}.tasks.md inside folder `.specs/.tasks/`. If the file or folder doesn't exist, create it. Index is a 3 digit number starting from 001 and incrementing for each new user story.
