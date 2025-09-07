@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import  { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import DigestDatePicker from './DigestDatePicker';
-import DigestFilters from './DigestFilters';
 import DigestPreview from './DigestPreview';
 import './DigestSimulator.css';
 
@@ -222,13 +221,6 @@ const DigestSimulator = () => {
     }
   };
 
-  // Handle filter changes (will be used by filter components)
-  const handleFiltersChange = (newFilters) => {
-    updateState({
-      filters: newFilters
-    });
-  };
-
   // Handle copy to clipboard callback from DigestPreview
   const handleCopyToClipboard = (status) => {
     if (status === 'success') {
@@ -292,16 +284,6 @@ const DigestSimulator = () => {
             selectedDate={state.selectedDate}
             onDateChange={handleDateChange}
             isLoading={state.isLoadingDates}
-          />
-        </div>
-
-        {/* Filters Section */}
-        <div className="simulator-section">
-          <DigestFilters
-            onFiltersChange={handleFiltersChange}
-            selectedCategories={state.filters.categories}
-            selectedSources={state.filters.sources}
-            isLoading={state.isLoadingDigest}
           />
         </div>
 

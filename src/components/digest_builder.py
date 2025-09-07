@@ -127,11 +127,15 @@ class DigestBuilder:
                     source = main_article.get('source_name')
                     if not source:
                         source = 'link'
+                    
+                    # Use Portuguese summary if available, otherwise fallback to English
+                    preferred_summary = main_article.get('summary_pt') or main_article.get('summary', '')
+                    
                     html_digest += f"""
                     <div class="main-article">
                         <p class="summary">
                             <span class="title">{main_article['title']}:</span>
-                            {main_article['summary']} <a href="{main_article['url']}">[{source}]</a>
+                            {preferred_summary} <a href="{main_article['url']}">[{source}]</a>
                         </p>
                     </div>
                     """

@@ -21,7 +21,7 @@ const PreferenceForm = ({
     sources: []
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
+  const [, setLoadError] = useState(null);
 
   const {
     register,

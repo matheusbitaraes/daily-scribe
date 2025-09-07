@@ -150,6 +150,43 @@ class DatabaseMigrator:
             self.logger.error(f"Error applying migration {migration_name}: {e}")
             return False
 
+    def add_summary_pt_column(self) -> bool:
+        """
+        Migration to add the summary_pt column to articles table for Portuguese summaries.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        migration_name = "002_add_summary_pt_column"
+        
+        if self.migration_applied(migration_name):
+            self.logger.info(f"Migration {migration_name} already applied, skipping")
+            return True
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Add summary_pt column to articles table
+                cursor.execute("""
+                    ALTER TABLE articles ADD COLUMN summary_pt TEXT;
+                """)
+                
+                conn.commit()
+                
+                # Record the migration
+                self.record_migration(
+                    migration_name, 
+                    "Add summary_pt column to articles table for Portuguese summaries"
+                )
+                
+                self.logger.info(f"Successfully applied migration: {migration_name}")
+                return True
+                
+        except sqlite3.Error as e:
+            self.logger.error(f"Error applying migration {migration_name}: {e}")
+            return False
+
     def run_all_migrations(self) -> bool:
         """
         Run all pending migrations.
@@ -161,6 +198,7 @@ class DatabaseMigrator:
             # Add future migrations here
             migrations = [
                 self.add_user_tokens_table,
+                self.add_summary_pt_column,
             ]
             
             for migration in migrations:

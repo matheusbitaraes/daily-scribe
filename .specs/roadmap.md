@@ -21,10 +21,12 @@
 - [x] clean html encodings on rss parsing
 - [ ] Web interface for configuration management
    - be able to check and experiment some news grouping and experiment clusters
-   - visual map of the current news?
    - be able to test email digests
-   - 
-- [ ] check [this](https://www.youtube.com/watch?time_continue=65&v=qJoGFDHjLSE&embeds_widget_referrer=https%3A%2F%2Fmedium.muz.li%2F21-ai-tools-that-will-10x-your-design-speed-57ac5add1846&embeds_referring_euri=https%3A%2F%2Fcdn.embedly.com%2F&embeds_referring_origin=https%3A%2F%2Fcdn.embedly.com&source_ve_path=MjM4NTE) to design with figma
+   - have a good and simple UI
+- [x] add summary_pt
+- [ ] Check sources on clustering
+- [ ] Improve documentation for AI
+- [ ] Home page
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 
 - [ ] Web interface to subscription - home page
 - [ ] Local LLM integration for summarization

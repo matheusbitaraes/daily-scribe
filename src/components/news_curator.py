@@ -30,11 +30,13 @@ class NewsCurator:
         start_date_str = start_date.isoformat()
         end_date_str = end_date.isoformat()
 
+        enabled_source_ids = [str(s) for s in enabled_sources] if enabled_sources else None
+
         articles = self.db_service.get_unsent_articles(
             email_address,
             start_date=start_date_str,
             end_date=end_date_str,
-            source_ids=[str(s) for s in enabled_sources] if enabled_sources else None,
+            source_ids=enabled_source_ids,
             categories=enabled_categories
         )
 
@@ -89,7 +91,7 @@ class NewsCurator:
                 current_cluster_ids = {article['id']}
                 
                 try:
-                    similar = clusterer.get_similar_articles(article['id'], top_k=5, similarity_threshold=0.55)
+                    similar = clusterer.get_similar_articles(article['id'], enabled_source_ids, top_k=5, similarity_threshold=0.55)
                     for sim_article in similar:
                         if sim_article['id'] not in used_article_ids:
                             cluster.append(sim_article)

@@ -23,8 +23,12 @@ class ArticleClusterer:
         parts = []
         if article.get('title'):
             parts.append(f"Title: {article['title']}")
-        if article.get('summary'):
-            parts.append(f"Summary: {article['summary']}")
+        
+        # Use Portuguese summary if available, otherwise fallback to English
+        preferred_summary = article.get('summary_pt') or article.get('summary')
+        if preferred_summary:
+            parts.append(f"Summary: {preferred_summary}")
+            
         if article.get('category'):
             parts.append(f"Category: {article['category']}")
         if article.get('keywords'):
@@ -54,7 +58,7 @@ class ArticleClusterer:
                             parts.append(f"Title: {' | '.join(texts)}")
                     elif content_type == 'summary':
                         # Skip summary if we already have it from the article metadata
-                        if not article.get('summary'):
+                        if not preferred_summary:
                             parts.append(f"Summary: {' | '.join(texts)}")
                     elif content_type == 'content':
                         parts.append(f"Content: {' | '.join(texts)}")
@@ -169,7 +173,7 @@ class ArticleClusterer:
     def analyze_clusters(self, run_id: str) -> Dict:
         return self.db_service.analyze_clusters(run_id)
 
-    def get_similar_articles(self, article_id: int, top_k: int = 5, similarity_threshold: float = 0.85) -> List[Dict]:
+    def get_similar_articles(self, article_id: int, enabled_source_ids: List[int] = None, top_k: int = 5, similarity_threshold: float = 0.85) -> List[Dict]:
         embeddings, article_ids = self.get_all_embeddings()
         if article_id not in article_ids:
             raise ValueError(f"Article ID {article_id} not found in embeddings")
@@ -186,6 +190,9 @@ class ArticleClusterer:
                 continue
             article = self.db_service.get_article_by_id(sim_article_id)
             if article:
+                # Filter by enabled source IDs if provided
+                if enabled_source_ids is not None and str(article.get('source_id')) not in enabled_source_ids:
+                    continue
                 article['similarity_score'] = float(similarity_score)
                 results.append(article)
             if len(results) >= top_k:
@@ -268,7 +275,7 @@ def main():
     if analysis['total_articles'] > 0:
         sample_article_id = 1  # Replace with actual article ID
         try:
-            similar = clusterer.get_similar_articles(sample_article_id, top_k=3)
+            similar = clusterer.get_similar_articles(sample_article_id, None, top_k=3)
             print(f"\nArticles similar to ID {sample_article_id}:")
             for article in similar:
                 print(f"- {article['title']} (similarity: {article['similarity_score']:.3f})")

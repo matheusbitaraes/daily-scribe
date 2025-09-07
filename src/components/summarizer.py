@@ -17,6 +17,7 @@ from typing import List, Dict, Any
 
 class NewsMetadata(BaseModel):
     summary: str = Field(description="Summarize the following text in approximately 40 to 100 words and DO IT ALWAYS IN THE ORIGINAL LANGUAGE OF THE ARTICLE (LIMITED TO ENGLISH OR BRAZILIAN PORTUGUESE).")
+    summary_pt: str = Field(description="Summarize the following text in approximately 40 to 100 words and DO IT ALWAYS IN PORTUGUESE, no matter the original language of the article.")
     sentiment: str = Field(description="The overall sentiment of the article (Positive, Negative, Neutral).")
     keywords: List[str] = Field(description="A list of key people, organizations, or locations mentioned.")
     category: str = Field(description="The main category of the news. Select one of those options: 'Politics', 'Technology', 'Science and Health', 'Business', 'Entertainment', 'Sports'. Use the category 'Other' if none of the options fit.")

@@ -11,6 +11,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 from typing import List, Optional
+from utils.migrations import migrate_database
 
 
 class DatabaseService:
@@ -65,6 +66,10 @@ class DatabaseService:
         try:
             self.logger.info(f"Initializing database at {self.db_path}")
             self._create_table_if_not_exists()
+            
+            # Run migrations after initial table creation
+            migrate_database(self.db_path)
+            
             self.logger.info("Database initialization completed successfully")
         except Exception as e:
             self.logger.error(f"Failed to initialize database: {e}")
@@ -102,6 +107,7 @@ class DatabaseService:
                         url TEXT NOT NULL UNIQUE,
                         title TEXT,
                         summary TEXT,
+                        summary_pt TEXT,
                         sentiment TEXT,
                         keywords TEXT,
                         category TEXT,
@@ -228,7 +234,7 @@ class DatabaseService:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, url, title, summary, sentiment, keywords, category, region, published_at, processed_at, source_id, raw_content FROM articles WHERE url = ?", (url,))
+                cursor.execute("SELECT id, url, title, summary, summary_pt, sentiment, keywords, category, region, published_at, processed_at, source_id, raw_content FROM articles WHERE url = ?", (url,))
                 row = cursor.fetchone()
                 if row:
                     columns = [desc[0] for desc in cursor.description]
@@ -454,11 +460,11 @@ class DatabaseService:
             List of dicts with article data including source_name.
         """
         query = """
-            SELECT a.id, a.title, a.url, a.summary, a.sentiment, a.keywords, a.category, a.region, 
+            SELECT a.id, a.title, a.url, a.summary, a.summary_pt, a.sentiment, a.keywords, a.category, a.region, 
                    a.published_at, a.processed_at, a.source_id, s.name as source_name
             FROM articles a
             LEFT JOIN sources s ON a.source_id = s.id
-            WHERE a.summary is not null
+            WHERE (a.summary is not null OR a.summary_pt is not null)
         """
         params = []
         if start_date:
@@ -572,17 +578,18 @@ class DatabaseService:
 
     def get_articles_without_embeddings(self) -> list:
         """
-        Return articles (id, title, summary, keywords, category) that do not have embeddings yet.
+        Return articles (id, title, summary, summary_pt, keywords, category) that do not have embeddings yet.
         """
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT a.id, a.title, a.summary, a.keywords, a.category
+                    SELECT a.id, a.title, a.summary, a.summary_pt, a.keywords, a.category
                     FROM articles a
                     LEFT JOIN article_embeddings ae ON a.id = ae.article_id
                     WHERE ae.article_id IS NULL
                     AND a.title IS NOT NULL
+                    AND (a.summary IS NOT NULL OR a.summary_pt IS NOT NULL)
                     ORDER BY a.id
                 ''')
                 columns = [desc[0] for desc in cursor.description]
@@ -666,7 +673,7 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 query = """
-                    SELECT a.*, s.name as source_name
+                    SELECT a.*, s.name as source_name, s.id as source_id
                     FROM articles a
                     LEFT JOIN sources s ON a.source_id = s.id
                     WHERE a.id = ?
@@ -793,7 +800,7 @@ class DatabaseService:
                 cursor.execute('''
                     SELECT a.id, a.url, a.title, a.raw_content
                     FROM articles a
-                    WHERE a.summary IS NULL AND a.raw_content IS NOT NULL
+                    WHERE (a.summary IS NULL AND a.summary_pt IS NULL) AND a.raw_content IS NOT NULL
                 ''')
                 columns = [desc[0] for desc in cursor.description]
                 return [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -809,24 +816,86 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 keywords_str = ','.join(metadata.get('keywords', [])) if metadata.get('keywords') else None
-                cursor.execute(
-                    """
-                    UPDATE articles
-                    SET summary = ?, sentiment = ?, keywords = ?, category = ?, region = ?
-                    WHERE id = ?
-                    """,
-                    (
-                        metadata.get('summary'),
-                        metadata.get('sentiment'),
-                        keywords_str,
-                        metadata.get('category'),
-                        metadata.get('region'),
-                        article_id
+                
+                # Check if we're updating with Portuguese summary
+                if 'summary_pt' in metadata:
+                    cursor.execute(
+                        """
+                        UPDATE articles
+                        SET summary_pt = ?, sentiment = ?, keywords = ?, category = ?, region = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            metadata.get('summary_pt'),
+                            metadata.get('sentiment'),
+                            keywords_str,
+                            metadata.get('category'),
+                            metadata.get('region'),
+                            article_id
+                        )
                     )
-                )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE articles
+                        SET summary = ?, sentiment = ?, keywords = ?, category = ?, region = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            metadata.get('summary'),
+                            metadata.get('sentiment'),
+                            keywords_str,
+                            metadata.get('category'),
+                            metadata.get('region'),
+                            article_id
+                        )
+                    )
                 conn.commit()
         except sqlite3.Error as e:
             self.logger.error(f"Error updating article summary in database: {e}")
+
+    def get_preferred_summary(self, article: dict) -> str:
+        """
+        Get the preferred summary for an article (Portuguese if available, otherwise English).
+        
+        Args:
+            article: Article dict containing summary and summary_pt fields
+            
+        Returns:
+            The preferred summary text
+        """
+        return article.get('summary_pt') or article.get('summary', '')
+
+    def get_preferred_summary_field_name(self, article: dict) -> str:
+        """
+        Get the name of the field containing the preferred summary.
+        
+        Args:
+            article: Article dict containing summary and summary_pt fields
+            
+        Returns:
+            'summary_pt' if Portuguese summary exists, otherwise 'summary'
+        """
+        return 'summary_pt' if article.get('summary_pt') else 'summary'
+
+    def update_article_summary_pt(self, article_id: int, summary_pt: str) -> None:
+        """
+        Update an article with its Portuguese summary.
+        
+        Args:
+            article_id: The ID of the article to update
+            summary_pt: The Portuguese summary text
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE articles SET summary_pt = ? WHERE id = ?",
+                    (summary_pt, article_id)
+                )
+                conn.commit()
+        except sqlite3.Error as e:
+            self.logger.error(f"Error updating article Portuguese summary in database: {e}")
 
     def get_all_user_email_addresses(self) -> list:
         """
