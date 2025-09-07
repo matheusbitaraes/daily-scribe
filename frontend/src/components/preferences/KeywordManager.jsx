@@ -15,10 +15,14 @@ const KeywordManager = ({
 
   // Predefined suggestions for common keywords
   const keywordSuggestions = [
-    'brasil', 'politics', 'technology', 'science', 'health',
-    'business', 'finance', 'sports', 'entertainment', 'climate',
-    'education', 'innovation', 'startup', 'cryptocurrency',
-    'artificial intelligence', 'machine learning', 'futebol'
+    'brasil', 'política', 'tecnologia', 'ciência', 'saúde',
+    'negócios', 'finanças', 'esportes', 'entretenimento', 'clima',
+    'educação', 'inovação', 'startup', 'criptomoeda',
+    'inteligência artificial', 'aprendizado de máquina', 'futebol', 'basquete',
+    'música', 'cinema', 'sustentabilidade', 'meio ambiente', 'viagem',
+    'cultura', 'história', 'arte', 'literatura', 'design', 'fotografia',
+    'moda', 'gastronomia', 'bem-estar', 'fitness', 'yoga', 'meditação',
+    'psicologia', 'desenvolvimento pessoal', 'carreira', 'empreendedorismo',
   ];
 
   const handleAddKeyword = () => {
