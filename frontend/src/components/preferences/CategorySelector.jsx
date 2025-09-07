@@ -2,7 +2,6 @@
  * Category selection component
  * Allows users to select/deselect news categories with visual feedback
  */
-import React from 'react';
 
 const CategorySelector = ({
   selectedCategories = [],
@@ -11,17 +10,6 @@ const CategorySelector = ({
   error,
   register
 }) => {
-  // Category icons mapping
-  const categoryIcons = {
-    'Politics': '🏛️',
-    'Technology': '💻',
-    'Science and Health': '🔬',
-    'Business': '💼',
-    'Entertainment': '🎭',
-    'Sports': '⚽',
-    'Other': '📰'
-  };
-
   // Category Portuguese translations
   const categoryTranslations = {
     'Politics': 'Política',
@@ -93,7 +81,6 @@ const CategorySelector = ({
         {availableCategories.map((category) => {
           const isSelected = selectedCategories.includes(category);
           const translatedName = categoryTranslations[category] || category;
-          const icon = categoryIcons[category] || '📰';
           
           return (
             <div
@@ -122,7 +109,6 @@ const CategorySelector = ({
               />
               
               <div className="category-content">
-                <span className="category-icon">{icon}</span>
                 <span className="category-name">{translatedName}</span>
               </div>
               

@@ -1,6 +1,12 @@
 /**
  * Source selection component
  * Allows users to select preferred news sources with search and filtering
+ * 
+ * @param {Array} selectedSources - Array of selected source IDs
+ * @param {Array} availableSources - Array of source objects with {id, name} structure
+ * @param {Function} onChange - Callback that receives array of selected source IDs
+ * @param {Object} error - Form validation error object
+ * @param {Function} register - React Hook Form register function
  */
 import React, { useState, useMemo } from 'react';
 
@@ -20,42 +26,42 @@ const SourceSelector = ({
     
     if (searchTerm) {
       sources = sources.filter(source =>
-        source.toLowerCase().includes(searchTerm.toLowerCase())
+        source.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
     if (showOnlySelected) {
       sources = sources.filter(source => 
-        selectedSources.includes(source)
+        selectedSources.includes(source.id)
       );
     }
     
-    return sources.sort();
+    return sources.sort((a, b) => a.name.localeCompare(b.name));
   }, [availableSources, searchTerm, showOnlySelected, selectedSources]);
 
   const handleSourceToggle = (source) => {
-    const isSelected = selectedSources.includes(source);
+    const isSelected = selectedSources.includes(source.id);
     let newSources;
     
     if (isSelected) {
-      newSources = selectedSources.filter(src => src !== source);
+      newSources = selectedSources.filter(id => id !== source.id);
     } else {
-      newSources = [...selectedSources, source];
+      newSources = [...selectedSources, source.id];
     }
     
     onChange(newSources);
   };
 
   const handleSelectAll = () => {
-    onChange(filteredSources);
+    onChange(filteredSources.map(source => source.id));
   };
 
   const handleClearAll = () => {
     if (showOnlySelected || searchTerm) {
       // If filtering, only clear the visible sources
-      const sourcesToRemove = filteredSources;
-      const newSources = selectedSources.filter(source => 
-        !sourcesToRemove.includes(source)
+      const sourcesToRemove = filteredSources.map(source => source.id);
+      const newSources = selectedSources.filter(id => 
+        !sourcesToRemove.includes(id)
       );
       onChange(newSources);
     } else {
@@ -126,7 +132,7 @@ const SourceSelector = ({
           type="button"
           onClick={handleSelectAll}
           className="btn btn-small btn-outline"
-          disabled={filteredSources.every(source => selectedSources.includes(source))}
+          disabled={filteredSources.every(source => selectedSources.includes(source.id))}
         >
           {searchTerm || showOnlySelected ? 'Selecionar Visíveis' : 'Selecionar Todas'}
         </button>
@@ -134,7 +140,7 @@ const SourceSelector = ({
           type="button"
           onClick={handleClearAll}
           className="btn btn-small btn-outline"
-          disabled={filteredSources.every(source => !selectedSources.includes(source))}
+          disabled={filteredSources.every(source => !selectedSources.includes(source.id))}
         >
           {searchTerm || showOnlySelected ? 'Limpar Visíveis' : 'Limpar Todas'}
         </button>
@@ -163,11 +169,11 @@ const SourceSelector = ({
           </div>
         ) : (
           filteredSources.map((source) => {
-            const isSelected = selectedSources.includes(source);
+            const isSelected = selectedSources.includes(source.id);
             
             return (
               <div
-                key={source}
+                key={source.id}
                 className={`source-item ${isSelected ? 'selected' : ''}`}
                 onClick={() => handleSourceToggle(source)}
                 role="button"
@@ -179,19 +185,19 @@ const SourceSelector = ({
                   }
                 }}
                 aria-pressed={isSelected}
-                aria-label={`${isSelected ? 'Desmarcar' : 'Marcar'} fonte ${source}`}
+                aria-label={`${isSelected ? 'Desmarcar' : 'Marcar'} fonte ${source.name}`}
               >
                 <input
                   type="checkbox"
                   {...register('sources')}
-                  value={source}
+                  value={source.id}
                   checked={isSelected}
                   onChange={() => handleSourceToggle(source)}
                   className="source-checkbox"
-                  aria-label={`Fonte ${source}`}
+                  aria-label={`Fonte ${source.name}`}
                 />
                 
-                <span className="source-name">{source}</span>
+                <span className="source-name">{source.name}</span>
                 
                 {isSelected && (
                   <span className="source-checkmark">✓</span>
@@ -212,7 +218,7 @@ const SourceSelector = ({
           <span className="summary-text">
             {selectedSources.length} fonte(s) selecionada(s)
             {searchTerm || showOnlySelected ? (
-              ` (${filteredSources.filter(s => selectedSources.includes(s)).length} visível(is))`
+              ` (${filteredSources.filter(s => selectedSources.includes(s.id)).length} visível(is))`
             ) : ''}
           </span>
         )}

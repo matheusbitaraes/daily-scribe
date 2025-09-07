@@ -402,6 +402,23 @@ class DatabaseService:
             self.logger.error(f"Error getting source: {e}")
             return None
 
+    def get_all_sources(self) -> List[dict]:
+        """
+        Get all sources from the database.
+
+        Returns:
+            List of dicts with source info (id, name).
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, name FROM sources ORDER BY name")
+                rows = cursor.fetchall()
+                return [{'id': row[0], 'name': row[1]} for row in rows]
+        except sqlite3.Error as e:
+            self.logger.error(f"Error getting all sources: {e}")
+            return []
+
     def get_rss_feeds_for_source(self, source_id: int) -> list:
         """
         Get all RSS feed URLs for a given source.

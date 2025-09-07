@@ -19,7 +19,6 @@ from models.preferences import (
     UserPreferencesResponse,
     UserPreferencesUpdateRequest,
     PreferenceResetResponse,
-    TokenValidationResponse,
     ErrorResponse,
     AvailableOptionsResponse
 )
@@ -251,7 +250,6 @@ def get_metrics():
     except Exception as e:
         logger.error(f"Error generating metrics: {e}")
         return f"# Error generating metrics: {e}\n"
-
 
 @app.get("/articles")
 def get_articles(
@@ -541,7 +539,6 @@ def get_digest_metadata(
             detail=f"Internal server error while fetching digest metadata: {str(e)}"
         )
 
-
 # =============================================================================
 # PREFERENCE MANAGEMENT ENDPOINTS
 # =============================================================================
@@ -595,7 +592,7 @@ async def get_user_preferences(
         # Parse comma-separated fields
         enabled_sources = []
         if user_prefs.get('enabled_sources'):
-            enabled_sources = [s.strip() for s in user_prefs['enabled_sources'].split(',') if s.strip()]
+            enabled_sources = [int(s.strip()) for s in user_prefs['enabled_sources'].split(',') if s.strip()]
         
         enabled_categories = []
         if user_prefs.get('enabled_categories'):
@@ -680,7 +677,7 @@ async def update_user_preferences(
         update_data = {}
         
         if preferences.enabled_sources is not None:
-            update_data['enabled_sources'] = ','.join(preferences.enabled_sources)
+            update_data['enabled_sources'] = ','.join(str(source_id) for source_id in preferences.enabled_sources)
         
         if preferences.enabled_categories is not None:
             update_data['enabled_categories'] = ','.join(preferences.enabled_categories)
@@ -738,7 +735,7 @@ async def update_user_preferences(
 async def reset_user_preferences(
     token: str = Path(..., description="Secure preference access token"),
     request: Request = None,
-    token_validation: TokenValidationResult = Depends(require_valid_token)
+    token_validation: TokenValidationResult = Depends(require_valid_path_token)
 ) -> PreferenceResetResponse:
     """
     Reset user preferences to defaults with token validation.
@@ -811,9 +808,8 @@ async def reset_user_preferences(
             ).dict()
         )
 
-
 @app.get(
-    "/preferences/options",
+    "/preferences-options/",
     response_model=AvailableOptionsResponse,
     responses={
         200: {"description": "Available options retrieved successfully"},
@@ -825,47 +821,23 @@ async def reset_user_preferences(
 async def get_available_options() -> AvailableOptionsResponse:
     """
     Get available sources and categories for preference configuration.
-    
-    This endpoint does not require authentication as it provides public
-    information about available options.
-    
-    Returns:
-        AvailableOptionsResponse: Available sources and categories
-        
-    Raises:
-        HTTPException: If unable to retrieve options
+    This is a public endpoint that doesn't require authentication.
     """
     try:
         # Get available sources from database
         sources = db_service.get_all_sources()
-        source_names = [source['name'] for source in sources]
         
-        # Get available categories from recent articles
-        # This could be enhanced to maintain a predefined list
-        articles = db_service.get_articles_by_date(
-            target_date=date.today(),
-            limit=1000
-        )
+        # For now, just return default categories
+        category_list = ['Politics', 'Technology', 'Science and Health', 'Business', 'Entertainment', 'Sports', 'Other']
         
-        categories = set()
-        for article in articles:
-            if article.get('category'):
-                categories.add(article['category'])
+        return {
+            "sources": sources,
+            "categories": category_list
+        }
         
-        # Sort categories alphabetically
-        category_list = sorted(list(categories))
-        
-        # If no categories found, provide some defaults
-        if not category_list:
-            category_list = [
-                "Technology", "Business", "Health", "Science", "Sports",
-                "Politics", "Entertainment", "World News", "Finance"
-            ]
-        
-        return AvailableOptionsResponse(
-            sources=sorted(source_names),
-            categories=category_list
-        )
+    except Exception as e:
+        logger.error(f"Error retrieving available options: {e}")
+        return {"error": str(e)}
         
     except Exception as e:
         logger.error(f"Error retrieving available options: {e}")

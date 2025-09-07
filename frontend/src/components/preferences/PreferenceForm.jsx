@@ -2,7 +2,7 @@
  * Main preference form component
  * Orchestrates all preference controls and handles form submission
  */
-import React, { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import CategorySelector from './CategorySelector';
 import SourceSelector from './SourceSelector';
@@ -16,6 +16,13 @@ const PreferenceForm = ({
   isMobile = false,
   isTouch = false
 }) => {
+  const [availableOptions, setAvailableOptions] = useState({
+    categories: [],
+    sources: []
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+
   const {
     register,
     handleSubmit,
@@ -80,6 +87,53 @@ const PreferenceForm = ({
     onPreferenceChange(apiData);
   };
 
+  // Fetch available options from API
+  useEffect(() => {
+    const fetchAvailableOptions = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      
+      try {
+        const response = await fetch('http://localhost:8000/preferences-options');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+
+        console.log('Fetched available options:', data);
+        
+        setAvailableOptions({
+          categories: data.categories || [],
+          sources: data.sources || []
+        });
+      } catch (error) {
+        console.error('Error fetching available options:', error);
+        setLoadError(error.message);
+        
+        // Fallback to mock data if API fails
+        setAvailableOptions({
+          categories: [
+            'Technology',
+            'Politics', 
+            'Sports',
+            'Entertainment',
+            'Science and Health',
+            'Business',
+            'Other'
+          ],
+          sources: [
+          ]
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAvailableOptions();
+  }, []);
+
   // Handle reset
   const handleReset = () => {
     if (window.confirm('Tem certeza que deseja redefinir todas as preferências para os valores padrão?')) {
@@ -87,32 +141,9 @@ const PreferenceForm = ({
     }
   };
 
-  if (!preferences) {
+  if (!preferences || isLoading) {
     return <div>Loading form...</div>;
   }
-
-  // Mock available options for now (these would come from API in real implementation)
-  const availableOptions = {
-    categories: [
-      'Technology',
-      'Politics', 
-      'Sports',
-      'Entertainment',
-      'Science and Health',
-      'Business',
-      'Other'
-    ],
-    sources: [
-      'G1',
-      'UOL',
-      'Folha de S.Paulo',
-      'O Estado de S. Paulo',
-      'BBC Brasil',
-      'CNN Brasil',
-      'R7',
-      'Band'
-    ]
-  };
 
   return (
     <form className="preference-form" onSubmit={handleSubmit(onSubmit)}>
