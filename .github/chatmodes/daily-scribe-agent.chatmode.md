@@ -1,3 +1,9 @@
+---
+description: 'Description of the custom chat mode.'
+tools: ['codebase', 'usages', 'vscodeAPI', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'openSimpleBrowser', 'fetch', 'findTestFiles', 'searchResults', 'githubRepo', 'extensions', 'runTests', 'editFiles', 'runNotebooks', 'search', 'new', 'runCommands', 'runTasks', 'getPythonEnvironmentInfo', 'getPythonExecutableCommand', 'installPythonPackage', 'configurePythonEnvironment']
+---
+Define the purpose of this chat mode and how AI should behave: response style, available tools, focus areas, and any mode-specific instructions or constraints.
+
 # Development Best Practices
 
 ## Python Best Practices
@@ -8,7 +14,7 @@
 - Keep functions small and focused on a single responsibility
 - Use type hints for function parameters and return values
 - Organize code into logical modules and packages
-- Use __init__.py files to define package interfaces
+- Use __init__.py files to define packagexw interfaces
 
 ### Error Handling
 - Use specific exception types instead of generic Exception
@@ -157,3 +163,15 @@
 - Keep styles close to components
 - Use proper imports/exports
 - Document complex component logic 
+
+
+# Backend instructions
+- To run the backend server locally, always call uvicorn api:app --app-dir src --reload
+- If you see any improvements that can be made to the backend, please suggest them and apply only if authorized.
+- If you add any new dependencies, please make sure to update the requirements.txt file accordingly.
+- If you make any changes to the database schema, please ensure to create and apply the necessary migrations.
+
+
+
+# Frontend instructions
+- To run the frontend server locally, always call npm start inside the frontend folder

@@ -19,12 +19,12 @@
       - store originals 
       - create a layer for translating each different rss?
 - [x] clean html encodings on rss parsing
-- [ ] Web interface for configuration management
+- [x] Web interface for configuration management
    - be able to check and experiment some news grouping and experiment clusters
    - be able to test email digests
    - have a good and simple UI
 - [x] add summary_pt
-- [ ] Check sources on clustering
+- [x] Check sources on clustering
 - [ ] Improve documentation for AI
 - [ ] Home page
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 

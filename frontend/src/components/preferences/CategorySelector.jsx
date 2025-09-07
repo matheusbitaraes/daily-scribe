@@ -119,7 +119,7 @@ const CategorySelector = ({
       <div className="selection-summary">
         {selectedCategories.length === 0 ? (
           <span className="summary-text summary-empty">
-            Nenhuma categoria selecionada. Você receberá notícias de todas as categorias.
+            Nenhuma categoria selecionada. <b>Você receberá notícias de todas as categorias.</b>
           </span>
         ) : (
           <span className="summary-text">

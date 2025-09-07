@@ -224,7 +224,7 @@ const SourceSelector = ({
       <div className="selection-summary">
         {selectedSources.length === 0 ? (
           <span className="summary-text summary-empty">
-            Nenhuma fonte selecionada. Você receberá notícias de todas as fontes.
+            Nenhuma fonte selecionada. <b>Você receberá notícias de todas as fontes.</b>
           </span>
         ) : (
           <span className="summary-text">
