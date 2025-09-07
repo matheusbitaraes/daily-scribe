@@ -2,7 +2,7 @@
  * Main preference configuration page component
  * Handles token validation and renders the preference form
  */
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PreferenceForm from './PreferenceForm';
 import usePreferences from '../../hooks/usePreferences';
@@ -20,7 +20,7 @@ import '../../styles/preferences.css';
 const PreferencePage = () => {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { showSuccess, ToastComponent } = useToast();
+  const { showSuccess, showError,ToastComponent } = useToast();
   
   // Detect if mobile device for enhanced UX
   const isMobile = device.isMobile();
@@ -59,6 +59,24 @@ const PreferencePage = () => {
     resetPreferences,
   } = usePreferences(tokenValid ? token : null);
 
+  // Track previous save status to prevent duplicate toasts
+  const prevSaveStatusRef = useRef();
+
+  // Handle save status notifications with toast
+  useEffect(() => {
+    // Only show toast if saveStatus changed and is not the initial undefined/null
+    if (saveStatus && saveStatus !== prevSaveStatusRef.current) {
+      if (saveStatus === 'saved') {
+        showSuccess('Preferências salvas com sucesso!');
+      } else if (saveStatus === 'error') {
+        showError('Erro ao salvar preferências. Tente novamente.');
+      } else if (saveStatus === 'reset') {
+        showSuccess('Preferências redefinidas com sucesso!');
+      }
+      prevSaveStatusRef.current = saveStatus;
+    }
+  }, [saveStatus, showSuccess, showError]);
+
   // Helper functions
   const handleGoHome = () => {
     navigate('/');
@@ -75,9 +93,6 @@ const PreferencePage = () => {
   // Handle successful preference updates with toast feedback
   const handlePreferenceUpdate = (updates) => {
     updatePreferences(updates);
-    if (isMobile) {
-      showSuccess('Preferências atualizadas!');
-    }
   };
 
   // Render loading with enhanced mobile experience
@@ -231,28 +246,6 @@ const PreferencePage = () => {
                 message="Salvando preferências..."
                 size="medium"
               />
-            )}
-
-            {/* Desktop notifications */}
-            {!isMobile && saveStatus === 'saved' && (
-              <div className="notification notification-success">
-                <span className="notification-icon">✅</span>
-                Preferências salvas com sucesso!
-              </div>
-            )}
-            
-            {!isMobile && saveStatus === 'error' && (
-              <div className="notification notification-error">
-                <span className="notification-icon">❌</span>
-                Erro ao salvar preferências. Tente novamente.
-              </div>
-            )}
-
-            {!isMobile && saveStatus === 'reset' && (
-              <div className="notification notification-success">
-                <span className="notification-icon">🔄</span>
-                Preferências redefinidas com sucesso!
-              </div>
             )}
 
             <PreferenceForm
