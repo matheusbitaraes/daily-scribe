@@ -98,10 +98,18 @@ sudo ufw enable
 
 ### Step 3: Application Deployment
 
+### Step 3: Application Deployment
+
 ```bash
 # Clone repository
 git clone https://github.com/yourusername/daily-scribe.git
 cd daily-scribe
+
+# Build frontend (if not using Docker multi-stage build)
+cd frontend
+npm install
+npm run build
+cd ..
 
 # Create production environment file
 cp .env.example .env
@@ -115,6 +123,9 @@ nano .env
 # Database
 DB_PATH=/app/data/digest_history.db
 DB_TIMEOUT=30
+
+# API Configuration
+REACT_APP_API_URL=https://yourdomain.com
 
 # DDNS Configuration (choose one provider)
 DDNS_PROVIDER=duckdns
@@ -136,7 +147,41 @@ GRAFANA_ADMIN_PASSWORD=secure-password
 GCS_BUCKET=your-backup-bucket  # Optional: for cloud backups
 ```
 
-### Step 4: Start Services
+### Step 4: Frontend Build and Configuration
+
+The application includes a React frontend that must be built and served. There are two deployment options:
+
+#### Option A: Docker Multi-Stage Build (Recommended)
+The Dockerfile includes automatic frontend building:
+```dockerfile
+# Frontend build stage (automatic)
+FROM node:18-alpine as frontend-builder
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+COPY frontend/ ./
+RUN npm run build
+
+# Production stage serves frontend via FastAPI
+COPY --from=frontend-builder /frontend/build /app/frontend/build
+```
+
+#### Option B: Manual Frontend Build
+If building manually before Docker:
+```bash
+# Build frontend
+cd frontend
+npm install
+npm run build
+
+# Verify build output
+ls build/
+# Should see: static/ index.html asset-manifest.json
+
+cd ..
+```
+
+### Step 5: Start Services
 
 ```bash
 # Create Docker network
@@ -217,6 +262,47 @@ docker-compose pull && docker-compose up -d
 # Backup verification
 ./scripts/backup-manager.sh verify
 ```
+
+## Troubleshooting
+
+### Common Issues
+
+### Frontend Deployment Verification
+
+After deployment, verify the frontend is working correctly:
+
+```bash
+# Check if frontend assets are accessible
+curl -I https://yourdomain.com/static/css/main.css
+
+# Verify SPA routing works
+curl -I https://yourdomain.com/digest-simulator
+
+# Test API endpoints used by frontend
+curl https://yourdomain.com/healthz
+curl https://yourdomain.com/digest/available-dates
+```
+
+**Frontend-specific troubleshooting:**
+
+1. **Frontend not loading**:
+   ```bash
+   # Check if build directory exists in container
+   docker exec daily-scribe-app ls -la /app/frontend/build
+   
+   # Verify static files are mounted
+   docker exec daily-scribe-app ls -la /app/frontend/build/static
+   ```
+
+2. **SPA routing not working**:
+   - Ensure Caddy configuration includes fallback to index.html
+   - Check FastAPI catch-all route is properly configured
+   - Verify React Router is configured correctly
+
+3. **API calls failing from frontend**:
+   - Check CORS configuration in FastAPI
+   - Verify API base URL in frontend environment
+   - Check network connectivity between frontend and API
 
 ## Troubleshooting
 

@@ -25,7 +25,12 @@
    - have a good and simple UI
 - [x] add summary_pt
 - [x] Check sources on clustering
-- [ ] Improve documentation for AI
+- [x] Improve documentation for AI
+- [x] Complete frontend deployment integration
+- [x] Update technical documentation with current API endpoints
+- [x] Create comprehensive API reference guide
+- [x] Add frontend development guide
+- [x] Create end-user documentation
 - [ ] Home page
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 
 - [ ] Web interface to subscription - home page

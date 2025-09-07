@@ -9,13 +9,21 @@ This document outlines a low-cost, low-complexity path to run your API and datab
 - Run FastAPI 24/7 and expose a stable base URL for a future frontend.
 - Run scheduled jobs reliably without depending on your laptop.
 
-## Current State (summary)
+## Current State (updated September 2025)
 
-- Monorepo with CLI and FastAPI in `src/`.
-- Jobs live in `src/main.py` (Typer CLI) and run via local cron.
-- Data stored in `data/digest_history.db` (SQLite) via `DatabaseService`.
-- API layer at `src/api.py`.
-- Simple frontend
+- **Monorepo Structure:** CLI and FastAPI in `src/`, React frontend in `frontend/`
+- **Backend Services:** Jobs live in `src/main.py` (Typer CLI) and run via local cron
+- **Database:** Data stored in `data/digest_history.db` (SQLite) via `DatabaseService`
+- **API Layer:** Comprehensive FastAPI application at `src/api.py` with 15+ endpoints
+- **Frontend Application:** Full React SPA with the following features:
+  - Digest simulation and preview interface
+  - User preference management with token-based authentication
+  - Real-time article browsing and filtering
+  - Responsive design with mobile support
+  - Client-side routing with React Router
+- **Authentication System:** JWT-based token authentication with usage tracking
+- **User Management:** Complete preference system for sources, categories, and keywords
+- **Database Schema:** Enhanced SQLite schema supporting users, preferences, articles, and digest history
 
 ## Target Architecture (MVP)
 

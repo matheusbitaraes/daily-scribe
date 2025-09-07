@@ -175,3 +175,5 @@ Define the purpose of this chat mode and how AI should behave: response style, a
 
 # Frontend instructions
 - To run the frontend server locally, always call npm start inside the frontend folder
+
+IMPORTANT: Always add/update documentation AND unit tests when you make changes to the codebase.

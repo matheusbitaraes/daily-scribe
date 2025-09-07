@@ -86,7 +86,58 @@ This structure separates the main application logic (`main.py`) from the reusabl
 
 ### API Reference
 
-This application does not provide any internal APIs. However, it consumes external resources and services.
+The application provides a comprehensive FastAPI-based REST API for web interface integration and external access.
+
+#### Current API Endpoints (as of September 2025)
+
+**Health & Monitoring:**
+- `GET /healthz` - Application health check with database connectivity
+- `GET /metrics` - Prometheus-compatible metrics endpoint
+
+**Articles & Content:**
+- `GET /articles` - List articles with filtering and pagination
+- `GET /articles/{article_id}` - Get specific article details
+- `GET /categories` - List available article categories
+- `GET /sources` - List RSS feed sources
+
+**Digest Management:**
+- `GET /digest/simulate` - Generate digest preview for specified user
+- `GET /digest/available-dates` - Get dates with available articles
+- `GET /digest/metadata/{target_date}` - Get digest metadata for specific date
+
+**User Preferences:**
+- `GET /preferences/{token}` - Retrieve user preferences (token-authenticated)
+- `PUT /preferences/{token}` - Update user preferences (token-authenticated)
+- `POST /preferences/{token}/reset` - Reset preferences to defaults
+- `GET /preferences/{token}/available-options` - Get available sources and categories
+
+**Authentication:**
+- Token-based authentication using JWT
+- Secure token validation with usage tracking
+- Automatic token expiration and refresh
+
+#### Frontend Application
+
+**Technology Stack:**
+- React 19.1.1 with functional components and hooks
+- React Router for client-side routing
+- Axios for API communication
+- CSS modules for styling
+
+**Key Features:**
+- Digest simulation and preview interface
+- User preference management with real-time updates
+- Token-based authentication flow
+- Responsive design with mobile support
+- Error handling and loading states
+- Performance optimization with request deduplication
+
+**Components Architecture:**
+- `DigestSimulator` - Main digest preview interface
+- `DigestDatePicker` - Date selection with availability checking
+- `DigestPreview` - HTML digest rendering and display
+- `PreferencePage` - User preference management
+- `Navigation` - Application routing and navigation
 
 ### External Services Consumed
 
@@ -95,9 +146,16 @@ This application does not provide any internal APIs. However, it consumes extern
     - **Authentication:** None. These are typically public feeds.
     - **Key Endpoints Used:** The URLs provided by the user in `config.json`.
     - **Data Format:** XML (RSS or Atom standard).
-2. **SMTP Email Service**
+
+2. **External LLM APIs (Gemini/OpenAI)**
+    - **Purpose:** Article summarization and content processing.
+    - **Authentication:** API key-based authentication.
+    - **Endpoints:** Google Gemini API and OpenAI API.
+    - **Data Format:** JSON requests/responses.
+
+3. **SMTP Email Service**
     - **Purpose:** To send the final digest to the user's email address.
-    - **Authentication:** Requires SMTP server address, port, username, and password. These will need to be configured securely (details for this will be covered under Security Best Practices later).
+    - **Authentication:** Requires SMTP server address, port, username, and password.
     - **Key Endpoints Used:** Standard SMTP protocol for sending email.
 
 ### Data Models
