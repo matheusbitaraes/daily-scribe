@@ -188,9 +188,9 @@ const KeywordManager = ({
       {/* Keyword suggestions */}
       {availableSuggestions.length > 0 && keywords.length < 20 && (
         <div className="keyword-suggestions">
-          <h4>Sugestões populares</h4>
+          <h4>Sugestões</h4>
           <div className="suggestion-tags">
-            {availableSuggestions.slice(0, 10).map((suggestion) => (
+            {availableSuggestions.slice(0, 20).map((suggestion) => (
               <button
                 key={suggestion}
                 type="button"

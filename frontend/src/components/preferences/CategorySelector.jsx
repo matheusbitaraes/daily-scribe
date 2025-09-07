@@ -46,10 +46,6 @@ const CategorySelector = ({
     <div className="category-selector">
       <div className="section-header">
         <h3>📂 Categorias de Notícias</h3>
-        <p className="section-description">
-          Escolha as categorias de notícias que mais te interessam. 
-          Você pode selecionar quantas quiser.
-        </p>
       </div>
 
       {error && (
@@ -58,7 +54,7 @@ const CategorySelector = ({
         </div>
       )}
 
-      <div className="section-actions">
+      {/* <div className="section-actions">
         <button
           type="button"
           onClick={handleSelectAll}
@@ -75,7 +71,7 @@ const CategorySelector = ({
         >
           Limpar Seleção
         </button>
-      </div>
+      </div> */}
 
       <div className="category-grid">
         {availableCategories.map((category) => {

@@ -47,8 +47,13 @@ const PreferenceForm = ({
   // Reset form when preferences change
   useEffect(() => {
     if (preferences) {
+      // Ensure sources are numbers to match the available sources format
+      const sources = (preferences.enabled_sources || []).map(s => 
+        typeof s === 'string' ? parseInt(s, 10) : s
+      ).filter(s => !isNaN(s));
+            
       setValue('categories', preferences.enabled_categories || []);
-      setValue('sources', preferences.enabled_sources || []);
+      setValue('sources', sources);
       setValue('keywords', preferences.keywords || []);
     }
   }, [preferences, setValue]);
@@ -180,7 +185,7 @@ const PreferenceForm = ({
       </div>
 
       {/* Form Actions */}
-      <div className="form-actions">
+      {/* <div className="form-actions">
         <div className="action-group">
           <button
             type="submit"
@@ -212,7 +217,7 @@ const PreferenceForm = ({
             </span>
           )}
         </div>
-      </div>
+      </div> */}
     </form>
   );
 };

@@ -26,6 +26,7 @@
   color: #212529;
   padding: 24px 30px;
   border-bottom: 1px solid #e9ecef;
+  margin-bottom: 40px;
 }
 
 .preference-header h1 {
@@ -480,14 +481,14 @@
 }
 
 .keyword-tag {
-  display: flex;
-  align-items: center;
-  background-color: #0a97f5;
-  color: white;
-  border-radius: 20px;
-  padding: 4px 8px 4px 12px;
-  font-size: 0.85rem;
-  gap: 6px;
+    display: flex;
+    align-items: center;
+    background-color: #0a97f5;
+    color: white;
+    border-radius: 20px;
+    padding: 0px 0px 0px 20px;
+    font-size: 0.85rem;
+    gap: 1px;
 }
 
 .keyword-text {

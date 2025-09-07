@@ -273,7 +273,7 @@ const PreferencePage = () => {
             <p className="footer-security">
               🔒 Esta página usa um link seguro que expira em 24 horas ou após 10 usos.
             </p>
-            <div className="footer-links">
+            {/* <div className="footer-links">
               <button 
                 onClick={handleGoHome}
                 className="footer-link"
@@ -281,7 +281,7 @@ const PreferencePage = () => {
               >
                 Voltar ao início
               </button>
-            </div>
+            </div> */}
           </footer>
         </div>
         

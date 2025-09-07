@@ -20,6 +20,13 @@ const SourceSelector = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [showOnlySelected, setShowOnlySelected] = useState(false);
 
+  // Debug logging
+  React.useEffect(() => {
+    console.log('SourceSelector received:');
+    console.log('selectedSources:', selectedSources, 'type:', typeof selectedSources[0]);
+    console.log('availableSources:', availableSources.slice(0, 3), 'id types:', availableSources.slice(0, 3).map(s => typeof s.id));
+  }, [selectedSources, availableSources]);
+
   // Filter sources based on search term and selected filter
   const filteredSources = useMemo(() => {
     let sources = availableSources;
@@ -32,7 +39,7 @@ const SourceSelector = ({
     
     if (showOnlySelected) {
       sources = sources.filter(source => 
-        selectedSources.includes(source.id)
+        selectedSources.includes(source.id) || selectedSources.includes(String(source.id))
       );
     }
     
@@ -40,11 +47,12 @@ const SourceSelector = ({
   }, [availableSources, searchTerm, showOnlySelected, selectedSources]);
 
   const handleSourceToggle = (source) => {
-    const isSelected = selectedSources.includes(source.id);
+    const isSelected = selectedSources.includes(source.id) || selectedSources.includes(String(source.id));
     let newSources;
     
     if (isSelected) {
-      newSources = selectedSources.filter(id => id !== source.id);
+      // Remove both number and string versions to be safe
+      newSources = selectedSources.filter(id => id !== source.id && id !== String(source.id));
     } else {
       newSources = [...selectedSources, source.id];
     }
@@ -61,7 +69,7 @@ const SourceSelector = ({
       // If filtering, only clear the visible sources
       const sourcesToRemove = filteredSources.map(source => source.id);
       const newSources = selectedSources.filter(id => 
-        !sourcesToRemove.includes(id)
+        !sourcesToRemove.includes(id) && !sourcesToRemove.includes(String(id))
       );
       onChange(newSources);
     } else {
@@ -132,7 +140,9 @@ const SourceSelector = ({
           type="button"
           onClick={handleSelectAll}
           className="btn btn-small btn-outline"
-          disabled={filteredSources.every(source => selectedSources.includes(source.id))}
+          disabled={filteredSources.every(source => 
+            selectedSources.includes(source.id) || selectedSources.includes(String(source.id))
+          )}
         >
           {searchTerm || showOnlySelected ? 'Selecionar Visíveis' : 'Selecionar Todas'}
         </button>
@@ -140,7 +150,9 @@ const SourceSelector = ({
           type="button"
           onClick={handleClearAll}
           className="btn btn-small btn-outline"
-          disabled={filteredSources.every(source => !selectedSources.includes(source.id))}
+          disabled={filteredSources.every(source => 
+            !selectedSources.includes(source.id) && !selectedSources.includes(String(source.id))
+          )}
         >
           {searchTerm || showOnlySelected ? 'Limpar Visíveis' : 'Limpar Todas'}
         </button>
@@ -169,7 +181,7 @@ const SourceSelector = ({
           </div>
         ) : (
           filteredSources.map((source) => {
-            const isSelected = selectedSources.includes(source.id);
+            const isSelected = selectedSources.includes(source.id) || selectedSources.includes(String(source.id));
             
             return (
               <div
