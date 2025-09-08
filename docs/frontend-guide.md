@@ -113,9 +113,15 @@ npm start
 ```
 
 ### Environment Configuration
-Create `.env` file in frontend directory:
+Create `.env` file in frontend directory for development:
 ```env
 REACT_APP_API_URL=http://localhost:8000
+REACT_APP_VERSION=1.0.0
+```
+
+For production, create `.env.production` file:
+```env
+REACT_APP_API_URL=http://daily-scribe.duckdns.org/
 REACT_APP_VERSION=1.0.0
 ```
 

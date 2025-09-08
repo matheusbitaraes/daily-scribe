@@ -5,7 +5,7 @@ This document provides comprehensive documentation for the Daily Scribe REST API
 ## Base URL
 
 **Development:** `http://localhost:8000`  
-**Production:** `https://yourdomain.com`
+**Production:** `http://daily-scribe.duckdns.org/`
 
 ## Authentication
 

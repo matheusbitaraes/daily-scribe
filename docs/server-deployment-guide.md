@@ -242,7 +242,8 @@ curl -s https://yourdomain.duckdns.org/healthz | jq .
 
 1. **Port Forwarding**: Forward ports 80 and 443 to your server IP (192.168.15.55)
 2. **Static IP**: Configure DHCP reservation for your server
-3. **Security**: Follow the router security checklist in `docs/router-configuration-checklist.md`
+3. **Domain Setup**: Configure your DuckDNS domain to point to your public IP
+4. **Security**: Follow the router security checklist in `docs/router-configuration-checklist.md`
 
 ### External Monitoring Setup
 

@@ -130,11 +130,11 @@ cd daily-scribe
 
 After deployment with monitoring enabled:
 
-- **Application**: http://192.168.15.55:8000
-- **Grafana**: http://192.168.15.55:3000 (admin/admin)
-- **Prometheus**: http://192.168.15.55:9092
-- **Database Admin (CloudBeaver)**: http://192.168.15.55:8080
-- **Status Page**: http://192.168.15.55:8000/static/status.html
+- **Application**: http://daily-scribe.duckdns.org/
+- **Grafana**: http://daily-scribe.duckdns.org:3000 (admin/admin)
+- **Prometheus**: http://daily-scribe.duckdns.org:9092
+- **Database Admin (CloudBeaver)**: http://daily-scribe.duckdns.org:8080
+- **Status Page**: http://daily-scribe.duckdns.org/static/status.html
 
 ### Database Access with CloudBeaver
 
@@ -145,7 +145,7 @@ To access and manipulate your SQLite database:
    ssh matheus@192.168.15.55 'cd daily-scribe && docker-compose --profile admin up -d cloudbeaver'
    ```
 
-2. **Open CloudBeaver** in your browser: http://192.168.15.55:8080
+2. **Open CloudBeaver** in your browser: http://daily-scribe.duckdns.org:8080
 
 3. **Initial Setup** (first time only):
    - **Admin Username**: admin
