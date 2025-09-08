@@ -6,7 +6,7 @@ import sys
 import os
 import shutil
 
-from fastapi import FastAPI, Query, HTTPException, Path, Request, Depends, status, Body
+from fastapi import FastAPI, Query, HTTPException, Path, Request, Depends, status, Body, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.security import HTTPAuthorizationCredentials
@@ -26,6 +26,9 @@ from models.preferences import (
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+
+# Create API router with /api prefix
+api_router = APIRouter(prefix="/api")
 
 # Metrics collection for monitoring
 app_metrics = {
@@ -251,7 +254,7 @@ def get_metrics():
         logger.error(f"Error generating metrics: {e}")
         return f"# Error generating metrics: {e}\n"
 
-@app.get("/articles")
+@api_router.get("/articles")
 def get_articles(
     category: Optional[str] = Query(None),
     source_id: Optional[int] = Query(None),
@@ -275,7 +278,7 @@ def get_articles(
     )
     return articles
 
-@app.get("/articles/{article_id}")
+@api_router.get("/articles/{article_id}")
 def get_article(article_id: int):
     """
     Get details for a single article by ID.
@@ -285,7 +288,7 @@ def get_article(article_id: int):
         return {"error": "Article not found"}
     return article
 
-@app.get("/categories")
+@api_router.get("/categories")
 def get_categories():
     """
     Get all unique categories from articles.
@@ -294,7 +297,7 @@ def get_categories():
     categories = sorted(set(a.get('category') for a in articles if a.get('category')))
     return categories
 
-@app.get("/sources")
+@api_router.get("/sources")
 def get_sources():
     """
     Get all unique source IDs from articles.
@@ -304,7 +307,7 @@ def get_sources():
     return sources
 
 
-@app.get("/user/preferences")
+@api_router.get("/user/preferences")
 def get_user_preferences(
     user_email: str = Query(..., description="User email address to get preferences for")
 ):
@@ -356,7 +359,7 @@ def get_user_preferences(
         )
 
 
-@app.get("/digest/simulate")
+@api_router.get("/digest/simulate")
 def simulate_digest(
     user_email: str = Query(..., description="User email address for personalization"),
 ):
@@ -396,7 +399,7 @@ def simulate_digest(
         )
 
 
-@app.get("/digest/available-dates")
+@api_router.get("/digest/available-dates")
 def get_available_dates(
     start_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
@@ -457,7 +460,7 @@ def get_available_dates(
         )
 
 
-@app.get("/digest/metadata/{target_date}")
+@api_router.get("/digest/metadata/{target_date}")
 def get_digest_metadata(
     target_date: str = Path(..., description="Target date in YYYY-MM-DD format"),
 ):
@@ -544,7 +547,7 @@ def get_digest_metadata(
 # PREFERENCE MANAGEMENT ENDPOINTS
 # =============================================================================
 
-@app.get(
+@api_router.get(
     "/preferences/{token}",
     response_model=UserPreferencesResponse,
     responses={
@@ -625,7 +628,7 @@ async def get_user_preferences(
         )
 
 
-@app.put(
+@api_router.put(
     "/preferences/{token}",
     response_model=UserPreferencesResponse,
     responses={
@@ -720,7 +723,7 @@ async def update_user_preferences(
         )
 
 
-@app.post(
+@api_router.post(
     "/preferences/{token}/reset",
     response_model=PreferenceResetResponse,
     responses={
@@ -809,7 +812,7 @@ async def reset_user_preferences(
             ).dict()
         )
 
-@app.get(
+@api_router.get(
     "/preferences-options/",
     response_model=AvailableOptionsResponse,
     responses={
@@ -849,4 +852,6 @@ async def get_available_options() -> AvailableOptionsResponse:
                 message="Unable to retrieve available options"
             ).dict()
         )
-    
+
+# Include the API router
+app.include_router(api_router)

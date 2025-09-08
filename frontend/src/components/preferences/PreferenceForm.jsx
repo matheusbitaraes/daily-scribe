@@ -8,6 +8,8 @@ import CategorySelector from './CategorySelector';
 import SourceSelector from './SourceSelector';
 import KeywordManager from './KeywordManager';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
 const PreferenceForm = ({
   preferences,
   onPreferenceChange,
@@ -99,7 +101,7 @@ const PreferenceForm = ({
       setLoadError(null);
       
       try {
-        const response = await fetch('http://localhost:8000/preferences-options');
+        const response = await fetch(`${API_BASE_URL}/preferences-options`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);

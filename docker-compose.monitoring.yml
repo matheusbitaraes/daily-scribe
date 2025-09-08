@@ -44,7 +44,7 @@ services:
     image: grafana/grafana:10.1.0
     container_name: daily-scribe-grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards

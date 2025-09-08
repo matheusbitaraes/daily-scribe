@@ -16,7 +16,7 @@ RUN addgroup -g 1001 ddns && \
 
 # Create necessary directories
 RUN mkdir -p /var/log/daily-scribe /var/cache/daily-scribe /etc/daily-scribe && \
-    chown -R ddns:ddns /var/log/daily-scribe /var/cache/daily-scribe
+    chown -R ddns:ddns /var/log/daily-scribe /var/cache/daily-scribe /etc/daily-scribe
 
 # Copy the DDNS script
 COPY scripts/ddns-update.sh /usr/local/bin/ddns-update.sh

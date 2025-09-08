@@ -7,7 +7,7 @@
 	admin {$CADDY_ADMIN:0.0.0.0:2019}
 	
 	# Email for Let's Encrypt (set via environment variable)
-	email {$CADDY_EMAIL:admin@example.com}
+	email {$CADDY_EMAIL:admin@daily-scribe.duckdns.org}
 	
 	# ACME server (use staging for testing)
 	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
@@ -15,8 +15,8 @@
 	# Local development certificates (uncomment for local testing)
 	# local_certs
 	
-	# Automatic HTTPS configuration
-	auto_https on
+	# Automatic HTTPS configuration (disabled for now, can be enabled as needed)
+	# auto_https off
 	
 	# Grace period for config reloads
 	grace_period 10s
@@ -24,20 +24,39 @@
 
 # Main domain configuration
 {$DOMAIN:localhost} {
-	# Reverse proxy to the app container
-	reverse_proxy app:8000 {
-		# Health check configuration
-		health_uri /healthz
-		health_interval 30s
-		health_timeout 10s
+	# API routes - proxy to FastAPI backend
+	@api path /api/* /healthz /docs /openapi.json
+	handle @api {
+		header {
+			Access-Control-Allow-Origin "*"
+			Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+			Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+			Access-Control-Max-Age "86400"
+		}
 		
-		# Load balancing (for future scaling)
-		lb_policy round_robin
+		# Handle preflight requests
+		@options method OPTIONS
+		respond @options 204
 		
-		# Header forwarding
-		header_up Host {host}
-		header_up X-Real-IP {remote_host}
+		reverse_proxy app:8000 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
 	}
+
+	# Static file handling with caching
+	@static path *.css *.js *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2
+	handle @static {
+		header Cache-Control "public, max-age=31536000, immutable"
+		reverse_proxy frontend:80
+	}
+
+	# Frontend - serve React app for all other routes
+	handle {
+		reverse_proxy frontend:80 {
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
 	}
 
 	# Security headers
@@ -65,30 +84,6 @@
 		
 		# Add application info
 		X-Powered-By "Daily Scribe"
-	}
-
-	# CORS configuration for API endpoints
-	@api path /api/* /healthz /docs /openapi.json
-	handle @api {
-		header {
-			Access-Control-Allow-Origin "*"
-			Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-			Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
-			Access-Control-Max-Age "86400"
-		}
-		
-		# Handle preflight requests
-		@options method OPTIONS
-		respond @options 204
-		
-		reverse_proxy app:8000
-	}
-
-	# Static file handling with caching
-	@static path *.css *.js *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2
-	handle @static {
-		header Cache-Control "public, max-age=31536000, immutable"
-		reverse_proxy app:8000
 	}
 
 	# Access logging
@@ -132,22 +127,5 @@ http://{$DOMAIN:localhost} {
 	# Metrics endpoint (Caddy admin API proxy)
 	handle /metrics {
 		reverse_proxy localhost:2019
-	}
-}
-	
-	# Development-friendly headers (less strict)
-	header {
-		X-Frame-Options "SAMEORIGIN"
-		X-Content-Type-Options "nosniff"
-		Access-Control-Allow-Origin "*"
-		Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-		Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
-	}
-	
-	# Development logging
-	log {
-		output stdout
-		format console
-		level DEBUG
 	}
 }

@@ -9,21 +9,13 @@ set -euo pipefail
 # Configuration
 DDNS_CONFIG_FILE="${DDNS_CONFIG_FILE:-/etc/daily-scribe/ddns.conf}"
 LOG_FILE="${LOG_FILE:-/var/log/daily-scribe/ddns.log}"
-PID_FILE="/var/run/ddns-update.pid"
-LOCK_FILE="/var/lock/ddns-update.lock"
+CACHE_DIR="/var/cache/daily-scribe"
+PID_FILE="${CACHE_DIR}/ddns-update.pid"
+LOCK_FILE="${CACHE_DIR}/ddns-update.lock"
 
-# Use local directories if system directories are not writable (development mode)
-if [[ ! -w "$(dirname "$LOG_FILE")" ]] 2>/dev/null; then
-    LOG_FILE="${PWD}/logs/ddns.log"
-fi
-
-if [[ ! -w "$(dirname "$PID_FILE")" ]] 2>/dev/null; then
-    PID_FILE="${PWD}/logs/ddns-update.pid"
-fi
-
-if [[ ! -w "$(dirname "$LOCK_FILE")" ]] 2>/dev/null; then
-    LOCK_FILE="${PWD}/logs/ddns-update.lock"
-fi
+# Create log and cache directories if they don't exist
+mkdir -p "$(dirname "$LOG_FILE")"
+mkdir -p "$CACHE_DIR"
 
 # Default configuration values
 DEFAULT_UPDATE_INTERVAL=300  # 5 minutes

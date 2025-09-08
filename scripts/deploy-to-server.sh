@@ -223,26 +223,51 @@ deploy_application() {
 setup_environment() {
     log_info "Setting up environment configuration..."
     
+    # Determine which environment file to use
+    if [[ "$PRODUCTION_MODE" == "true" ]]; then
+        ENV_FILE=".env.production"
+        ENV_SOURCE="$PROJECT_ROOT/.env.production"
+        log_info "Using production environment configuration"
+    else
+        ENV_FILE=".env"
+        ENV_SOURCE="$PROJECT_ROOT/.env.example"
+        log_info "Using development environment configuration"
+    fi
+    
     # Check if .env file exists on server
     if ssh "$SERVER_USER@$SERVER_HOST" "test -f '$DEPLOY_PATH/.env'"; then
         log_warning ".env file already exists on server. Backing up..."
         ssh "$SERVER_USER@$SERVER_HOST" "cp '$DEPLOY_PATH/.env' '$DEPLOY_PATH/.env.backup.$(date +%Y%m%d_%H%M%S)'"
     fi
     
-    # Copy environment template if .env doesn't exist
-    ssh "$SERVER_USER@$SERVER_HOST" "
-        cd '$DEPLOY_PATH'
-        if [[ ! -f .env ]]; then
-            cp .env.example .env
-            echo 'Created .env file from template'
+    # Copy appropriate environment file
+    if [[ "$PRODUCTION_MODE" == "true" ]]; then
+        if [[ -f "$ENV_SOURCE" ]]; then
+            log_info "Copying production environment file to server..."
+            scp "$ENV_SOURCE" "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/.env"
+            log_success "Production environment file deployed"
+        else
+            log_error "Production environment file not found: $ENV_SOURCE"
+            log_info "Please create .env.production file with production settings"
+            exit 1
         fi
-    "
+    else
+        # Copy environment template if .env doesn't exist
+        ssh "$SERVER_USER@$SERVER_HOST" "
+            cd '$DEPLOY_PATH'
+            if [[ ! -f .env ]]; then
+                cp .env.example .env
+                echo 'Created .env file from template'
+            fi
+        "
+        
+        log_warning "Please edit $DEPLOY_PATH/.env on the server with your settings:"
+        echo "  ssh $SERVER_USER@$SERVER_HOST"
+        echo "  cd $DEPLOY_PATH"
+        echo "  nano .env"
+    fi
     
     log_info "Environment configuration setup completed"
-    log_warning "Please edit $DEPLOY_PATH/.env on the server with your production settings:"
-    echo "  ssh $SERVER_USER@$SERVER_HOST"
-    echo "  cd $DEPLOY_PATH"
-    echo "  nano .env"
 }
 
 # Create necessary directories and set permissions
@@ -272,30 +297,44 @@ setup_directories() {
 start_services() {
     log_info "Starting Daily Scribe services..."
     
+    # Determine which profiles to use
+    local compose_files="-f docker-compose.yml"
+    local compose_profiles=""
+
+    if [[ "$PRODUCTION_MODE" == "true" ]]; then
+        compose_profiles="--profile ddns --profile production"
+        compose_files+=" -f docker-compose.prod.yml"
+        log_info "Starting with production profiles (including DDNS and production overrides)"
+    else
+        compose_profiles="--profile admin"
+        compose_files+=" -f docker-compose.override.yml"
+        log_info "Starting with development profiles and overrides"
+    fi
+    
     ssh "$SERVER_USER@$SERVER_HOST" "
         cd '$DEPLOY_PATH'
         
         # Pull latest images
-        docker-compose pull || echo 'Some images need to be built locally'
+        docker-compose $compose_files pull || echo 'Some images need to be built locally'
         
-        # Build any containers that need building (app, cron)
-        docker-compose build
+        # Build any containers that need building (app, cron, frontend)
+        docker-compose $compose_files build
         
         # Start core services
-        docker-compose up -d
+        docker-compose $compose_files up -d
         
-        # Start admin services (CloudBeaver)
-        docker-compose --profile admin up -d
+        # Start profile-specific services
+        docker-compose $compose_files $compose_profiles up -d
         
         # Wait for services to start
         echo 'Waiting for services to start...'
-        sleep 30
+        sleep 15
         
         # Show service status
-        docker-compose ps
+        docker-compose $compose_files ps
     "
     
-    log_success "Core services started"
+    log_success "Services started successfully"
 }
 
 # Setup monitoring
@@ -318,7 +357,7 @@ setup_monitoring() {
         
         # Wait for monitoring services
         echo 'Waiting for monitoring services to start...'
-        sleep 20
+        sleep 10
         
         # Show monitoring service status
         docker-compose -f docker-compose.monitoring.yml ps
@@ -337,6 +376,14 @@ validate_deployment() {
         # Test application health
         echo 'Testing application health...'
         timeout 30 bash -c 'until curl -sf http://localhost:8000/healthz; do sleep 2; done' || echo 'Health check timed out'
+        
+        # Test frontend health
+        echo 'Testing frontend health...'
+        timeout 30 bash -c 'until curl -sf http://localhost:3000/health; do sleep 2; done' || echo 'Frontend health check timed out'
+        
+        # Test Caddy proxy
+        echo 'Testing Caddy reverse proxy...'
+        timeout 30 bash -c 'until curl -sf http://localhost:80/health; do sleep 2; done' || echo 'Caddy proxy health check timed out'
         
         # Test metrics endpoint
         echo 'Testing metrics endpoint...'
@@ -378,7 +425,8 @@ show_summary() {
     echo "   ssh $SERVER_USER@$SERVER_HOST 'cd $DEPLOY_PATH && ./scripts/validate-port-forwarding.sh'"
     echo ""
     echo "4. Access services:"
-    echo "   - Application: http://$SERVER_HOST:8000"
+    echo "   - Frontend: http://$SERVER_HOST/ (via Caddy proxy)"
+    echo "   - Application: http://$SERVER_HOST:8000 (direct API access)"
     echo "   - CloudBeaver: http://$SERVER_HOST:8080 (cbadmin)"
     if [[ "$MONITORING_ENABLED" == true ]]; then
         echo "   - Grafana: http://$SERVER_HOST:3000 (admin/admin)"

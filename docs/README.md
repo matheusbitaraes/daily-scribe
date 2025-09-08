@@ -10,6 +10,7 @@ This directory contains comprehensive documentation for the Daily Scribe news ag
 
 ### For Developers  
 - **[Frontend Guide](frontend-guide.md)** - React application development, components, and deployment
+- **[Frontend Docker Integration](frontend-docker-integration.md)** - Docker Compose setup for frontend deployment
 - **[API Reference](api-reference.md)** - REST API endpoints, authentication, and integration examples
 
 ### For System Administrators
