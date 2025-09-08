@@ -75,27 +75,34 @@ class DigestBuilder:
                     margin-bottom: 10px;
                 }
                 .related-list {
-                    margin: 8px 0 0 18px;
+                    margin: 6px 0 0 16px;
                     padding: 0;
                     list-style-type: disc;
                 }
                 .related-list li {
-                    margin-bottom: 6px;
-                    font-size: 14px;
+                    margin-bottom: 3px;
+                    font-size: 12px;
+                    line-height: 1.4;
                 }
                 .related-list a {
                     color: #0a97f5;
                     text-decoration: none;
+                    opacity: 0.8;
                 }
                 .related-list a:hover {
                     text-decoration: underline;
+                    opacity: 1;
                 }
-                @media (prefers-color-scheme: dark) {
-                    body { background-color: #1a1a1a; color: #e0e0e0; }
-                    .title { color: #fff; }
-                    .summary { color: #ccc; }
-                    .cluster { border-bottom-color: #404040; }
-                    .related-list a { color: #4db8ff; }
+                /* Mobile optimizations */
+                @media (max-width: 600px) {
+                    .related-list {
+                        margin: 4px 0 0 14px;
+                    }
+                    .related-list li {
+                        margin-bottom: 2px;
+                        font-size: 11px;
+                        line-height: 1.3;
+                    }
                 }
             </style>
         </head>

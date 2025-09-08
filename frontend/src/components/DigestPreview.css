@@ -282,7 +282,7 @@
   width: 100%;
   height: 600px;
   border: none;
-  background: white;
+  background-color: #ffffff !important;
 }
 
 /* Raw HTML View */
