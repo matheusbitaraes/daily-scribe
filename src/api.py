@@ -264,11 +264,12 @@ def get_articles(
     Get all articles, with optional filtering by category and source_id.
     """
     categories = [category] if category else None
+    source_ids = [source_id] if source_id else None
     articles = db_service.get_articles(
         start_date=start_date.isoformat() if start_date else None,
         end_date=end_date.isoformat() if end_date else None,
         categories=categories,
-        source_id=source_id,
+        source_ids=source_ids,
         limit=limit,
         offset=offset,
     )

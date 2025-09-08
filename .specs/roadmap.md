@@ -31,7 +31,7 @@
 - [x] Create comprehensive API reference guide
 - [x] Add frontend development guide
 - [x] Create end-user documentation
-- [ ] Home page
+- [x] Home page
 - [ ] Multiple digest formats (HTML, Markdown, etc.) 
 - [ ] Web interface to subscription - home page
 - [ ] Local LLM integration for summarization

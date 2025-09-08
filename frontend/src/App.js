@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import ArticleList from './ArticleList';
+import Home from './components/Home';
 import DigestSimulator from './components/DigestSimulator';
 import PreferencePage from './components/preferences/PreferencePage';
 import './App.css';
@@ -21,7 +21,7 @@ function Navigation() {
             to="/" 
             className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}
           >
-            Articles
+            Home
           </Link>
           <Link 
             to="/digest-simulator" 
@@ -42,7 +42,7 @@ function App() {
         <Navigation />
         <main className="app-main">
           <Routes>
-            <Route path="/" element={<ArticleList />} />
+            <Route path="/" element={<Home />} />
             <Route path="/digest-simulator" element={<DigestSimulator />} />
             <Route path="/preferences/:token" element={<PreferencePage />} />
           </Routes>

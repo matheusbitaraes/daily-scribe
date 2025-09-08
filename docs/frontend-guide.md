@@ -37,8 +37,24 @@ frontend/
 
 ## Core Components
 
-### 1. DigestSimulator (`/digest-simulator`)
-**Purpose:** Main interface for generating and previewing email digests
+### 1. Home (`/`)
+**Purpose:** Main interface for browsing and filtering articles
+
+**Features:**
+- Article browsing with advanced filtering
+- Date range filtering with quick options
+- Category and source filtering
+- Search functionality
+- Responsive grid layout
+- Pagination support
+- Collapsible filter sidebar
+
+**Key Files:**
+- `Home.js` - Main home page component with filtering logic
+- `Home.css` - Comprehensive styling for responsive design
+
+### 2. DigestSimulator (`/digest-simulator`)
+**Purpose:** Interface for generating and previewing email digests
 
 **Features:**
 - Date selection with availability checking
@@ -53,7 +69,7 @@ frontend/
 - `DigestPreview.js` - HTML digest rendering
 - `DigestFilters.js` - Category and source filtering
 
-### 2. PreferencePage (`/preferences/:token`)
+### 3. PreferencePage (`/preferences/:token`)
 **Purpose:** User preference management interface
 
 **Features:**
@@ -68,14 +84,14 @@ frontend/
 - `CategorySelector.jsx` - Category selection component
 - `PreferenceForm.jsx` - Form handling and validation
 
-### 3. Navigation
+### 4. Navigation
 **Purpose:** Application routing and navigation
 
 **Features:**
 - Responsive navigation menu
 - Active route highlighting
 - Mobile-friendly design
-- Breadcrumb support
+- Home and Digest Simulator navigation
 
 ## Development Setup
 
