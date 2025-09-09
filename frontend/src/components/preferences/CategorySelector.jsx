@@ -34,13 +34,13 @@ const CategorySelector = ({
     onChange(newCategories);
   };
 
-  const handleSelectAll = () => {
-    onChange(availableCategories);
-  };
+  // const handleSelectAll = () => {
+  //   onChange(availableCategories);
+  // };
 
-  const handleClearAll = () => {
-    onChange([]);
-  };
+  // const handleClearAll = () => {
+  //   onChange([]);
+  // };
 
   return (
     <div className="category-selector">

@@ -108,6 +108,127 @@ requests_total 1234
 database_queries_total 5678
 ```
 
+### User Subscription
+
+#### POST /api/subscribe
+**Purpose:** Subscribe a new user to the Daily Scribe newsletter
+
+**Authentication:** None required
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Request Headers:**
+```http
+Content-Type: application/json
+```
+
+**Response (Success):**
+```json
+{
+  "message": "Verification email sent successfully",
+  "email": "user@example.com"
+}
+```
+
+**Response (Error - Invalid Email):**
+```json
+{
+  "detail": "Invalid email format"
+}
+```
+
+**Response (Error - Already Subscribed):**
+```json
+{
+  "detail": "Email is already subscribed to our newsletter"
+}
+```
+
+**Response (Error - Already Pending):**
+```json
+{
+  "detail": "Email is already pending verification. Please check your inbox."
+}
+```
+
+**Status Codes:**
+- `200` - Subscription request successful, verification email sent
+- `400` - Bad Request (invalid email format)
+- `409` - Conflict (email already subscribed or pending verification)
+- `500` - Internal Server Error
+
+**Example Request:**
+```bash
+curl -X POST "http://localhost:8000/api/subscribe" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
+
+#### GET /api/verify-email
+**Purpose:** Verify user's email address and complete subscription
+
+**Authentication:** Token-based (verification token)
+
+**Query Parameters:**
+- `token` (string, required): Email verification token from the verification email
+
+**Example Request:**
+```http
+GET /api/verify-email?token=abc123def456...
+```
+
+**Response (Success):**
+```json
+{
+  "message": "Email verified successfully! Welcome to Daily Scribe.",
+  "email": "user@example.com"
+}
+```
+
+**What happens during verification:**
+- Email address is verified and activated
+- User is added to the subscribers database
+- Default user preferences are created (max 10 news per category)
+- Pending verification request is cleaned up
+
+**Response (Error - Invalid Token):**
+```json
+{
+  "detail": "Invalid verification token."
+}
+```
+
+**Response (Error - Token Not Found):**
+```json
+{
+  "detail": "Verification token not found or has expired."
+}
+```
+
+**Response (Error - Token Expired):**
+```json
+{
+  "detail": "This verification link has expired. Please subscribe again."
+}
+```
+
+**Status Codes:**
+- `200` - Email verified successfully, user subscribed
+- `400` - Bad Request (invalid token format)
+- `404` - Not Found (token not found)
+- `410` - Gone (token expired)
+- `500` - Internal Server Error
+
+**Example Request:**
+```bash
+curl "http://localhost:8000/api/verify-email?token=abc123def456..."
+```
+
 ### Articles & Content
 
 #### GET /articles

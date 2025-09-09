@@ -187,6 +187,67 @@ class DatabaseMigrator:
             self.logger.error(f"Error applying migration {migration_name}: {e}")
             return False
 
+    def add_subscription_tables(self) -> bool:
+        """
+        Migration to add tables for managing user subscriptions and verification tokens.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        migration_name = "005_create_subscription_tables"
+        
+        if self.migration_applied(migration_name):
+            self.logger.info(f"Migration {migration_name} already applied, skipping")
+            return True
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Create pending_subscriptions table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS pending_subscriptions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        email TEXT NOT NULL UNIQUE,
+                        verification_token TEXT NOT NULL UNIQUE,
+                        expires_at TIMESTAMP NOT NULL,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                
+                # Create users table
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        email TEXT NOT NULL UNIQUE,
+                        subscribed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        is_active BOOLEAN NOT NULL DEFAULT 1,
+                        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                
+                # Create indexes for performance
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_subscriptions_email ON pending_subscriptions(email);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_subscriptions_token ON pending_subscriptions(verification_token);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_subscriptions_expires_at ON pending_subscriptions(expires_at);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);")
+                
+                conn.commit()
+                
+                # Record the migration
+                self.record_migration(
+                    migration_name, 
+                    "Add pending_subscriptions and users tables for subscription management"
+                )
+                
+                self.logger.info(f"Successfully applied migration: {migration_name}")
+                return True
+                
+        except sqlite3.Error as e:
+            self.logger.error(f"Error applying migration {migration_name}: {e}")
+            return False
+
     def run_all_migrations(self) -> bool:
         """
         Run all pending migrations.
@@ -199,6 +260,7 @@ class DatabaseMigrator:
             migrations = [
                 self.add_user_tokens_table,
                 self.add_summary_pt_column,
+                self.add_subscription_tables,
             ]
             
             for migration in migrations:

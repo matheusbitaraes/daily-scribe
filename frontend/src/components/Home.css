@@ -27,6 +27,105 @@
   margin: 0;
 }
 
+/* Newsletter Subscription Section */
+.subscription-section {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 40px 20px;
+  margin-bottom: 40px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.subscription-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/><circle cx="10" cy="60" r="0.5" fill="white" opacity="0.1"/><circle cx="90" cy="40" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+  pointer-events: none;
+}
+
+.subscription-section .home-subscription-form {
+  position: relative;
+  z-index: 1;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Override subscription form styles for home page integration */
+.subscription-section .subscription-form-content {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.subscription-section .subscription-form-title {
+  color: #1a202c;
+  font-size: 2rem;
+  margin-bottom: 16px;
+}
+
+.subscription-section .subscription-form-description {
+  color: #4a5568;
+  font-size: 1.1rem;
+  margin-bottom: 24px;
+}
+
+.subscription-section .form-input {
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.subscription-section .form-input:focus {
+  border-color: #667eea;
+  background: rgba(255, 255, 255, 1);
+}
+
+.subscription-section .btn-primary {
+  background: #667eea;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+}
+
+.subscription-section .btn-primary:hover:not(:disabled) {
+  background: #5a67d8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.subscription-section .success-icon {
+  background: #48bb78;
+  box-shadow: 0 4px 16px rgba(72, 187, 120, 0.3);
+}
+
+/* Responsive design for subscription section */
+@media (max-width: 768px) {
+  .subscription-section {
+    padding: 30px 16px;
+    margin-bottom: 30px;
+    border-radius: 12px;
+  }
+  
+  .subscription-section .subscription-form-title {
+    font-size: 1.75rem;
+  }
+  
+  .subscription-section .subscription-form-description {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .subscription-section {
+    padding: 24px 12px;
+  }
+}
+
 .home-content {
   display: flex;
   gap: 24px;

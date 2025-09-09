@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import SubscriptionForm from './SubscriptionForm';
 import './Home.css';
 
 const Home = () => {
@@ -42,17 +43,7 @@ const Home = () => {
 
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
-  // Load filter options on component mount
-  useEffect(() => {
-    loadFilterOptions();
-  }, []);
-
-  // Load articles when filters or pagination changes
-  useEffect(() => {
-    loadArticles();
-  }, [state.filters, state.currentPage, state.articlesPerPage]);
-
-  const loadFilterOptions = async () => {
+  const loadFilterOptions = useCallback(async () => {
     setState(prev => ({ ...prev, isLoadingFilters: true }));
     
     try {
@@ -99,7 +90,12 @@ const Home = () => {
         error: 'Failed to load filter options. Using default values.'
       }));
     }
-  };
+  }, [API_BASE_URL]);
+
+  // Load filter options on component mount
+  useEffect(() => {
+    loadFilterOptions();
+  }, [loadFilterOptions]);
 
   const loadArticles = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
@@ -150,7 +146,12 @@ const Home = () => {
         error: 'Failed to load articles. Please try again.'
       }));
     }
-  }, [state.filters, state.currentPage, state.articlesPerPage]);
+  }, [API_BASE_URL, state.filters, state.currentPage, state.articlesPerPage]);
+
+  // Load articles when filters or pagination changes
+  useEffect(() => {
+    loadArticles();
+  }, [loadArticles]);
 
   // Filter handlers
   const handleCategoryFilter = (categoryId) => {
@@ -265,6 +266,18 @@ const Home = () => {
         <h1>Daily Scribe</h1>
         <p>Your curated news articles from trusted sources</p>
       </div>
+
+      {/* Newsletter Subscription Section */}
+      <section className="subscription-section">
+        <SubscriptionForm 
+          variant="inline"
+          className="home-subscription-form"
+          onSuccess={(email) => {
+            console.log('User subscribed successfully:', email);
+            // Could add analytics tracking here
+          }}
+        />
+      </section>
 
       <div className="home-content">
         {/* Filters Sidebar */}

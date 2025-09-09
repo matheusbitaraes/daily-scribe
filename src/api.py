@@ -853,5 +853,184 @@ async def get_available_options() -> AvailableOptionsResponse:
             ).dict()
         )
 
+# =============================================================================
+# SUBSCRIPTION MANAGEMENT ENDPOINTS
+# =============================================================================
+
+# Import subscription models and service
+from models.subscription import (
+    SubscriptionRequest, 
+    SubscriptionResponse, 
+    EmailVerificationResponse, 
+    SubscriptionErrorResponse
+)
+from components.subscription_service import SubscriptionService
+from components.notifier import EmailNotifier
+
+# Initialize subscription service (email notifier will be initialized when needed)
+subscription_service = None
+
+
+def get_subscription_service() -> SubscriptionService:
+    """Get or create subscription service instance."""
+    global subscription_service
+    if subscription_service is None:
+        subscription_service = SubscriptionService(db_service)
+    return subscription_service
+
+
+@api_router.post(
+    "/subscribe",
+    response_model=SubscriptionResponse,
+    responses={
+        200: {"description": "Subscription request processed successfully"},
+        400: {"model": SubscriptionErrorResponse, "description": "Invalid email format"},
+        409: {"model": SubscriptionErrorResponse, "description": "Email already subscribed or pending"},
+        500: {"model": SubscriptionErrorResponse, "description": "Internal server error"}
+    },
+    summary="Subscribe to Newsletter",
+    description="Submit a new subscription request. A verification email will be sent to the provided address."
+)
+async def subscribe_to_newsletter(
+    subscription_request: SubscriptionRequest
+) -> SubscriptionResponse:
+    """
+    Create a new subscription request.
+    
+    Args:
+        subscription_request: Subscription request containing email address
+        
+    Returns:
+        SubscriptionResponse: Result of subscription request
+        
+    Raises:
+        HTTPException: If validation fails or subscription cannot be created
+    """
+    try:
+        service = get_subscription_service()
+        result = service.create_subscription_request(subscription_request.email)
+        
+        if not result['success']:
+            error_code = result.get('error', 'unknown_error')
+            
+            if error_code == 'email_already_subscribed':
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=SubscriptionErrorResponse(
+                        error=result['message'],
+                        code="email_already_subscribed",
+                        details="This email address is already subscribed to the newsletter"
+                    ).dict()
+                )
+            elif error_code == 'verification_pending':
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=SubscriptionErrorResponse(
+                        error=result['message'],
+                        code="verification_pending",
+                        details="Please check your email for the verification link"
+                    ).dict()
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=SubscriptionErrorResponse(
+                        error=result['message'],
+                        code=error_code,
+                        details="Failed to process subscription request"
+                    ).dict()
+                )
+        
+        return SubscriptionResponse(
+            message=result['message'],
+            email=subscription_request.email,
+            status="pending_verification"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing subscription request: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=SubscriptionErrorResponse(
+                error="Internal server error",
+                code="internal_error",
+                details="An unexpected error occurred while processing your subscription"
+            ).dict()
+        )
+
+
+@api_router.get(
+    "/verify-email",
+    response_model=EmailVerificationResponse,
+    responses={
+        200: {"description": "Email verified successfully"},
+        400: {"model": SubscriptionErrorResponse, "description": "Invalid or expired token"},
+        500: {"model": SubscriptionErrorResponse, "description": "Internal server error"}
+    },
+    summary="Verify Email Address",
+    description="Verify email address using the token sent via email."
+)
+async def verify_email_address(
+    token: str = Query(..., description="Verification token from email")
+) -> EmailVerificationResponse:
+    """
+    Verify email address and activate subscription.
+    
+    Args:
+        token: Verification token from email
+        
+    Returns:
+        EmailVerificationResponse: Result of email verification
+        
+    Raises:
+        HTTPException: If token is invalid or verification fails
+    """
+    try:
+        service = get_subscription_service()
+        result = service.verify_email(token)
+        
+        if not result['success']:
+            error_code = result.get('error', 'unknown_error')
+            
+            if error_code == 'invalid_token':
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=SubscriptionErrorResponse(
+                        error=result['message'],
+                        code="invalid_token",
+                        details="The verification link is invalid or has expired. Please request a new subscription."
+                    ).dict()
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=SubscriptionErrorResponse(
+                        error=result['message'],
+                        code=error_code,
+                        details="Failed to verify email address"
+                    ).dict()
+                )
+        
+        return EmailVerificationResponse(
+            message=result['message'],
+            email=result['email'],
+            status="verified"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error verifying email: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=SubscriptionErrorResponse(
+                error="Internal server error",
+                code="internal_error",
+                details="An unexpected error occurred during email verification"
+            ).dict()
+        )
+
 # Include the API router
 app.include_router(api_router)

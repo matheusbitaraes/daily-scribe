@@ -30,7 +30,7 @@ const PreferenceForm = ({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors, isDirty }
+    formState: { errors } //, isDirty
   } = useForm({
     defaultValues: preferences ? {
       categories: preferences.enabled_categories || [],
@@ -142,11 +142,11 @@ const PreferenceForm = ({
   }, []);
 
   // Handle reset
-  const handleReset = () => {
-    if (window.confirm('Tem certeza que deseja redefinir todas as preferências para os valores padrão?')) {
-      onReset();
-    }
-  };
+  // const handleReset = () => {
+  //   if (window.confirm('Tem certeza que deseja redefinir todas as preferências para os valores padrão?')) {
+  //     onReset();
+  //   }
+  // };
 
   if (!preferences || isLoading) {
     return <div>Loading form...</div>;

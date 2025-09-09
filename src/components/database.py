@@ -1262,3 +1262,190 @@ class DatabaseService:
         except sqlite3.Error as e:
             self.logger.error(f"Error adding user preferences: {e}")
             return None
+
+    # Subscription management methods
+
+    def create_pending_subscription(self, email: str, verification_token: str, expires_at: str) -> bool:
+        """
+        Create a new pending subscription.
+        
+        Args:
+            email: User's email address
+            verification_token: Unique verification token
+            expires_at: Token expiration timestamp
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO pending_subscriptions (email, verification_token, expires_at)
+                    VALUES (?, ?, ?)
+                """, (email, verification_token, expires_at))
+                conn.commit()
+                self.logger.info(f"Created pending subscription for {email}")
+                return True
+        except sqlite3.IntegrityError as e:
+            # Email or token already exists
+            self.logger.warning(f"Pending subscription creation failed for {email}: {e}")
+            return False
+        except sqlite3.Error as e:
+            self.logger.error(f"Error creating pending subscription: {e}")
+            return False
+
+    def is_email_subscribed(self, email: str) -> bool:
+        """
+        Check if an email is already subscribed.
+        
+        Args:
+            email: User's email address
+            
+        Returns:
+            True if already subscribed, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT 1 FROM users WHERE email = ? AND is_active = 1
+                """, (email,))
+                return cursor.fetchone() is not None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error checking subscription status: {e}")
+            return False
+
+    def is_email_pending_verification(self, email: str) -> bool:
+        """
+        Check if an email has a pending verification.
+        
+        Args:
+            email: User's email address
+            
+        Returns:
+            True if pending verification, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT 1 FROM pending_subscriptions 
+                    WHERE email = ? AND expires_at > datetime('now')
+                """, (email,))
+                return cursor.fetchone() is not None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error checking pending verification status: {e}")
+            return False
+
+    def verify_subscription_token(self, token: str) -> Optional[str]:
+        """
+        Verify a subscription token and return the associated email.
+        
+        Args:
+            token: Verification token
+            
+        Returns:
+            Email address if token is valid, None otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT email FROM pending_subscriptions 
+                    WHERE verification_token = ? AND expires_at > datetime('now')
+                """, (token,))
+                result = cursor.fetchone()
+                return result[0] if result else None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error verifying subscription token: {e}")
+            return None
+
+    def activate_subscription(self, email: str, token: str) -> bool:
+        """
+        Activate a subscription by moving from pending to users table.
+        
+        Args:
+            email: User's email address
+            token: Verification token
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Start transaction
+                cursor.execute("BEGIN")
+                
+                # Verify the token is valid and get the email
+                cursor.execute("""
+                    SELECT email FROM pending_subscriptions 
+                    WHERE verification_token = ? AND email = ? AND expires_at > datetime('now')
+                """, (token, email))
+                
+                if not cursor.fetchone():
+                    cursor.execute("ROLLBACK")
+                    return False
+                
+                # Add user to users table
+                cursor.execute("""
+                    INSERT INTO users (email, is_active)
+                    VALUES (?, 1)
+                """, (email,))
+                
+                # Create default user preferences
+                cursor.execute("""
+                    INSERT INTO user_preferences (email_address, max_news_per_category)
+                    VALUES (?, 5)
+                """, (email,))
+                
+                # Remove from pending subscriptions
+                cursor.execute("""
+                    DELETE FROM pending_subscriptions 
+                    WHERE verification_token = ? AND email = ?
+                """, (token, email,))
+                
+                # Commit transaction
+                cursor.execute("COMMIT")
+                self.logger.info(f"Activated subscription for {email}")
+                return True
+                
+        except sqlite3.IntegrityError as e:
+            # User might already exist
+            self.logger.warning(f"Subscription activation failed for {email}: {e}")
+            try:
+                cursor.execute("ROLLBACK")
+            except:
+                pass
+            return False
+        except sqlite3.Error as e:
+            self.logger.error(f"Error activating subscription: {e}")
+            try:
+                cursor.execute("ROLLBACK")
+            except:
+                pass
+            return False
+
+    def cleanup_expired_pending_subscriptions(self) -> int:
+        """
+        Remove expired pending subscriptions.
+        
+        Returns:
+            Number of records removed
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    DELETE FROM pending_subscriptions 
+                    WHERE expires_at <= datetime('now')
+                """)
+                removed_count = cursor.rowcount
+                conn.commit()
+                self.logger.info(f"Cleaned up {removed_count} expired pending subscriptions")
+                return removed_count
+        except sqlite3.Error as e:
+            self.logger.error(f"Error cleaning up expired subscriptions: {e}")
+            return 0

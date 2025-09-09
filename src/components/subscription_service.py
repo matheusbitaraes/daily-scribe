@@ -1,0 +1,239 @@
+"""
+Subscription service for Daily Scribe application.
+
+This module handles subscription business logic including email verification,
+token generation, and email notifications.
+"""
+
+import secrets
+import hashlib
+import logging
+from datetime import datetime, timedelta
+from typing import Optional
+import os
+
+from components.database import DatabaseService
+from components.notifier import EmailNotifier
+from components.config import load_config
+
+
+class SubscriptionService:
+    """Handles subscription management and email verification."""
+
+    def __init__(self, database_service: DatabaseService):
+        """
+        Initialize the subscription service.
+        
+        Args:
+            database_service: Database service instance
+        """
+        config = load_config()
+        config_dict = config.email.__dict__
+
+        self.db_service = database_service
+        self.email_notifier = EmailNotifier(config_dict)
+        self.logger = logging.getLogger(__name__)
+        
+        # Get base URL from environment or use default (frontend URL, not API URL)
+        self.base_url = os.getenv('BASE_URL', 'http://localhost:3000')
+
+    def generate_verification_token(self) -> str:
+        """
+        Generate a secure verification token.
+        
+        Returns:
+            Secure random token string
+        """
+        # Generate a secure random token
+        token = secrets.token_urlsafe(32)
+        return token
+
+    def create_subscription_request(self, email: str) -> dict:
+        """
+        Create a new subscription request.
+        
+        Args:
+            email: User's email address
+            
+        Returns:
+            Dictionary with success status and message
+        """
+        try:
+            # Check if email is already subscribed
+            if self.db_service.is_email_subscribed(email):
+                return {
+                    'success': False,
+                    'error': 'email_already_subscribed',
+                    'message': 'This email address is already subscribed'
+                }
+            
+            # Check if email has pending verification
+            if self.db_service.is_email_pending_verification(email):
+                return {
+                    'success': False,
+                    'error': 'verification_pending',
+                    'message': 'A verification email has already been sent. Please check your inbox.'
+                }
+            
+            # Generate verification token
+            verification_token = self.generate_verification_token()
+            
+            # Set expiration time (24 hours from now)
+            expires_at = (datetime.utcnow() + timedelta(hours=24)).isoformat()
+            
+            # Create pending subscription
+            success = self.db_service.create_pending_subscription(
+                email=email,
+                verification_token=verification_token,
+                expires_at=expires_at
+            )
+            
+            if not success:
+                return {
+                    'success': False,
+                    'error': 'database_error',
+                    'message': 'Failed to create subscription request'
+                }
+
+            # Send verification email
+            if self.email_notifier:
+                try:
+                    self._send_verification_email(email, verification_token)
+                except Exception as e:
+                    self.logger.error(f"Failed to send verification email to {email}: {e}")
+                    # Note: We don't fail the request if email sending fails
+                    # The user can still be verified manually if needed
+            
+            return {
+                'success': True,
+                'message': 'Verification email sent successfully',
+                'email': email
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error creating subscription request for {email}: {e}")
+            return {
+                'success': False,
+                'error': 'internal_error',
+                'message': 'An unexpected error occurred'
+            }
+
+    def verify_email(self, token: str) -> dict:
+        """
+        Verify an email using the verification token.
+        
+        Args:
+            token: Verification token
+            
+        Returns:
+            Dictionary with verification result
+        """
+        try:
+            # Verify the token and get the email
+            email = self.db_service.verify_subscription_token(token)
+            
+            if not email:
+                return {
+                    'success': False,
+                    'error': 'invalid_token',
+                    'message': 'Invalid or expired verification token'
+                }
+            
+            # Activate the subscription
+            success = self.db_service.activate_subscription(email, token)
+            
+            if not success:
+                return {
+                    'success': False,
+                    'error': 'activation_failed',
+                    'message': 'Failed to activate subscription'
+                }
+            
+            self.logger.info(f"Successfully verified and activated subscription for {email}")
+            
+            return {
+                'success': True,
+                'message': 'Email verified successfully',
+                'email': email
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error verifying email with token {token}: {e}")
+            return {
+                'success': False,
+                'error': 'internal_error',
+                'message': 'An unexpected error occurred during verification'
+            }
+
+    def _send_verification_email(self, email: str, token: str) -> None:
+        """
+        Send verification email to the user.
+        
+        Args:
+            email: User's email address
+            token: Verification token
+        """
+        if not self.email_notifier:
+            self.logger.warning("Email notifier not configured, skipping verification email")
+            return
+        
+        verification_url = f"{self.base_url}/verify-email?token={token}"
+        
+        subject = "Confirm your Daily Scribe subscription"
+        
+        html_content = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+                <h2 style="color: #2c3e50;">Welcome to Daily Scribe!</h2>
+                
+                <p>Thank you for subscribing to our daily news digest. To complete your subscription, please click the button below to verify your email address:</p>
+                
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="{verification_url}" 
+                       style="background-color: #3498db; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                        Verify My Email
+                    </a>
+                </div>
+                
+                <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+                <p style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; word-break: break-all;">
+                    {verification_url}
+                </p>
+                
+                <p><strong>This verification link will expire in 24 hours.</strong></p>
+                
+                <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                
+                <p style="font-size: 12px; color: #666;">
+                    If you didn't request this subscription, you can safely ignore this email.
+                </p>
+                
+                <p style="font-size: 12px; color: #666;">
+                    Best regards,<br>
+                    The Daily Scribe Team
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        try:
+            self.email_notifier.send_digest(html_content, email, subject)
+            self.logger.info(f"Verification email sent to {email}")
+        except Exception as e:
+            self.logger.error(f"Failed to send verification email to {email}: {e}")
+            raise
+
+    def cleanup_expired_tokens(self) -> int:
+        """
+        Clean up expired verification tokens.
+        
+        Returns:
+            Number of expired tokens removed
+        """
+        try:
+            return self.db_service.cleanup_expired_pending_subscriptions()
+        except Exception as e:
+            self.logger.error(f"Error cleaning up expired tokens: {e}")
+            return 0

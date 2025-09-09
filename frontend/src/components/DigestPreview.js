@@ -1,10 +1,8 @@
-import React, { useRef, useEffect } from 'react';
-import DOMPurify from 'dompurify';
+import { useRef, useEffect } from 'react';
 import './DigestPreview.css';
 
 const DigestPreview = ({ 
   digestContent, 
-  digestMetadata, 
   isLoading = false, 
   error = null 
 }) => {
