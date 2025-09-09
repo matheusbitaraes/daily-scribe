@@ -15,6 +15,7 @@ import os
 from components.database import DatabaseService
 from components.notifier import EmailNotifier
 from components.config import load_config
+from components.env_loader import get_jwt_secret_key
 
 
 class SubscriptionService:
@@ -237,3 +238,118 @@ class SubscriptionService:
         except Exception as e:
             self.logger.error(f"Error cleaning up expired tokens: {e}")
             return 0
+
+    def process_unsubscribe_request(self, token: str) -> dict:
+        """
+        Process an unsubscribe request using a secure token.
+        
+        Args:
+            token: Secure unsubscribe token
+            
+        Returns:
+            Dictionary with unsubscribe result
+        """
+        try:
+            # Import here to avoid circular imports
+            from components.security.token_manager import SecureTokenManager
+            
+            # Initialize token manager
+            token_manager = SecureTokenManager(self.db_service)
+            
+            # Validate the unsubscribe token
+            validation_result = token_manager.validate_token(
+                token=token,
+                user_agent="Unsubscribe Request",
+                ip_address="unknown"
+            )
+            
+            if not validation_result.is_valid:
+                self.logger.warning(f"Invalid unsubscribe token: {validation_result.error_message}")
+                return {
+                    'success': False,
+                    'error': 'invalid_token',
+                    'message': validation_result.error_message or 'Invalid or expired unsubscribe token'
+                }
+            
+            # Verify this is an unsubscribe token (not preference token)
+            # We need to check the token directly since validate_token doesn't return purpose
+            from components.security.token_manager import SecureTokenManager
+            import jwt
+            import os
+            
+            try:
+                # Decode the token to check its purpose
+                secret_key = get_jwt_secret_key()
+                payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+                token_purpose = payload.get('purpose')
+                
+                if token_purpose != 'unsubscribe':
+                    self.logger.warning(f"Token is not an unsubscribe token for user {validation_result.user_email}")
+                    return {
+                        'success': False,
+                        'error': 'invalid_token_type',
+                        'message': 'Invalid token type for unsubscribe operation'
+                    }
+            except jwt.DecodeError:
+                self.logger.warning(f"Could not decode token for purpose check")
+                return {
+                    'success': False,
+                    'error': 'invalid_token',
+                    'message': 'Invalid token format'
+                }
+            
+            user_email = validation_result.user_email
+            
+            # Check if user is already unsubscribed
+            subscription = self.db_service.get_subscription_by_email(user_email)
+            if not subscription:
+                self.logger.warning(f"No subscription found for {user_email}")
+                return {
+                    'success': False,
+                    'error': 'subscription_not_found',
+                    'message': 'No active subscription found for this email address'
+                }
+            
+            if subscription['status'] != 'active':
+                self.logger.info(f"User {user_email} is already unsubscribed (status: {subscription['status']})")
+                return {
+                    'success': True,
+                    'message': 'You are already unsubscribed from the newsletter',
+                    'email': user_email,
+                    'status': 'already_unsubscribed'
+                }
+            
+            # Perform the unsubscription
+            success = self.db_service.unsubscribe_user(user_email)
+            
+            if not success:
+                self.logger.error(f"Failed to unsubscribe user {user_email}")
+                return {
+                    'success': False,
+                    'error': 'unsubscribe_failed',
+                    'message': 'Failed to process unsubscription request'
+                }
+            
+            # Mark token as used (increment usage count)
+            # We need the token_id from the payload for this
+            token_id = payload.get('token_id')
+            if token_id:
+                self.db_service.increment_token_usage(token_id)
+            
+            self.logger.info(f"Successfully unsubscribed user {user_email}")
+            
+            return {
+                'success': True,
+                'message': 'You have been successfully unsubscribed from the newsletter',
+                'email': user_email,
+                'status': 'unsubscribed',
+                'unsubscribed_at': datetime.utcnow().isoformat() + 'Z'
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error processing unsubscribe request with token {token}: {e}")
+            return {
+                'success': False,
+                'error': 'internal_error',
+                'message': 'An unexpected error occurred while processing your unsubscribe request'
+            }

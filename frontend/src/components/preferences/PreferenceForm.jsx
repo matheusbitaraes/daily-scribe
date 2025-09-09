@@ -8,7 +8,7 @@ import CategorySelector from './CategorySelector';
 import SourceSelector from './SourceSelector';
 import KeywordManager from './KeywordManager';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 const PreferenceForm = ({
   preferences,

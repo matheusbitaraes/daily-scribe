@@ -3,6 +3,7 @@ import Home from './components/Home';
 import DigestSimulator from './components/DigestSimulator';
 import PreferencePage from './components/preferences/PreferencePage';
 import EmailVerificationPage from './pages/EmailVerificationPage';
+import UnsubscribePage from './pages/UnsubscribePage';
 import './App.css';
 import './styles/responsive.css';
 
@@ -46,6 +47,7 @@ function App() {
             <Route path="/digest-simulator" element={<DigestSimulator />} />
             <Route path="/preferences/:token" element={<PreferencePage />} />
             <Route path="/verify-email" element={<EmailVerificationPage />} />
+            <Route path="/unsubscribe/:token" element={<UnsubscribePage />} />
           </Routes>
         </main>
       </div>

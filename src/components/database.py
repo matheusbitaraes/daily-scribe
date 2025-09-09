@@ -899,15 +899,15 @@ class DatabaseService:
 
     def get_all_user_email_addresses(self) -> list:
         """
-        Return a list of all unique user email addresses from the user_preferences table.
+        Return a list of all unique active user email addresses from the users table.
         """
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT DISTINCT email_address FROM user_preferences")
+                cursor.execute("SELECT DISTINCT email FROM users WHERE is_active = 1")
                 return [row[0] for row in cursor.fetchall()]
         except Exception as e:
-            self.logger.error(f"Error fetching user email addresses: {e}")
+            self.logger.error(f"Error fetching active user email addresses: {e}")
             return []
 
     def get_source_id_by_feed_url(self, feed_url: str) -> Optional[int]:
@@ -972,7 +972,7 @@ class DatabaseService:
     # Token Management Methods
 
     def create_user_token(self, token_id: str, token_hash: str, user_preferences_id: int, 
-                         device_fingerprint: str, expires_at: str, max_usage: int = 10) -> Optional[int]:
+                         device_fingerprint: str, expires_at: str, max_usage: int = 10, purpose: str = 'email_preferences') -> Optional[int]:
         """
         Create a new user token for secure preference access.
         
@@ -983,6 +983,7 @@ class DatabaseService:
             device_fingerprint: Device fingerprint for additional security
             expires_at: Token expiration timestamp
             max_usage: Maximum number of times token can be used
+            purpose: Token purpose (e.g., 'email_preferences', 'unsubscribe')
             
         Returns:
             The token record ID if successful, None otherwise
@@ -994,8 +995,8 @@ class DatabaseService:
                     INSERT INTO user_tokens (
                         token_id, token_hash, user_preferences_id, device_fingerprint,
                         expires_at, max_usage, purpose, version
-                    ) VALUES (?, ?, ?, ?, ?, ?, 'email_preferences', 1)
-                """, (token_id, token_hash, user_preferences_id, device_fingerprint, expires_at, max_usage))
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                """, (token_id, token_hash, user_preferences_id, device_fingerprint, expires_at, max_usage, purpose))
                 conn.commit()
                 return cursor.lastrowid
         except sqlite3.Error as e:
@@ -1449,3 +1450,75 @@ class DatabaseService:
         except sqlite3.Error as e:
             self.logger.error(f"Error cleaning up expired subscriptions: {e}")
             return 0
+
+    def get_subscription_by_email(self, email: str) -> Optional[dict]:
+        """
+        Get subscription information by email address.
+        
+        Args:
+            email: User's email address
+            
+        Returns:
+            Dict with subscription information or None if not found
+        """
+        try:
+            # Check if user has active preferences (which means they're subscribed)
+            user_prefs = self.get_user_preferences_by_email(email)
+            if user_prefs:
+                # For now, assume active if user_preferences exists
+                # In the future, we could add an 'is_active' field to user_preferences
+                return {
+                    'email': email,
+                    'status': 'active',
+                    'user_preferences_id': user_prefs['id']
+                }
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting subscription by email {email}: {e}")
+            return None
+
+    def unsubscribe_user(self, email: str) -> bool:
+        """
+        Unsubscribe a user by deleting their user preferences.
+        
+        Args:
+            email: User's email address
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Start transaction
+                cursor.execute("BEGIN")
+                
+                # First check if user exists
+                cursor.execute("""
+                    SELECT id FROM user_preferences WHERE email_address = ?
+                """, (email,))
+                
+                user_prefs = cursor.fetchone()
+                if not user_prefs:
+                    cursor.execute("ROLLBACK")
+                    self.logger.warning(f"Attempted to unsubscribe non-existent user: {email}")
+                    return False
+                
+                # change user.is_active to 0 in users table
+                cursor.execute("""
+                    UPDATE users SET is_active = 0 WHERE email = ?
+                """, (email,))
+                
+                # Commit transaction
+                cursor.execute("COMMIT")
+                self.logger.info(f"Successfully unsubscribed user: {email}")
+                return True
+                
+        except sqlite3.Error as e:
+            self.logger.error(f"Error unsubscribing user {email}: {e}")
+            try:
+                cursor.execute("ROLLBACK")
+            except:
+                pass
+            return False

@@ -248,6 +248,48 @@ class DatabaseMigrator:
             self.logger.error(f"Error applying migration {migration_name}: {e}")
             return False
 
+    def migrate_user_preferences_to_users(self) -> bool:
+        """
+        Migration to add users from user_preferences table to users table with is_active = 1.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        migration_name = "006_migrate_user_preferences_to_users"
+        
+        if self.migration_applied(migration_name):
+            self.logger.info(f"Migration {migration_name} already applied, skipping")
+            return True
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Get all unique email addresses from user_preferences that don't exist in users table
+                cursor.execute("""
+                    INSERT INTO users (email, is_active, subscribed_at, updated_at)
+                    SELECT DISTINCT up.email_address, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    FROM user_preferences up
+                    LEFT JOIN users u ON up.email_address = u.email
+                    WHERE u.email IS NULL AND up.email_address IS NOT NULL AND up.email_address != ''
+                """)
+                
+                migrated_count = cursor.rowcount
+                conn.commit()
+                
+                # Record the migration
+                self.record_migration(
+                    migration_name, 
+                    f"Migrate {migrated_count} users from user_preferences to users table with is_active = 1"
+                )
+                
+                self.logger.info(f"Successfully applied migration: {migration_name}, migrated {migrated_count} users")
+                return True
+                
+        except sqlite3.Error as e:
+            self.logger.error(f"Error applying migration {migration_name}: {e}")
+            return False
+
     def run_all_migrations(self) -> bool:
         """
         Run all pending migrations.
@@ -261,6 +303,7 @@ class DatabaseMigrator:
                 self.add_user_tokens_table,
                 self.add_summary_pt_column,
                 self.add_subscription_tables,
+                self.migrate_user_preferences_to_users,
             ]
             
             for migration in migrations:

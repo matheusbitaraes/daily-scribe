@@ -13,7 +13,7 @@ STANDARD_CATEGORY_ORDER = [  # Fixed typo: STANDAND -> STANDARD
 
 class DigestBuilder:
     @staticmethod
-    def build_html_digest(clustered_summaries: List[List[Dict[str, str]]], preference_button_html: str = "") -> str:
+    def build_html_digest(clustered_summaries: List[List[Dict[str, str]]], preference_button_html: str = "", unsubscribe_link_html: str = "") -> str:
         category_translation = {
             'Politics': 'Política',
             'Technology': 'Tecnologia',
@@ -161,6 +161,10 @@ class DigestBuilder:
                             """
                         html_digest += '</ul>'
                     html_digest += '</div>'
+
+        # Add unsubscribe link at the bottom if provided
+        if unsubscribe_link_html:
+            html_digest += unsubscribe_link_html
 
         html_digest += "</div></body></html>"
         return html_digest

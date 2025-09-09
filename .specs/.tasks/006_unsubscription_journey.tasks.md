@@ -23,8 +23,18 @@ Modify the email digest template to include a dynamically generated unsubscribe 
   - Add the full unsubscribe link to the email footer.
 
 ##### Acceptance Criteria
-- [ ] Every digest email includes a valid unsubscribe link.
-- [ ] The link contains a unique and secure token.
+- [x] Every digest email includes a valid unsubscribe link.
+- [x] The link contains a unique and secure token.
+
+**STATUS: ✅ COMPLETED**
+
+**Implementation Details:**
+- ✅ Enhanced `DigestBuilder.build_html_digest()` to accept `unsubscribe_link_html` parameter
+- ✅ Added `EmailService.build_unsubscribe_link_html()` method for HTML generation
+- ✅ Added `EmailService.generate_unsubscribe_token()` method for secure token creation
+- ✅ Enhanced `SecureTokenManager.create_unsubscribe_token()` with 72-hour expiry and 3-use limit
+- ✅ Updated `build_digest_with_preferences()` to include unsubscribe links in all emails
+- ✅ Unsubscribe links appear at bottom of digest emails with format: `{base_url}/unsubscribe/{token}`
 
 ---
 
@@ -46,9 +56,21 @@ Create a new FastAPI endpoint to handle unsubscription requests. This endpoint w
   - Return a success response.
 
 ##### Acceptance Criteria
-- [ ] Endpoint successfully deactivates a user's subscription.
-- [ ] Endpoint returns an error for invalid or expired tokens.
-- [ ] The user's `is_active` status is set to `false`.
+- [x] Endpoint successfully deactivates a user's subscription.
+- [x] Endpoint returns an error for invalid or expired tokens.
+- [x] The user's `is_active` status is set to `false`.
+
+**STATUS: ✅ COMPLETED**
+
+**Implementation Details:**
+- ✅ Created `POST /api/unsubscribe` endpoint in `src/api.py`
+- ✅ Added `UnsubscribeRequest` and `UnsubscribeResponse` models in `models/subscription.py`
+- ✅ Implemented `SubscriptionService.process_unsubscribe_request()` method
+- ✅ Added `DatabaseService.unsubscribe_user()` method for status updates
+- ✅ Enhanced database schema to support unsubscribe token validation
+- ✅ Comprehensive error handling for invalid/expired tokens, missing subscriptions
+- ✅ Token validation with purpose-specific checking ("unsubscribe" vs "email_preferences")
+- ✅ Automatic token usage increment and security logging
 
 ---
 
@@ -71,10 +93,23 @@ Develop a new page where users can confirm their unsubscription. This page will 
   - Show a final success or error message.
 
 ##### Acceptance Criteria
-- [ ] The page correctly extracts the token from the URL.
-- [ ] The user can confirm their unsubscription with a single click.
-- [ ] The page displays a clear success message after unsubscribing.
-- [ ] The page handles errors gracefully.
+- [x] The page correctly extracts the token from the URL.
+- [x] The user can confirm their unsubscription with a single click.
+- [x] The page displays a clear success message after unsubscribing.
+- [x] The page handles errors gracefully.
+
+**STATUS: ✅ COMPLETED**
+
+**Implementation Details:**
+- ✅ Created `frontend/src/pages/UnsubscribePage.js` with comprehensive unsubscribe flow
+- ✅ Added route `/unsubscribe/:token` to React Router configuration in `App.js`
+- ✅ Implemented token extraction from URL parameters using `useParams()` hook
+- ✅ Created confirmation UI with clear warning message and dual-action buttons
+- ✅ Integrated with POST `/api/unsubscribe` endpoint with proper error handling
+- ✅ Added loading states, success confirmation, and detailed error messages
+- ✅ Implemented responsive design with consistent styling patterns
+- ✅ Added navigation options for users (return home, subscribe again)
+- ✅ Comprehensive error handling for invalid tokens, network errors, and server issues
 
 ---
 
@@ -101,6 +136,17 @@ Conduct comprehensive end-to-end testing of the unsubscription process.
 - [ ] All test scenarios, including error cases, pass successfully.
 - [ ] The unsubscription process is reliable and user-friendly.
 
+**STATUS: ❌ NOT STARTED**
+
+**Dependencies:** Waiting for Task 3 (Frontend component) completion
+
+**Next Steps:**
+- Write unit tests for `POST /api/unsubscribe` endpoint
+- Write unit tests for `UnsubscribePage` component (after creation)
+- Perform manual end-to-end testing
+- Test error scenarios (invalid tokens, expired tokens, missing subscriptions)
+- Verify database state changes after unsubscription
+
 ---
 
 ### Phase 4: Documentation & Cleanup
@@ -123,6 +169,14 @@ Update the API documentation to include the new `/unsubscribe` endpoint and upda
 ##### Acceptance Criteria
 - [ ] All relevant documentation is updated and accurate.
 
+**STATUS: ❌ NOT STARTED**
+
+**Next Steps:**
+- Update `docs/api-reference.md` with `POST /api/unsubscribe` endpoint documentation
+- Update `docs/user-guide.md` with unsubscription process explanation
+- Document security features and token handling
+- Add examples and error response codes
+
 ## Timeline
 
 - **Phase 1 (Backend):** 1-2 days
@@ -141,3 +195,26 @@ Update the API documentation to include the new `/unsubscribe` endpoint and upda
 - A user can easily and successfully unsubscribe from the daily digest.
 - The system is secure and prevents accidental or malicious unsubscriptions.
 - The user receives clear confirmation that they have been unsubscribed.
+
+## Relevant Files
+
+### Backend Files
+- `src/components/email_service.py` - Added unsubscribe token generation and link HTML building
+- `src/components/digest_builder.py` - Enhanced to include unsubscribe links in email templates
+- `src/components/security/token_manager.py` - Added secure unsubscribe token creation
+- `src/components/database.py` - Enhanced token creation with purpose parameter and added unsubscribe user method
+- `src/components/subscription_service.py` - Added unsubscribe request processing logic
+- `src/api.py` - Added POST /api/unsubscribe endpoint
+- `models/subscription.py` - Added UnsubscribeRequest and UnsubscribeResponse models
+
+### Frontend Files
+- `frontend/src/pages/UnsubscribePage.js` - Main unsubscribe confirmation page component
+- `frontend/src/pages/UnsubscribePage.css` - Styling for unsubscribe page with responsive design
+- `frontend/src/App.js` - Added /unsubscribe/:token route configuration
+
+### Features Implemented
+- **Secure Token System**: 72-hour expiry, 3-use limit, purpose validation
+- **Email Integration**: Unsubscribe links automatically included in all digest emails
+- **User Interface**: Confirmation-based unsubscribe flow with clear messaging
+- **Error Handling**: Comprehensive error handling for all failure scenarios
+- **Security**: Token validation, rate limiting, and audit logging

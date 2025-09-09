@@ -862,7 +862,10 @@ from models.subscription import (
     SubscriptionRequest, 
     SubscriptionResponse, 
     EmailVerificationResponse, 
-    SubscriptionErrorResponse
+    SubscriptionErrorResponse,
+    UnsubscribeRequest,
+    UnsubscribeResponse,
+    UnsubscribeErrorResponse
 )
 from components.subscription_service import SubscriptionService
 from components.notifier import EmailNotifier
@@ -1029,6 +1032,107 @@ async def verify_email_address(
                 error="Internal server error",
                 code="internal_error",
                 details="An unexpected error occurred during email verification"
+            ).dict()
+        )
+
+
+@api_router.post(
+    "/unsubscribe",
+    response_model=UnsubscribeResponse,
+    responses={
+        200: {"description": "Unsubscription processed successfully"},
+        400: {"model": UnsubscribeErrorResponse, "description": "Invalid or expired token"},
+        404: {"model": UnsubscribeErrorResponse, "description": "Subscription not found"},
+        500: {"model": UnsubscribeErrorResponse, "description": "Internal server error"}
+    },
+    summary="Unsubscribe from Newsletter",
+    description="Process an unsubscription request using a secure token from email."
+)
+async def unsubscribe_from_newsletter(
+    unsubscribe_request: UnsubscribeRequest
+) -> UnsubscribeResponse:
+    """
+    Process an unsubscription request.
+    
+    Args:
+        unsubscribe_request: Unsubscribe request containing secure token
+        
+    Returns:
+        UnsubscribeResponse: Result of unsubscription request
+        
+    Raises:
+        HTTPException: If validation fails or unsubscription cannot be processed
+    """
+    try:
+        service = get_subscription_service()
+        result = service.process_unsubscribe_request(unsubscribe_request.token)
+        
+        if not result['success']:
+            error_code = result.get('error', 'unknown_error')
+            
+            if error_code == 'invalid_token':
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=UnsubscribeErrorResponse(
+                        error=result['message'],
+                        code="invalid_token",
+                        details="The unsubscribe link is invalid or has expired"
+                    ).dict()
+                )
+            elif error_code == 'invalid_token_type':
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=UnsubscribeErrorResponse(
+                        error=result['message'],
+                        code="invalid_token_type",
+                        details="This token is not valid for unsubscription"
+                    ).dict()
+                )
+            elif error_code == 'subscription_not_found':
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=UnsubscribeErrorResponse(
+                        error=result['message'],
+                        code="subscription_not_found",
+                        details="No active subscription found for this email address"
+                    ).dict()
+                )
+            elif error_code == 'unsubscribe_failed':
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=UnsubscribeErrorResponse(
+                        error=result['message'],
+                        code="unsubscribe_failed",
+                        details="Failed to process unsubscription request"
+                    ).dict()
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=UnsubscribeErrorResponse(
+                        error=result['message'],
+                        code=error_code,
+                        details="Failed to process unsubscription request"
+                    ).dict()
+                )
+        
+        return UnsubscribeResponse(
+            message=result['message'],
+            email=result['email'],
+            status=result['status'],
+            unsubscribed_at=result.get('unsubscribed_at')
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error processing unsubscribe request: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=UnsubscribeErrorResponse(
+                error="Internal server error",
+                code="internal_error",
+                details="An unexpected error occurred while processing your unsubscribe request"
             ).dict()
         )
 

@@ -19,13 +19,13 @@ const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) =>
     mode: 'onChange'
   });
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
   const onSubmit = async (data) => {
     setSubmissionState({ isSubmitting: true, isSuccess: false, error: null });
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/subscribe`, {
+      const response = await axios.post(`${API_BASE_URL}/subscribe`, {
         email: data.email
       }, {
         headers: {

@@ -80,6 +80,42 @@ class EmailService:
         except Exception as e:
             logger.error(f"Error generating preference token for {email_address}: {e}")
             return None
+
+    def generate_unsubscribe_token(
+        self,
+        email_address: str,
+        user_agent: str = "Email Client",
+        ip_address: str = "unknown"
+    ) -> Optional[str]:
+        """
+        Generate a secure token for unsubscribe access.
+        
+        Args:
+            email_address: User's email address
+            user_agent: Client user agent (defaults to "Email Client")
+            ip_address: Client IP address (defaults to "unknown")
+            
+        Returns:
+            Secure token string if successful, None otherwise
+        """
+        try:
+            # Generate token
+            token = self.token_manager.create_unsubscribe_token(
+                user_email=email_address,
+                user_agent=user_agent,
+                ip_address=ip_address
+            )
+            
+            if token:
+                logger.info(f"Generated unsubscribe token for {email_address}")
+                return token
+            else:
+                logger.error(f"Failed to generate unsubscribe token for {email_address}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error generating unsubscribe token for {email_address}: {e}")
+            return None
     
     def build_preference_button_html(
         self,
@@ -121,6 +157,40 @@ class EmailService:
         """
         
         return button_html
+    
+    def build_unsubscribe_link_html(
+        self,
+        token: str,
+        base_url: str = "http://localhost:3000",
+        link_text: str = "Cancelar inscrição"
+    ) -> str:
+        """
+        Build HTML for the unsubscribe link.
+        
+        Args:
+            token: Secure unsubscribe token
+            base_url: Base URL for the unsubscribe page
+            link_text: Text to display for the link
+            
+        Returns:
+            HTML string for the unsubscribe link
+        """
+        # Build the unsubscribe URL with token
+        unsubscribe_url = f"{base_url}/unsubscribe/{token}"
+        
+        # Create simple text link that works across email clients
+        link_html = f"""
+        <div style="margin: 8px 0; text-align: center; font-size: 11px; color: #666;">
+            <a href="{unsubscribe_url}" 
+               target="_blank" 
+               rel="noopener"
+               style="color: #999; text-decoration: underline; font-size: 11px;">
+                {link_text}
+            </a>
+        </div>
+        """
+        
+        return link_html
     
     def build_digest_with_preferences(
         self,
@@ -165,21 +235,42 @@ class EmailService:
             else:
                 preference_button_html = ""
             
-            # Build the main digest HTML with preference button included
+            # Generate unsubscribe token
+            unsubscribe_token = self.generate_unsubscribe_token(
+                email_address=email_address,
+                user_agent=user_agent,
+                ip_address=ip_address
+            )
+            
+            # Build unsubscribe link HTML
+            if unsubscribe_token:
+                unsubscribe_link_html = self.build_unsubscribe_link_html(
+                    token=unsubscribe_token,
+                    base_url=base_url
+                )
+            else:
+                logger.warning(f"Failed to generate unsubscribe token for {email_address}, building digest without unsubscribe link")
+                unsubscribe_link_html = ""
+            
+            # Build the main digest HTML with preference button and unsubscribe link included
             digest_html = DigestBuilder.build_html_digest(
                 clustered_summaries=clustered_summaries,
-                preference_button_html=preference_button_html if preference_button_html else ""
+                preference_button_html=preference_button_html if preference_button_html else "",
+                unsubscribe_link_html=unsubscribe_link_html if unsubscribe_link_html else ""
             )
             
             return {
                 "html_content": digest_html,
                 "preference_token": preference_token,
+                "unsubscribe_token": unsubscribe_token,
                 "email_address": email_address,
                 "has_preference_button": preference_token is not None,
+                "has_unsubscribe_link": unsubscribe_token is not None,
                 "metadata": {
                     "clusters_count": len(clustered_summaries),
                     "articles_count": sum(len(cluster) for cluster in clustered_summaries),
-                    "preference_url": f"{base_url}/preferences/{preference_token}" if preference_token else None
+                    "preference_url": f"{base_url}/preferences/{preference_token}" if preference_token else None,
+                    "unsubscribe_url": f"{base_url}/unsubscribe/{unsubscribe_token}" if unsubscribe_token else None
                 }
             }
             
@@ -189,12 +280,15 @@ class EmailService:
             return {
                 "html_content": DigestBuilder.build_html_digest(clustered_summaries),
                 "preference_token": None,
+                "unsubscribe_token": None,
                 "email_address": email_address,
                 "has_preference_button": False,
+                "has_unsubscribe_link": False,
                 "metadata": {
                     "clusters_count": len(clustered_summaries),
                     "articles_count": sum(len(cluster) for cluster in clustered_summaries),
                     "preference_url": None,
+                    "unsubscribe_url": None,
                     "error": str(e)
                 }
             }

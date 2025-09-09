@@ -7,7 +7,7 @@ import json
 
 def test_token_validation():
     """Test token validation endpoints"""
-    base_url = "http://localhost:8000"
+    base_url = "http://localhost:8000/api"
     
     print("🧪 Testing Authentication Fixes")
     print("=" * 50)

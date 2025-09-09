@@ -14,7 +14,7 @@ const EmailVerificationPage = () => {
     email: null
   });
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
   const token = searchParams.get('token');
 
   const verifyEmail = useCallback(async (verificationToken) => {
@@ -24,7 +24,7 @@ const EmailVerificationPage = () => {
     }
     verificationAttempted.current = true;
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/verify-email`, {
+      const response = await axios.get(`${API_BASE_URL}/verify-email`, {
         params: { token: verificationToken },
         timeout: 10000 // 10 second timeout
       });

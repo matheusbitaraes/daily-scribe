@@ -10,7 +10,7 @@ import requests
 from typing import Dict, Any
 
 # Test configuration
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8000/api"
 TEST_EMAIL = "api.test@example.com"
 
 def test_api_endpoint(method: str, endpoint: str, data: Dict[Any, Any] = None, params: Dict[str, str] = None) -> Dict[str, Any]:
@@ -44,7 +44,7 @@ def main():
     
     # Test 1: Valid subscription request
     print("\\n1. Testing valid subscription request...")
-    result = test_api_endpoint("POST", "/api/subscribe", {"email": TEST_EMAIL})
+    result = test_api_endpoint("POST", "/subscribe", {"email": TEST_EMAIL})
     print(f"Status: {result['status_code']}")
     print(f"Response: {json.dumps(result['response'], indent=2)}")
     
@@ -56,7 +56,7 @@ def main():
     
     # Test 2: Duplicate subscription request
     print("\\n2. Testing duplicate subscription request...")
-    result = test_api_endpoint("POST", "/api/subscribe", {"email": TEST_EMAIL})
+    result = test_api_endpoint("POST", "/subscribe", {"email": TEST_EMAIL})
     print(f"Status: {result['status_code']}")
     print(f"Response: {json.dumps(result['response'], indent=2)}")
     
@@ -67,7 +67,7 @@ def main():
     
     # Test 3: Invalid email format
     print("\\n3. Testing invalid email format...")
-    result = test_api_endpoint("POST", "/api/subscribe", {"email": "invalid-email"})
+    result = test_api_endpoint("POST", "/subscribe", {"email": "invalid-email"})
     print(f"Status: {result['status_code']}")
     print(f"Response: {json.dumps(result['response'], indent=2)}")
     
@@ -95,7 +95,7 @@ def main():
             print(f"Found verification token: {token[:10]}...")
             
             # Test verification
-            result = test_api_endpoint("GET", "/api/verify-email", params={"token": token})
+            result = test_api_endpoint("GET", "/verify-email", params={"token": token})
             print(f"Status: {result['status_code']}")
             print(f"Response: {json.dumps(result['response'], indent=2)}")
             
@@ -111,7 +111,7 @@ def main():
     
     # Test 5: Invalid verification token
     print("\\n5. Testing invalid verification token...")
-    result = test_api_endpoint("GET", "/api/verify-email", params={"token": "invalid-token-123"})
+    result = test_api_endpoint("GET", "/verify-email", params={"token": "invalid-token-123"})
     print(f"Status: {result['status_code']}")
     print(f"Response: {json.dumps(result['response'], indent=2)}")
     
@@ -120,8 +120,69 @@ def main():
     else:
         print("❌ Invalid token not properly handled")
     
+    # Test 6: Generate unsubscribe token (requires real user)
+    print("\\n6. Testing unsubscribe token generation...")
+    try:
+        # First create a subscription and verify it to have a real user
+        print("  - Creating test subscription for unsubscribe testing...")
+        test_unsubscribe_email = "unsubscribe.test@example.com"
+        
+        # Subscribe
+        sub_result = test_api_endpoint("POST", "/subscribe", {"email": test_unsubscribe_email})
+        if sub_result['success']:
+            print(f"  ✅ Test subscription created for {test_unsubscribe_email}")
+            
+            # Try to generate an unsubscribe token using the email service
+            # Note: This would normally be done through email generation, but we'll test the endpoint directly
+            print("  - Testing unsubscribe with invalid token...")
+            unsubscribe_result = test_api_endpoint("POST", "/unsubscribe", {"token": "invalid-unsubscribe-token"})
+            print(f"  Status: {unsubscribe_result['status_code']}")
+            print(f"  Response: {json.dumps(unsubscribe_result['response'], indent=2)}")
+            
+            if unsubscribe_result['status_code'] == 400:
+                print("  ✅ Invalid unsubscribe token properly rejected")
+            else:
+                print("  ❌ Invalid unsubscribe token not properly handled")
+        else:
+            print(f"  ❌ Failed to create test subscription: {sub_result['response']}")
+            
+    except Exception as e:
+        print(f"❌ Error testing unsubscribe: {e}")
+    
+    # Test 7: Test unsubscribe with malformed request
+    print("\\n7. Testing unsubscribe with malformed request...")
+    result = test_api_endpoint("POST", "/unsubscribe", {"invalid_field": "test"})
+    print(f"Status: {result['status_code']}")
+    print(f"Response: {json.dumps(result['response'], indent=2)}")
+    
+    if result['status_code'] == 422:  # FastAPI validation error
+        print("✅ Malformed request properly rejected")
+    else:
+        print("❌ Malformed request not properly handled")
+    
+    # Test 8: Test unsubscribe endpoint response structure
+    print("\\n8. Testing unsubscribe endpoint response structure...")
+    result = test_api_endpoint("POST", "/unsubscribe", {"token": "structure-test-token"})
+    print(f"Status: {result['status_code']}")
+    
+    # Check if response has expected error structure
+    response = result['response']
+    if 'detail' in response and isinstance(response['detail'], dict):
+        detail = response['detail']
+        if 'error' in detail and 'code' in detail and 'details' in detail:
+            print("✅ Unsubscribe error response has correct structure")
+        else:
+            print("❌ Unsubscribe error response missing required fields")
+    else:
+        print("❌ Unsubscribe response doesn't have expected structure")
+    
     print("\\n" + "=" * 50)
     print("API endpoint testing complete!")
+    print("\\nNote: For complete end-to-end testing, you would need to:")
+    print("1. Generate a real unsubscribe token from the email service")
+    print("2. Test the frontend UnsubscribePage component")
+    print("3. Verify database state changes")
+    print("4. Test email digest exclusion after unsubscription")
 
 if __name__ == "__main__":
     # Check if server is running
