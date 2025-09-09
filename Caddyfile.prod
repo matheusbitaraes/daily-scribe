@@ -1,4 +1,4 @@
-# Daily Scribe Caddy Configuration
+# Daily Scribe Production Caddy Configuration
 # Reverse proxy with automatic HTTPS and security headers
 
 # Global configuration must be first
@@ -12,18 +12,15 @@
 	# ACME server (use staging for testing)
 	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 	
-	# Local development certificates (uncomment for local testing)
-	# local_certs
-	
-	# Automatic HTTPS configuration (disabled for now, can be enabled as needed)
-	# auto_https off
+	# Disable automatic HTTPS to prevent unwanted redirects
+	auto_https disable_redirects
 	
 	# Grace period for config reloads
 	grace_period 10s
 }
 
-# Main domain configuration
-{$DOMAIN:localhost}, 192.168.15.55 {
+# Main domain configuration (HTTPS for domain)
+{$DOMAIN:localhost} {
 	# API routes - proxy to FastAPI backend
 	@api path /api/* /healthz /docs /openapi.json
 	handle @api {
@@ -115,12 +112,7 @@
 	}
 }
 
-# HTTP to HTTPS redirect (global)
-http://{$DOMAIN:localhost} {
-	redir https://{host}{uri} permanent
-}
-
-# Allow HTTP access for local IP (no redirect to HTTPS)
+# Local IP configuration (HTTP only, no TLS)
 http://192.168.15.55 {
 	# API routes - proxy to FastAPI backend
 	@api path /api/* /healthz /docs /openapi.json
@@ -156,6 +148,26 @@ http://192.168.15.55 {
 			header_up X-Real-IP {remote_host}
 		}
 	}
+
+	# Basic security headers (less strict for local development)
+	header {
+		# Prevent clickjacking
+		X-Frame-Options "SAMEORIGIN"
+		
+		# Prevent MIME type sniffing
+		X-Content-Type-Options "nosniff"
+		
+		# Remove server information
+		-Server
+		
+		# Add application info
+		X-Powered-By "Daily Scribe"
+	}
+}
+
+# HTTP to HTTPS redirect (for domain only, not local IP)
+http://{$DOMAIN:localhost} {
+	redir https://{host}{uri} permanent
 }
 
 # Health check endpoint for load balancers (if needed)

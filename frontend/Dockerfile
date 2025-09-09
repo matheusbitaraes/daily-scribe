@@ -15,7 +15,7 @@ COPY . .
 
 # Set build-time environment variables
 ENV NODE_ENV=production
-ENV REACT_APP_API_URL=http://daily-scribe.duckdns.org
+# REACT_APP_API_URL will be read from .env.production file during build
 
 # Build the React app
 RUN npm run build
