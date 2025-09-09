@@ -108,7 +108,7 @@ class DigestService:
     def send_digest_to_user(
         self,
         email_address: str,
-        config_dict: dict,
+        email_config,  # EmailConfig object instead of dict
         force: bool = False,
         use_alt_method: bool = False
     ) -> Dict:
@@ -117,7 +117,7 @@ class DigestService:
         
         Args:
             email_address: User's email address
-            config_dict: Email configuration dictionary
+            email_config: EmailConfig object with email configuration
             force: Whether to force sending even if already sent today
             use_alt_method: Whether to use alternative clustering method
             
@@ -147,7 +147,7 @@ class DigestService:
             html_digest = result["html_content"]
             clustered_articles = result["clustered_articles"]
             
-            notifier = EmailNotifier(config_dict)
+            notifier = EmailNotifier(email_config)
             subject = f"Daily Scribe Digest {time.strftime('%Y-%m-%d')} [BETA]"
             notifier.send_digest(html_digest, email_address, subject)
             

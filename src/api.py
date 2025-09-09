@@ -111,6 +111,36 @@ def health_check() -> JSONResponse:
             "response_time_ms": round(db_time * 1000, 2)
         }
         
+        # Test email service connectivity
+        email_start = time.time()
+        try:
+            from components.config import load_config
+            from components.notifier import EmailNotifier
+            import smtplib
+            
+            config = load_config()
+            email_config = config.email
+            
+            # Quick SMTP connection test (no authentication to keep it fast)
+            with smtplib.SMTP(email_config.smtp_server, email_config.smtp_port, timeout=5) as server:
+                server.starttls()
+                # Just test connection, not full auth to keep health check fast
+                
+            email_time = time.time() - email_start
+            health_data["checks"]["email_service"] = {
+                "status": "healthy",
+                "provider": email_config.provider,
+                "response_time_ms": round(email_time * 1000, 2)
+            }
+        except Exception as e:
+            email_time = time.time() - email_start
+            logger.warning(f"Email service health check failed: {e}")
+            health_data["checks"]["email_service"] = {
+                "status": "degraded",  # Not critical for API operation
+                "error": str(e),
+                "response_time_ms": round(email_time * 1000, 2)
+            }
+        
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
         health_data["status"] = "unhealthy"

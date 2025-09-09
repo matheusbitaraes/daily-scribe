@@ -11,6 +11,12 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load environment variables from .env file
+except ImportError:
+    pass  # dotenv not available, continue without it
+
 
 class GeminiConfig:
     """Gemini API configuration settings."""
@@ -30,12 +36,21 @@ class DatabaseConfig:
 class EmailConfig:
     """Email configuration settings."""
     
-    def __init__(self, to, smtp_server, smtp_port, username, password):
-        self.to = to
+    def __init__(self, provider, smtp_server, smtp_port, username, password, region=None, addresses=None, legacy=None):
+        self.provider = provider
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
         self.username = username
         self.password = password
+        self.region = region
+        self.addresses = addresses or {}
+        self.legacy = legacy
+        
+        # Backward compatibility
+        if legacy:
+            self.to = legacy.get('to')
+        else:
+            self.to = addresses.get('editor', username) if addresses else username
 
 
 class ScheduleConfig:
@@ -132,17 +147,54 @@ class ConfigLoader:
             raise ValueError("Configuration missing 'email' section")
         
         email_data = config_data['email']
-        required_email_fields = ['to', 'smtp_server', 'smtp_port', 'username', 'password']
-        for field in required_email_fields:
-            if field not in email_data:
-                raise ValueError(f"Email configuration missing '{field}' field")
         
+        # Support both new and legacy email configuration formats
+        if 'provider' in email_data:
+            # New configuration format
+            required_fields = ['provider', 'smtp_server', 'smtp_port']
+            for field in required_fields:
+                if field not in email_data:
+                    raise ValueError(f"Email configuration missing '{field}' field")
+            
+            provider = email_data['provider']
+            
+            # Load credentials from environment variables for security
+            username = os.getenv('EMAIL_SMTP_USERNAME') or email_data.get('username', '')
+            password = os.getenv('EMAIL_SMTP_PASSWORD') or email_data.get('password', '')
+            
+            if not username and provider == 'aws_ses':
+                raise ValueError("AWS SES username not set. Please set EMAIL_SMTP_USERNAME environment variable.")
+            if not password and provider == 'aws_ses':
+                raise ValueError("AWS SES password not set. Please set EMAIL_SMTP_PASSWORD environment variable.")
+            
+            # Load email addresses from environment or config
+            addresses = {
+                'editor': os.getenv('EMAIL_FROM_EDITOR') or email_data.get('addresses', {}).get('editor', 'editor@dailyscribe.news'),
+                'admin': os.getenv('EMAIL_FROM_ADMIN') or email_data.get('addresses', {}).get('admin', 'admin@dailyscribe.news'),
+                'support': os.getenv('EMAIL_FROM_SUPPORT') or email_data.get('addresses', {}).get('support', 'support@dailyscribe.news')
+            }
+            
+            region = email_data.get('region', 'us-east-1')
+            legacy = email_data.get('legacy')
+            
+        else:
+            # Legacy configuration format (backward compatibility)
+            required_email_fields = ['to', 'smtp_server', 'smtp_port', 'username', 'password']
+            for field in required_email_fields:
+                if field not in email_data:
+                    raise ValueError(f"Email configuration missing '{field}' field")
+            
+            provider = 'gmail'
+            username = email_data['username']
+            password = os.path.expandvars(email_data['password'])
+            addresses = {'noreply': email_data['username']}
+            region = None
+            legacy = email_data
+
         if not isinstance(email_data['smtp_port'], int) or email_data['smtp_port'] <= 0:
             raise ValueError("SMTP port must be a positive integer")
         
-        # Expand environment variables in password
-        password = os.path.expandvars(email_data['password'])
-        if not password:
+        if not password and provider in ['gmail', 'legacy']:
             raise ValueError("SMTP password is not set. Please set the SMTP_PASSWORD environment variable.")
 
         # Validate schedule configuration
@@ -184,11 +236,14 @@ class ConfigLoader:
         )
         
         email_config = EmailConfig(
-            to=email_data['to'],
+            provider=provider,
             smtp_server=email_data['smtp_server'],
             smtp_port=email_data['smtp_port'],
-            username=email_data['username'],
-            password=password
+            username=username,
+            password=password,
+            region=region,
+            addresses=addresses,
+            legacy=legacy
         )
         
         schedule_config = ScheduleConfig(

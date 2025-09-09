@@ -148,7 +148,7 @@ def send_digest(
         digest_service = DigestService()
         result = digest_service.send_digest_to_user(
             email_address=email_address,
-            config_dict=config.email.__dict__,
+            email_config=config.email,  # Pass the EmailConfig object
             force=force,
             use_alt_method=False
         )

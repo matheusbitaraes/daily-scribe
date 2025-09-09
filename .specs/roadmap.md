@@ -41,7 +41,12 @@
 - [x] Create end-user documentation
 - [x] Home page
 - [ ] Publicly expose frontend so that user preferences can be changed
-- [ ] Web interface to subscription - home page
+- [x] Web interface to subscription - home page
       - Make a home page with a subscribe button? Or make a subscribe landing page?
       - make an unsubscribe button in the email as well
-- [ ] Revamp the home page
+- [ ] change email provider
+- [ ] make digest builder admin only
+- [ ] Revamp all the design
+      - [ ] home page
+      - [ ] subscribe
+      - [ ] unsubscribe
