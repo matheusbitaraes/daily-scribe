@@ -36,6 +36,8 @@ ENV/
 
 # Database
 data/
+*.db-shm
+*.db-wal
 
 # Logs
 *.log
