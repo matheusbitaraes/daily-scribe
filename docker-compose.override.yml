@@ -26,16 +26,6 @@ services:
       # Mount source code for development (extends base volumes)
       - ./src:/app/src
 
-  # Development overrides for Caddy
-  caddy:
-    # Enable Caddy's admin API for development
-    environment:
-      - CADDY_ADMIN=0.0.0.0:2019
-    ports:
-      - "2019:2019"
-    volumes:
-      # Use development-specific Caddyfile
-      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
 
   # Litestream development configuration
   litestream:

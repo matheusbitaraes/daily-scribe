@@ -122,36 +122,6 @@ services:
       retries: 3
       start_period: 30s
 
-  # Caddy Reverse Proxy with Automatic HTTPS
-  caddy:
-    image: caddy:2.7-alpine
-    container_name: daily-scribe-caddy
-    restart: unless-stopped
-    environment:
-      - DOMAIN=${DOMAIN:-localhost}
-      - CADDY_ADMIN=${CADDY_ADMIN:-0.0.0.0:2019}
-      - CADDY_EMAIL=${CADDY_EMAIL:-admin@daily-scribe.duckdns.org}
-    ports:
-      - "80:80"
-      - "443:443"
-      - "2019:2019"  # Caddy admin interface
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-      - daily_scribe_logs:/var/log/daily-scribe
-    networks:
-      - daily_scribe_internal
-      - daily_scribe_external
-    depends_on:
-      - app
-      - frontend
-    healthcheck:
-      test: ["CMD", "caddy", "version"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
 
   # Dynamic DNS Update Service
   ddns:
@@ -260,10 +230,6 @@ volumes:
   daily_scribe_logs:
     driver: local
   daily_scribe_cron_logs:
-    driver: local
-  caddy_data:
-    driver: local
-  caddy_config:
     driver: local
   ddns_cache:
     driver: local

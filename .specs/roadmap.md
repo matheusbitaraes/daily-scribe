@@ -40,11 +40,11 @@
 - [x] Add frontend development guide
 - [x] Create end-user documentation
 - [x] Home page
-- [ ] Publicly expose frontend so that user preferences can be changed
 - [x] Web interface to subscription - home page
       - Make a home page with a subscribe button? Or make a subscribe landing page?
       - make an unsubscribe button in the email as well
-- [ ] change email provider
+- [x] change email provider - now its @dailyscribe.news
+- [ ] Publicly expose frontend so that user preferences can be changed
 - [ ] make digest builder admin only
 - [ ] Revamp all the design
       - [ ] home page
