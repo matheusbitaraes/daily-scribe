@@ -3,7 +3,6 @@
 .subscription-form {
   max-width: 500px;
   margin: 0 auto;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
 }
 
 .subscription-form.compact {
@@ -83,7 +82,6 @@
 .input-group {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
 }
 
 .subscription-form.inline .input-group {

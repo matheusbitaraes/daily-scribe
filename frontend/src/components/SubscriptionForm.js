@@ -105,41 +105,33 @@ const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) =>
       <div className="subscription-form-content">
         <div className="subscription-form-header">
           <h3 className="subscription-form-title">
-            Stay Updated
+            Assine a Newsletter
           </h3>
           <p className="subscription-form-description">
-            Get the latest insights delivered straight to your inbox. 
-            Subscribe to our newsletter for curated content and updates.
+
+            {/* Get the latest insights delivered straight to your inbox. 
+            Subscribe to our newsletter for curated content and updates. */}
+            Tenha as ultimas noticias dos principais jornais do Brasil e do mundo, resumidas, concatenadas e curadas com base em suas preferências.
           </p>
         </div>
 
         {submissionState.isSuccess ? (
           <div className="subscription-success">
             <div className="success-icon">✓</div>
-            <h4>Check Your Email!</h4>
+            <h4>Confirme seu email</h4>
             <p>
-              We've sent a verification link to your email address. 
-              Please click the link to confirm your subscription.
+              Nós enviamos um link de verificação para o seu endereço de e-mail.
+              Por favor, clique no link para confirmar sua inscrição.
             </p>
-            <button 
-              type="button" 
-              className="btn-secondary"
-              onClick={resetForm}
-            >
-              Subscribe Another Email
-            </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="subscription-form-form">
             <div className="form-group">
-              <label htmlFor="email" className="form-label">
-                Email Address
-              </label>
               <div className="input-group">
                 <input
                   id="email"
                   type="email"
-                  placeholder="Enter your email address"
+                  placeholder="Digite seu endereço de e-mail"
                   className={`form-input ${errors.email ? 'error' : ''}`}
                   {...register('email', { 
                     validate: validateEmail,
@@ -165,12 +157,6 @@ const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) =>
                   )}
                 </button>
               </div>
-              
-              {errors.email && (
-                <div id="email-error" className="error-message" role="alert">
-                  {errors.email.message}
-                </div>
-              )}
             </div>
 
             {submissionState.error && (
@@ -183,7 +169,7 @@ const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) =>
 
         <div className="subscription-form-footer">
           <p className="privacy-note">
-            We respect your privacy. Unsubscribe at any time.
+            Respeitamos sua privacidade. Cancele a inscrição a qualquer momento.
           </p>
         </div>
       </div>
