@@ -29,7 +29,14 @@ app = FastAPI()
 
 # Create API router with /api prefix
 api_router = APIRouter(prefix="/api")
-
+# Enable CORS for frontend domain
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://dailyscribe.news"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # Metrics collection for monitoring
 app_metrics = {
     "requests_total": 0,
