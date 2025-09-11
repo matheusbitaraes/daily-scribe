@@ -450,8 +450,7 @@ def get_available_dates(
         query = """
             SELECT DISTINCT DATE(published_at) as article_date, COUNT(*) as article_count
             FROM articles 
-            WHERE summary IS NOT NULL 
-            AND published_at IS NOT NULL
+            WHERE summary IS NOT NULL OR summary_pt IS NOT NULL
         """
         params = []
         
