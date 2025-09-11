@@ -45,35 +45,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
-    depends_on:
-      - litestream
     command: ["python", "-m", "uvicorn", "src.api:app", "--host", "0.0.0.0", "--port", "8000"]
-
-  # Daily Scribe React Frontend
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: production
-    image: daily-scribe-frontend:latest
-    container_name: daily-scribe-frontend
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-    volumes:
-      - ./frontend/.env.production:/app/.env.production:ro
-    networks:
-      - daily_scribe_internal
-    ports:
-      - "3000:80"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:80/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
-    depends_on:
-      - app
 
   # Daily Scribe Cron Jobs
   cron:
@@ -114,95 +86,12 @@ services:
       - daily_scribe_internal
     depends_on:
       - app
-      - litestream
     healthcheck:
       test: ["CMD", "which", "supercronic"]
       interval: 60s
       timeout: 10s
       retries: 3
       start_period: 30s
-
-
-  # Dynamic DNS Update Service
-  ddns:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.ddns
-    image: daily-scribe-ddns:latest
-    container_name: daily-scribe-ddns
-    restart: unless-stopped
-    environment:
-      # DDNS Provider Configuration (required)
-      - DDNS_PROVIDERS=${DDNS_PROVIDERS}
-      # Update interval in seconds (default: 300 = 5 minutes)
-      - UPDATE_INTERVAL=${DDNS_UPDATE_INTERVAL:-300}
-      # Maximum retry attempts (default: 3)
-      - MAX_RETRIES=${DDNS_MAX_RETRIES:-3}
-      # HTTP request timeout in seconds (default: 30)
-      - TIMEOUT=${DDNS_TIMEOUT:-30}
-      # Log level: DEBUG, INFO, WARN, ERROR (default: INFO)
-      - LOG_LEVEL=${DDNS_LOG_LEVEL:-INFO}
-      # Force update even if IP hasn't changed (default: false)
-      - FORCE_UPDATE=${DDNS_FORCE_UPDATE:-false}
-      # Custom IP check URLs (optional)
-      - IP_CHECK_URLS=${DDNS_IP_CHECK_URLS:-}
-    volumes:
-      # Logs volume for DDNS monitoring
-      - daily_scribe_logs:/var/log/daily-scribe
-      # Cache directory for IP change detection
-      - ddns_cache:/var/cache/daily-scribe
-    networks:
-      - daily_scribe_external
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/ddns-update.sh", "health"]
-      interval: 30m
-      timeout: 30s
-      retries: 3
-      start_period: 30s
-    depends_on:
-      - app
-    profiles:
-      - ddns
-      - production
-
-  # Litestream for Database Backup and Replication
-  litestream:
-    image: litestream/litestream:0.3.13
-    container_name: daily-scribe-litestream
-    restart: unless-stopped
-    environment:
-      # Google Cloud Storage credentials
-      - GOOGLE_APPLICATION_CREDENTIALS=/etc/gcs/service-account.json
-      - GCS_BUCKET=${GCS_BUCKET}
-      - GCS_REGION=${GCS_REGION:-us-central1}
-      # Alternative: Use access keys instead of service account
-      - LITESTREAM_ACCESS_KEY_ID=${LITESTREAM_ACCESS_KEY_ID}
-      - LITESTREAM_SECRET_ACCESS_KEY=${LITESTREAM_SECRET_ACCESS_KEY}
-    volumes:
-      # Data volume containing the SQLite database
-      - daily_scribe_data:/app/data
-      # Litestream configuration
-      - ./litestream.yml:/etc/litestream.yml:ro
-      # GCS service account key (create this file or use environment variables)
-      # If file doesn't exist, Litestream will use environment variables instead
-      - ./gcs-service-account.json:/etc/gcs/service-account.json:ro
-      # Logs volume for backup monitoring
-      - daily_scribe_logs:/var/log/daily-scribe
-    ports:
-      # Expose metrics endpoint for monitoring (internal only)
-      - "9090:9090"
-      - "9091:9091"
-    networks:
-      - daily_scribe_internal
-    command: replicate
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/metrics", "||", "exit", "1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-    # Remove dependency to avoid circular dependency
-    # Litestream can start independently and will wait for database to be available
 
   # Database Administration Tool
   cloudbeaver:
@@ -225,13 +114,9 @@ services:
 
 # Named volumes for data persistence
 volumes:
-  daily_scribe_data:
-    driver: local
   daily_scribe_logs:
     driver: local
   daily_scribe_cron_logs:
-    driver: local
-  ddns_cache:
     driver: local
   cloudbeaver_workspace:
     driver: local
@@ -241,5 +126,3 @@ networks:
   daily_scribe_internal:
     driver: bridge
     internal: false
-  daily_scribe_external:
-    driver: bridge

@@ -301,15 +301,9 @@ start_services() {
     local compose_files="-f docker-compose.yml"
     local compose_profiles=""
 
-    if [[ "$PRODUCTION_MODE" == "true" ]]; then
-        compose_profiles="--profile ddns --profile production"
-        compose_files+=" -f docker-compose.prod.yml"
-        log_info "Starting with production profiles (including DDNS and production overrides)"
-    else
-        compose_profiles="--profile admin"
-        compose_files+=" -f docker-compose.override.yml"
-        log_info "Starting with development profiles and overrides"
-    fi
+    compose_profiles="--profile admin"
+    compose_files+=" -f docker-compose.yml"
+    log_info "Starting with development profiles and overrides"
     
     ssh "$SERVER_USER@$SERVER_HOST" "
         cd '$DEPLOY_PATH'
@@ -376,14 +370,6 @@ validate_deployment() {
         # Test application health
         echo 'Testing application health...'
         timeout 30 bash -c 'until curl -sf http://localhost:8000/healthz; do sleep 2; done' || echo 'Health check timed out'
-        
-        # Test frontend health
-        echo 'Testing frontend health...'
-        timeout 30 bash -c 'until curl -sf http://localhost:3000/health; do sleep 2; done' || echo 'Frontend health check timed out'
-        
-        # Test Caddy proxy
-        echo 'Testing Caddy reverse proxy...'
-        timeout 30 bash -c 'until curl -sf http://localhost:80/health; do sleep 2; done' || echo 'Caddy proxy health check timed out'
         
         # Test metrics endpoint
         echo 'Testing metrics endpoint...'
