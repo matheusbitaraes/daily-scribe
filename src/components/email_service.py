@@ -6,6 +6,7 @@ and secure button integration for user preference management.
 """
 
 import logging
+import os
 from typing import Optional, Dict, Any
 from urllib.parse import urlencode
 
@@ -28,6 +29,7 @@ class EmailService:
         """
         self.db_service = db_service or DatabaseService()
         self.token_manager = SecureTokenManager(self.db_service)
+        self.base_url = os.getenv("BASE_URL", "http://localhost:3000")
     
     def generate_preference_token(
         self,
@@ -120,7 +122,6 @@ class EmailService:
     def build_preference_button_html(
         self,
         token: str,
-        base_url: str = "http://localhost:3000",
         button_text: str = "⚙️ Configurar Preferências"
     ) -> str:
         """
@@ -128,14 +129,13 @@ class EmailService:
         
         Args:
             token: Secure preference access token
-            base_url: Base URL for the preference page
             button_text: Text to display on the button
             
         Returns:
             HTML string for the preference button
         """
         # Build the preference URL with token
-        preference_url = f"{base_url}/preferences/{token}"
+        preference_url = f"{self.base_url}/preferences/{token}"
         
         # Create responsive button HTML that works across email clients
         button_html = f"""
@@ -161,7 +161,6 @@ class EmailService:
     def build_unsubscribe_link_html(
         self,
         token: str,
-        base_url: str = "http://localhost:3000",
         link_text: str = "Cancelar inscrição"
     ) -> str:
         """
@@ -169,14 +168,13 @@ class EmailService:
         
         Args:
             token: Secure unsubscribe token
-            base_url: Base URL for the unsubscribe page
             link_text: Text to display for the link
             
         Returns:
             HTML string for the unsubscribe link
         """
         # Build the unsubscribe URL with token
-        unsubscribe_url = f"{base_url}/unsubscribe/{token}"
+        unsubscribe_url = f"{self.base_url}/unsubscribe/{token}"
         
         # Create simple text link that works across email clients
         link_html = f"""
@@ -198,7 +196,6 @@ class EmailService:
         email_address: str,
         user_agent: str = "Email Client",
         ip_address: str = "unknown",
-        base_url: str = "http://localhost:3000"
     ) -> Dict[str, Any]:
         """
         Build a complete email digest with preference configuration button.
@@ -208,7 +205,6 @@ class EmailService:
             email_address: Recipient's email address
             user_agent: Client user agent
             ip_address: Client IP address
-            base_url: Base URL for preference page
             
         Returns:
             Dict containing html_content, preference_token, and metadata
@@ -230,7 +226,6 @@ class EmailService:
                 # Build preference button HTML
                 preference_button_html = self.build_preference_button_html(
                     token=preference_token,
-                    base_url=base_url
                 )
             else:
                 preference_button_html = ""
@@ -246,7 +241,6 @@ class EmailService:
             if unsubscribe_token:
                 unsubscribe_link_html = self.build_unsubscribe_link_html(
                     token=unsubscribe_token,
-                    base_url=base_url
                 )
             else:
                 logger.warning(f"Failed to generate unsubscribe token for {email_address}, building digest without unsubscribe link")
@@ -269,8 +263,8 @@ class EmailService:
                 "metadata": {
                     "clusters_count": len(clustered_summaries),
                     "articles_count": sum(len(cluster) for cluster in clustered_summaries),
-                    "preference_url": f"{base_url}/preferences/{preference_token}" if preference_token else None,
-                    "unsubscribe_url": f"{base_url}/unsubscribe/{unsubscribe_token}" if unsubscribe_token else None
+                    "preference_url": f"{self.base_url}/preferences/{preference_token}" if preference_token else None,
+                    "unsubscribe_url": f"{self.base_url}/unsubscribe/{unsubscribe_token}" if unsubscribe_token else None
                 }
             }
             
