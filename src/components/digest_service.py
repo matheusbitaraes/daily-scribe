@@ -8,6 +8,7 @@ Separates the concerns of digest generation from email delivery.
 import logging
 import time
 import uuid
+import os
 from typing import Optional, Dict, List
 
 from components.database import DatabaseService
@@ -149,7 +150,9 @@ class DigestService:
             
             notifier = EmailNotifier(email_config)
             subject = f"Daily Scribe Digest {time.strftime('%Y-%m-%d')} [BETA]"
-            notifier.send_digest(html_digest, email_address, subject)
+            
+            editor_email = os.getenv("EMAIL_FROM_EDITOR")
+            notifier.send_digest(html_digest, email_address, editor_email, subject)
             
             # Mark all sent articles in sent_articles table
             digest_id = uuid.uuid4()

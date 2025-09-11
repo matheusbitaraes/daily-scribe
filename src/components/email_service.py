@@ -29,7 +29,7 @@ class EmailService:
         """
         self.db_service = db_service or DatabaseService()
         self.token_manager = SecureTokenManager(self.db_service)
-        self.base_url = os.getenv("BASE_URL", "http://localhost:3000")
+        self.base_url = os.getenv("FRONTEND_URL")
     
     def generate_preference_token(
         self,

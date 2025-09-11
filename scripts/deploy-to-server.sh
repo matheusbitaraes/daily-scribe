@@ -18,7 +18,6 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SERVER_USER="matheus"
 SERVER_HOST="${SERVER_HOST:-192.168.15.55}"
 DEPLOY_PATH="${DEPLOY_PATH:-/home/$SERVER_USER/daily-scribe}"
-PRODUCTION_MODE=false
 MONITORING_ENABLED=true
 SKIP_FIREWALL=true
 SKIP_DOCKER_INSTALL=true
@@ -224,47 +223,19 @@ setup_environment() {
     log_info "Setting up environment configuration..."
     
     # Determine which environment file to use
-    if [[ "$PRODUCTION_MODE" == "true" ]]; then
-        ENV_FILE=".env.production"
-        ENV_SOURCE="$PROJECT_ROOT/.env.production"
-        log_info "Using production environment configuration"
-    else
-        ENV_FILE=".env"
-        ENV_SOURCE="$PROJECT_ROOT/.env.example"
-        log_info "Using development environment configuration"
-    fi
-    
-    # Check if .env file exists on server
-    if ssh "$SERVER_USER@$SERVER_HOST" "test -f '$DEPLOY_PATH/.env'"; then
-        log_warning ".env file already exists on server. Backing up..."
-        ssh "$SERVER_USER@$SERVER_HOST" "cp '$DEPLOY_PATH/.env' '$DEPLOY_PATH/.env.backup.$(date +%Y%m%d_%H%M%S)'"
-    fi
+    ENV_FILE=".env.production"
+    ENV_SOURCE="$PROJECT_ROOT/.env.production"
+    log_info "Using production environment configuration"
     
     # Copy appropriate environment file
-    if [[ "$PRODUCTION_MODE" == "true" ]]; then
-        if [[ -f "$ENV_SOURCE" ]]; then
-            log_info "Copying production environment file to server..."
-            scp "$ENV_SOURCE" "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/.env"
-            log_success "Production environment file deployed"
-        else
-            log_error "Production environment file not found: $ENV_SOURCE"
-            log_info "Please create .env.production file with production settings"
-            exit 1
-        fi
+    if [[ -f "$ENV_SOURCE" ]]; then
+        log_info "Copying production environment file to server..."
+        scp "$ENV_SOURCE" "$SERVER_USER@$SERVER_HOST:$DEPLOY_PATH/.env"
+        log_success "Production environment file deployed"
     else
-        # Copy environment template if .env doesn't exist
-        ssh "$SERVER_USER@$SERVER_HOST" "
-            cd '$DEPLOY_PATH'
-            if [[ ! -f .env ]]; then
-                cp .env.example .env
-                echo 'Created .env file from template'
-            fi
-        "
-        
-        log_warning "Please edit $DEPLOY_PATH/.env on the server with your settings:"
-        echo "  ssh $SERVER_USER@$SERVER_HOST"
-        echo "  cd $DEPLOY_PATH"
-        echo "  nano .env"
+        log_error "Production environment file not found: $ENV_SOURCE"
+        log_info "Please create .env.production file with production settings"
+        exit 1
     fi
     
     log_info "Environment configuration setup completed"
@@ -398,7 +369,6 @@ show_summary() {
     echo "================================================================"
     echo "Server: $SERVER_USER@$SERVER_HOST"
     echo "Deploy Path: $DEPLOY_PATH"
-    echo "Production Mode: $PRODUCTION_MODE"
     echo "Monitoring Enabled: $MONITORING_ENABLED"
     echo ""
     echo "Next Steps:"
@@ -436,14 +406,13 @@ OPTIONS:
     --server HOST          Server hostname or IP (default: $SERVER_HOST)
     --user USER           SSH username (default: $SERVER_USER)
     --path PATH           Deployment path (default: $DEPLOY_PATH)
-    --production          Enable production mode
     --no-monitoring       Skip monitoring setup
     -h, --help           Show this help message
 
 EXAMPLES:
     $0                                          # Deploy with defaults
     $0 --server 192.168.1.100 --user admin     # Custom server and user
-    $0 --production --no-monitoring             # Production without monitoring
+    $0 --no-monitoring                          # Skip monitoring setup
 
 ENVIRONMENT VARIABLES:
     SERVER_HOST           Target server hostname/IP
@@ -519,10 +488,6 @@ while [[ $# -gt 0 ]]; do
         --path)
             DEPLOY_PATH="$2"
             shift 2
-            ;;
-        --production)
-            PRODUCTION_MODE=true
-            shift
             ;;
         --no-monitoring)
             MONITORING_ENABLED=false

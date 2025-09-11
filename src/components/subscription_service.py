@@ -36,7 +36,7 @@ class SubscriptionService:
         self.logger = logging.getLogger(__name__)
         
         # Get base URL from environment or use default (frontend URL, not API URL)
-        self.base_url = os.getenv('BASE_URL', 'http://localhost:3000')
+        self.base_url = os.getenv("FRONTEND_URL")
 
     def generate_verification_token(self) -> str:
         """
@@ -218,9 +218,11 @@ class SubscriptionService:
         </body>
         </html>
         """
+
+        admin_email = os.getenv("EMAIL_FROM_ADMIN")
         
         try:
-            self.email_notifier.send_digest(html_content, email, subject)
+            self.email_notifier.send_digest(html_content, email, admin_email, subject)
             self.logger.info(f"Verification email sent to {email}")
         except Exception as e:
             self.logger.error(f"Failed to send verification email to {email}: {e}")

@@ -8,6 +8,8 @@ delivery tracking, rate limiting, and error handling.
 import logging
 import smtplib
 import time
+import os
+import resend
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Dict, Any, Optional
@@ -25,6 +27,8 @@ class EmailNotifier:
             smtp_config: Email configuration object or dictionary containing SMTP configuration.
         """
         self.logger = logging.getLogger(__name__)
+        self.resend_api_key = os.getenv("RESEND_API_KEY")
+        resend.api_key = self.resend_api_key
         
         # Rate limiting configuration
         self.rate_limit_window = timedelta(minutes=1)  # 1 minute window
@@ -86,7 +90,16 @@ class EmailNotifier:
             self.logger.info(f"Rate limit reached. Waiting {wait_seconds:.1f} seconds...")
             time.sleep(wait_seconds)
 
-    def _send_email_with_retry(self, message: MIMEMultipart, sender_email: str, recipient_email: str) -> bool:
+    def _send_email(self, subject: str, html_content: str, sender_email: str, recipient_email: str) -> bool:
+        r = resend.Emails.send({
+        "from": sender_email,
+        "to": recipient_email,
+        "subject": subject,
+        "html": html_content
+        })
+        return r
+
+    def _send_email_with_retry_deprecated(self, message: MIMEMultipart, sender_email: str, recipient_email: str) -> bool:
         """
         Send email with retry logic.
         
@@ -142,8 +155,46 @@ class EmailNotifier:
                 break
                 
         return False
+    
+    def send_digest(self, digest_content: str, recipient_email: str, sender_email: str, subject: str) -> None:
+        """
+        Send the daily digest to the specified recipient.
 
-    def send_digest(self, digest_content: str, recipient_email: str, subject: str, sender_type: str = 'editor') -> None:
+        Args:
+            digest_content: The content of the daily digest.
+            recipient_email: The email address of the recipient.
+            subject: The subject of the email.
+        """
+        delivery_start_time = datetime.now()
+        
+        try:
+            # Log email preparation
+            self.logger.info(
+                f"📧 Preparing email: from={sender_email}, to={recipient_email}, subject='{subject}'"
+            )
+
+            response = resend.Emails.send({
+                "from": sender_email,
+                "to": recipient_email,
+                "subject": subject,
+                "html": digest_content
+                })
+            
+            if response:
+                delivery_time = (datetime.now() - delivery_start_time).total_seconds()
+                self.logger.info(f"📬 Email delivery completed in {delivery_time:.2f}s")
+            else:
+                raise Exception("Email delivery failed after retries")
+
+        except Exception as e:
+            delivery_time = (datetime.now() - delivery_start_time).total_seconds()
+            self.logger.error(
+                f"❌ Email delivery failed after {delivery_time:.2f}s: "
+                f"to={recipient_email}, error={str(e)}"
+            )
+            raise e
+
+    def send_digest_deprecated(self, digest_content: str, recipient_email: str, subject: str, sender_type: str = 'editor') -> None:
         """
         Send the daily digest to the specified recipient with enhanced error handling and delivery tracking.
 
@@ -189,7 +240,7 @@ class EmailNotifier:
             )
 
             # Send the email with retry logic
-            success = self._send_email_with_retry(message, sender_email, recipient_email)
+            success = self._send_email_with_retry_deprecated(message, sender_email, recipient_email)
             
             if success:
                 delivery_time = (datetime.now() - delivery_start_time).total_seconds()

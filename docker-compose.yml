@@ -13,6 +13,7 @@ services:
     environment:
       - DB_PATH=/data/digest_history.db
       - DB_TIMEOUT=${DB_TIMEOUT:-30}
+      - FRONTEND_URL=${FRONTEND_URL:-https://dailyscribe.news}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
@@ -57,6 +58,7 @@ services:
     restart: unless-stopped
     environment:
       - DB_PATH=/data/digest_history.db
+      - FRONTEND_URL=${FRONTEND_URL:-https://dailyscribe.news}
       - DB_TIMEOUT=${DB_TIMEOUT:-30}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}

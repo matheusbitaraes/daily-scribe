@@ -44,7 +44,9 @@
       - Make a home page with a subscribe button? Or make a subscribe landing page?
       - make an unsubscribe button in the email as well
 - [x] change email provider - now its @dailyscribe.news
-- [ ] Publicly expose frontend so that user preferences can be changed
+- [x] Publicly expose frontend so that user preferences can be changed
+- [ ] Cleanup components/notifier.py
+- [ ] kill config.json
 - [ ] make digest builder admin only
 - [ ] Revamp all the design
       - [ ] home page
