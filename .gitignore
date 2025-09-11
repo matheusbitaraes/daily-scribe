@@ -33,6 +33,9 @@ ENV/
 .env.local
 .env.production
 .env.*.local
+frontend/.env
+frontend/.env.local
+frontend/.env.production
 
 # Database
 data/
