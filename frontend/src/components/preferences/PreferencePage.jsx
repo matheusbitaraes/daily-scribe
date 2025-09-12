@@ -2,7 +2,7 @@
  * Main preference configuration page component
  * Handles token validation and renders the preference form
  */
-import React, { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PreferenceForm from './PreferenceForm';
 import usePreferences from '../../hooks/usePreferences';
@@ -16,6 +16,7 @@ import ErrorBoundary from '../ui/ErrorBoundary';
 import { useToast } from '../ui/SuccessNotification';
 import { device } from '../../utils/performance';
 import '../../styles/preferences.css';
+import Header from '../Header';
 
 const PreferencePage = () => {
   const { token } = useParams();
@@ -218,6 +219,7 @@ const PreferencePage = () => {
   // Main preference form (token is valid and preferences loaded)
   return (
     <ErrorBoundary>
+    <Header />
       <div className={`preference-page ${isMobile ? 'mobile-optimized' : ''}`}>
         <div className="preference-container">
           {/* Skip link for accessibility */}

@@ -16,20 +16,15 @@
 .subscription-form-content {
   background: #ffffff;
   border-radius: 12px;
-  padding: 32px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
   border: 1px solid #e2e8f0;
 }
 
-.subscription-form.compact .subscription-form-content {
-  padding: 24px;
-}
 
 .subscription-form.inline .subscription-form-content {
   background: transparent;
   box-shadow: none;
   border: none;
-  padding: 20px;
 }
 
 /* Header */
@@ -279,9 +274,6 @@
 
 /* Responsive Design */
 @media (max-width: 640px) {
-  .subscription-form-content {
-    padding: 24px 20px;
-  }
   
   .subscription-form-title {
     font-size: 1.5rem;

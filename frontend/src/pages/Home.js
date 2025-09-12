@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import SubscriptionForm from './SubscriptionForm';
+import SubscriptionForm from '../components/SubscriptionForm';
 import './Home.css';
+import Header from '../components/Header';
 
 const Home = () => {
   const [state, setState] = useState({
@@ -153,56 +154,6 @@ const Home = () => {
     loadArticles();
   }, [loadArticles]);
 
-  // Filter handlers
-  const handleCategoryFilter = (categoryId) => {
-    setState(prev => ({
-      ...prev,
-      filters: {
-        ...prev.filters,
-        categories: prev.filters.categories.includes(categoryId)
-          ? prev.filters.categories.filter(id => id !== categoryId)
-          : [...prev.filters.categories, categoryId]
-      },
-      currentPage: 1 // Reset to first page when filtering
-    }));
-  };
-
-  const handleSourceFilter = (sourceId) => {
-    setState(prev => ({
-      ...prev,
-      filters: {
-        ...prev.filters,
-        sources: prev.filters.sources.includes(sourceId)
-          ? prev.filters.sources.filter(id => id !== sourceId)
-          : [...prev.filters.sources, sourceId]
-      },
-      currentPage: 1
-    }));
-  };
-
-  const handleDateFilter = (dateFrom, dateTo) => {
-    setState(prev => ({
-      ...prev,
-      filters: {
-        ...prev.filters,
-        dateFrom,
-        dateTo
-      },
-      currentPage: 1
-    }));
-  };
-
-  const handleSearchFilter = (search) => {
-    setState(prev => ({
-      ...prev,
-      filters: {
-        ...prev.filters,
-        search
-      },
-      currentPage: 1
-    }));
-  };
-
   const clearAllFilters = () => {
     setState(prev => ({
       ...prev,
@@ -214,16 +165,6 @@ const Home = () => {
         search: ''
       },
       currentPage: 1
-    }));
-  };
-
-  const toggleFilterSection = (section) => {
-    setState(prev => ({
-      ...prev,
-      expandedSections: {
-        ...prev.expandedSections,
-        [section]: !prev.expandedSections[section]
-      }
     }));
   };
 
@@ -261,15 +202,12 @@ const Home = () => {
   });
 
   return (
-    <div className="home-page">
-      <div className="home-header">
-        <h1>Daily Scribe</h1>
-        <p>Your curated news articles from trusted sources</p>
-      </div>
-
-      {/* Newsletter Subscription Section */}
-      <section className="subscription-section">
-        <SubscriptionForm 
+    <>
+      <Header />
+      <div className="home-page">
+        {/* Newsletter Subscription Section */}
+        <section className="subscription-section">
+          <SubscriptionForm 
           variant="inline"
           className="home-subscription-form"
           onSuccess={(email) => {
@@ -375,6 +313,7 @@ const Home = () => {
         </main>
       </div>
     </div>
+    </>
   );
 };
 

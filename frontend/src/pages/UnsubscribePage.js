@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import './UnsubscribePage.css';
+import Header from '../components/Header';
 
 const UnsubscribePage = () => {
   const { token } = useParams();
@@ -241,16 +242,19 @@ const UnsubscribePage = () => {
   );
 
   return (
-    <div className="unsubscribe-page">
-      <div className="unsubscribe-container">
-        <div className="unsubscribe-content">
-          {unsubscribeState.isLoading && renderLoadingState()}
-          {unsubscribeState.isConfirmationShown && !unsubscribeState.isLoading && renderConfirmationState()}
-          {unsubscribeState.isSuccess && renderSuccessState()}
-          {unsubscribeState.error && !unsubscribeState.isConfirmationShown && renderErrorState()}
+    <>
+      <Header />
+      <div className="unsubscribe-page">
+        <div className="unsubscribe-container">
+          <div className="unsubscribe-content">
+            {unsubscribeState.isLoading && renderLoadingState()}
+            {unsubscribeState.isConfirmationShown && !unsubscribeState.isLoading && renderConfirmationState()}
+            {unsubscribeState.isSuccess && renderSuccessState()}
+            {unsubscribeState.error && !unsubscribeState.isConfirmationShown && renderErrorState()}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
