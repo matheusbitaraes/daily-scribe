@@ -45,10 +45,14 @@
       - make an unsubscribe button in the email as well
 - [x] change email provider - now its @dailyscribe.news
 - [x] Publicly expose frontend so that user preferences can be changed
-- [ ] Cleanup components/notifier.py
+- [x] Cleanup components/notifier.py
 - [ ] kill config.json
 - [ ] make digest builder admin only
 - [ ] Revamp all the design
       - [ ] home page
       - [ ] subscribe
       - [ ] unsubscribe
+      - [ ] preferences
+- [ ] titles on portuguese
+- [ ] Improva grafana logs and dashboards
+- [ ] migrate db to elasticsearch?

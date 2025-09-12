@@ -28,11 +28,9 @@ class SubscriptionService:
         Args:
             database_service: Database service instance
         """
-        config = load_config()
-        config_dict = config.email.__dict__
 
         self.db_service = database_service
-        self.email_notifier = EmailNotifier(config_dict)
+        self.email_notifier = EmailNotifier()
         self.logger = logging.getLogger(__name__)
         
         # Get base URL from environment or use default (frontend URL, not API URL)

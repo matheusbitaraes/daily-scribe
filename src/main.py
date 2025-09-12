@@ -7,7 +7,6 @@ This module handles the scheduling and execution of the daily digest generation.
 import sys
 import logging
 import time
-import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -128,7 +127,6 @@ def summarize_articles(config_path: Optional[str] = None) -> None:
 
 
 def send_digest(
-    config_path: Optional[str] = None,
     email_address: Optional[str] = None,
     force: bool = False,
 ) -> None:
@@ -141,14 +139,10 @@ def send_digest(
     logger.info("Starting digest generation and sending...")
     
     try:
-        config = load_config(config_path)
-        email_address = email_address or config.email.to
-        
         # Use DigestService to handle digest generation and sending
         digest_service = DigestService()
         result = digest_service.send_digest_to_user(
             email_address=email_address,
-            email_config=config.email,  # Pass the EmailConfig object
             force=force,
             use_alt_method=False
         )
@@ -185,7 +179,6 @@ def summarize_articles_command(config_path: Optional[str] = typer.Option(None, "
 
 @app.command(name="send-digest")
 def send_digest_command(
-    config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to configuration file"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Generate the digest but do not send the email"),
     force: bool = typer.Option(False, "--force", help="Force sending the digest even if one has been sent today"),
 ):
@@ -195,7 +188,7 @@ def send_digest_command(
     setup_logging()
 
     if dry_run:
-        send_digest(config_path, force=force)
+        send_digest(force=force)
     else:
         db_service = DatabaseService()
         email_addresses = db_service.get_all_user_email_addresses()
@@ -204,7 +197,7 @@ def send_digest_command(
             return
         for email in email_addresses:
             try:
-                send_digest(config_path, email_address=email, force=force)
+                send_digest(email_address=email, force=force)
             except Exception as e:
                 logging.getLogger(__name__).error(f"Failed to send digest to {email}: {e}")
 
