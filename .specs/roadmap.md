@@ -46,7 +46,7 @@
 - [x] change email provider - now its @dailyscribe.news
 - [x] Publicly expose frontend so that user preferences can be changed
 - [x] Cleanup components/notifier.py
-- [ ] kill config.json
+- [x] kill config.json
 - [ ] make digest builder admin only
 - [ ] Revamp all the design
       - [ ] home page

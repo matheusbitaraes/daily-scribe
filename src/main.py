@@ -4,6 +4,7 @@ Main entry point for Daily Scribe application.
 This module handles the scheduling and execution of the daily digest generation.
 """
 
+import os
 import sys
 import logging
 import time
@@ -16,7 +17,6 @@ import typer
 # Add the src directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from components.config import load_config
 from components.database import DatabaseService
 from components.feed_processor import RSSFeedProcessor
 from components.scraper import ArticleScraper
@@ -41,7 +41,7 @@ def setup_logging() -> None:
     )
 
 
-def fetch_news(config_path: Optional[str] = None) -> None:
+def fetch_news() -> None:
     """
     Fetch news articles, extract content, and save to DB (no summarization).
     """
@@ -90,16 +90,15 @@ def fetch_news(config_path: Optional[str] = None) -> None:
         logger.error(f"An error occurred during news fetch: {e}")
 
 
-def summarize_articles(config_path: Optional[str] = None) -> None:
+def summarize_articles() -> None:
     """
     Summarize articles that have been fetched and stored.
     """
     logger = logging.getLogger(__name__)
     logger.info("Starting article summarization...")
     try:
-        config = load_config(config_path)
         db_service = DatabaseService()
-        summarizer = Summarizer(config.gemini)
+        summarizer = Summarizer()
         
         articles_to_summarize = db_service.get_articles_to_summarize()
         logger.info(f"Found {len(articles_to_summarize)} articles to summarize.")
@@ -188,7 +187,8 @@ def send_digest_command(
     setup_logging()
 
     if dry_run:
-        send_digest(force=force)
+        email_address = os.getenv("TEST_EMAIL_ADDRESS")
+        send_digest(email_address, force=force)
     else:
         db_service = DatabaseService()
         email_addresses = db_service.get_all_user_email_addresses()
@@ -209,40 +209,6 @@ def run_digest(config_path: Optional[str] = typer.Option(None, "--config", "-c",
     """
     setup_logging()
     fetch_news(config_path)
-
-
-@app.command(name="schedule")
-def schedule_digest(config_path: Optional[str] = typer.Option(None, "--config", "-c", help="Path to configuration file")):
-    """
-    Schedules the daily digest generation process.
-    """
-    setup_logging()
-    logger = logging.getLogger(__name__)
-
-    try:
-        # Load configuration to get schedule details
-        config = load_config(config_path)
-        schedule_time = f"{config.schedule.hour:02d}:{config.schedule.minute:02d}"
-        logger.info(f"Scheduling daily digest for {schedule_time}.")
-
-        # Schedule the job
-        schedule.every().day.at(schedule_time).do(fetch_news, config_path=config_path)
-
-        # Run the scheduler
-        while True:
-            schedule.run_pending()
-            time.sleep(1)
-
-    except FileNotFoundError as e:
-        logger.error(f"Configuration file not found: {e}")
-        sys.exit(1)
-    except ValueError as e:
-        logger.error(f"Configuration validation failed: {e}")
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"An unexpected error occurred: {e}")
-        sys.exit(1)
-
 
 @app.command(name="generate-article-embeddings")
 def generate_article_embeddings_command(
@@ -265,7 +231,6 @@ def generate_article_embeddings_command(
 
 @app.command(name="full-run")
 def full_run_command(
-    config_path: str = typer.Option("config.json", "--config", "-c", help="Path to configuration file"),
     openai_api_key: str = typer.Option(None, "--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key (or set OPENAI_API_KEY env var)")
 ):
     """
@@ -274,9 +239,9 @@ def full_run_command(
     setup_logging()
     logger = logging.getLogger(__name__)
     logger.info("[1/3] Fetching articles...")
-    fetch_news(config_path)
+    fetch_news()
     logger.info("[2/3] Summarizing articles...")
-    summarize_articles(config_path)
+    summarize_articles()
     logger.info("[3/3] Generating embeddings...")
     if not openai_api_key:
         import os

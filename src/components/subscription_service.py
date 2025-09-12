@@ -6,15 +6,12 @@ token generation, and email notifications.
 """
 
 import secrets
-import hashlib
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
 import os
 
 from components.database import DatabaseService
 from components.notifier import EmailNotifier
-from components.config import load_config
 from components.env_loader import get_jwt_secret_key
 
 

@@ -11,7 +11,6 @@ import datetime
 import os
 import google.generativeai as genai
 import openai
-from components.config import GeminiConfig
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any
 
@@ -26,7 +25,7 @@ class NewsMetadata(BaseModel):
 class Summarizer:
     """Handles summarizing text using the Gemini API and OpenAI API."""
 
-    def __init__(self, config: GeminiConfig, openai_api_key: str = None):
+    def __init__(self):
         """
         Initialize the summarizer.
 
@@ -35,12 +34,13 @@ class Summarizer:
             openai_api_key: OpenAI API key (optional, will try to get from environment if not provided).
         """
         self.logger = logging.getLogger(__name__)
-        self.config = config
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self._initialize_gemini()
         
         # Initialize OpenAI client
         self.openai_client = None
-        self._initialize_openai(openai_api_key)
+        self._initialize_openai()
         
         # Store quota exceeded status for each model in a dict
         self._quota_exceeded = {
@@ -75,27 +75,19 @@ class Summarizer:
         """
         try:
             self.logger.info("Initializing Gemini client.")
-            genai.configure(api_key=self.config.api_key)
+            genai.configure(api_key=self.gemini_api_key)
             self.logger.info("Gemini client initialized successfully.")
         except Exception as e:
             self.logger.error(f"Failed to initialize Gemini client: {e}")
             raise
 
-    def _initialize_openai(self, api_key: str = None):
+    def _initialize_openai(self):
         """
         Initialize the OpenAI client.
         """
         try:
-            openai_key = api_key or os.environ.get("OPENAI_API_KEY")
-            if openai_key:
-                self.openai_client = openai.OpenAI(api_key=openai_key)
-                self.logger.info("OpenAI client initialized successfully.")
-            else:
-                self.logger.warning("OpenAI API key not provided. OpenAI models will be skipped.")
-                # Mark all OpenAI models as quota exceeded so they won't be used
-                for model in self._model_order:
-                    if model.startswith('gpt-'):
-                        self._quota_exceeded[model] = True
+            self.openai_client = openai.OpenAI(api_key=self.openai_api_key)
+            self.logger.info("OpenAI client initialized successfully.")
         except Exception as e:
             self.logger.error(f"Failed to initialize OpenAI client: {e}")
             # Mark all OpenAI models as quota exceeded
