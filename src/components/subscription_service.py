@@ -178,36 +178,41 @@ class SubscriptionService:
         subject = "Confirm your Daily Scribe subscription"
         
         html_content = f"""
-        <html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Bem-vindo ao Daily Scribe</title>
+        </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                <h2 style="color: #2c3e50;">Welcome to Daily Scribe!</h2>
+                <h2 style="color: #2c3e50;">Bem-vindo ao Daily Scribe!</h2>
                 
-                <p>Thank you for subscribing to our daily news digest. To complete your subscription, please click the button below to verify your email address:</p>
+                <p>Obrigado por se inscrever em nosso resumo diário de notícias. Para completar sua inscrição, por favor clique no botão abaixo para verificar seu endereço de email:</p>
                 
                 <div style="text-align: center; margin: 30px 0;">
                     <a href="{verification_url}" 
-                       style="background-color: #3498db; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-                        Verify My Email
+                    style="background-color: #3498db; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                        Verificar Meu Email
                     </a>
                 </div>
                 
-                <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+                <p>Se o botão não funcionar, você pode copiar e colar este link no seu navegador:</p>
                 <p style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; word-break: break-all;">
                     {verification_url}
                 </p>
                 
-                <p><strong>This verification link will expire in 24 hours.</strong></p>
+                <p><strong>Este link de verificação expirará em 24 horas.</strong></p>
                 
                 <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
                 
                 <p style="font-size: 12px; color: #666;">
-                    If you didn't request this subscription, you can safely ignore this email.
+                    Se você não solicitou esta inscrição, pode ignorar este email com segurança.
                 </p>
                 
                 <p style="font-size: 12px; color: #666;">
-                    Best regards,<br>
-                    The Daily Scribe Team
+                    Atenciosamente,<br>
+                    Equipe Daily Scribe
                 </p>
             </div>
         </body>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import './UnsubscribePage.css';
 import Header from '../components/Header';
 
 const UnsubscribePage = () => {

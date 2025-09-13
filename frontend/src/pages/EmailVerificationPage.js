@@ -1,8 +1,21 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import './EmailVerificationPage.css';
 import Header from '../components/Header';
+
+import {
+  Box,
+  Paper,
+  Typography,
+  Button,
+  CircularProgress,
+  List,
+  ListItem,
+  ListItemText,
+  Link,
+  Stack,
+  Divider
+} from '@mui/material';
 
 const EmailVerificationPage = () => {
   const [searchParams] = useSearchParams();
@@ -117,134 +130,86 @@ const EmailVerificationPage = () => {
   return (
     <>
       <Header />
-      <div className="email-verification-page">
-        <div className="verification-container">
-          <div className="verification-content">
-            {/* Loading State */}
-            {verificationState.isVerifying && (
-              <div className="verification-loading">
-                <div className="loading-spinner"></div>
-                <h1>Verifying Your Email</h1>
-                <p>Please wait while we confirm your subscription...</p>
-              </div>
-            )}
+      <Paper elevation={2} 
+        sx={{
+          p: 4,
+          borderRadius: 2,
+          borderColor: 'divider',
+          maxWidth: 600,
+          mx: 'auto'
+        }}>
+        <Box display="flex" flexDirection="column" alignItems="center" py={8}>
+          
+          {/* Loading State */}
+          {verificationState.isVerifying && (
+            <Box textAlign="center">
+              <CircularProgress size={64} color="primary" />
+              <Typography variant="h3" component="h1" gutterBottom mt={3}>
+                Verificando Seu Email
+              </Typography>
+              <Typography variant="body1" color="text.secondary">
+                Aguarde enquanto confirmamos sua inscrição...
+              </Typography>
+            </Box>
+          )}
 
-            {/* Success State */}
-            {verificationState.isSuccess && (
-              <div className="verification-success">
-                <div className="success-icon">
-                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="12" cy="12" r="11" fill="#48BB78"/>
-                    <path d="M8 12L11 15L16 10" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <h1>Email Verified Successfully!</h1>
-                <div className="success-details">
-                  <p className="success-message">
-                    Thank you for subscribing to Daily Scribe! Your email has been verified and you're now signed up to receive our curated newsletter.
-                  </p>
-                  {verificationState.email && (
-                    <p className="verified-email">
-                      <strong>Verified Email:</strong> {verificationState.email}
-                    </p>
-                  )}
-                  <div className="success-info">
-                    <div className="info-item">
-                      <h3>What's Next?</h3>
-                      <ul>
-                        <li>You'll receive our daily digest of curated news articles</li>
-                        <li>We'll send you the latest insights from trusted sources</li>
-                        <li>You can update your preferences or unsubscribe at any time</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-                <div className="success-actions">
-                  <button 
-                    onClick={handleGoHome}
-                    className="btn-primary"
-                  >
-                    Browse Articles
-                  </button>
-                  <a 
-                    href="mailto:support@dailyscribe.com" 
-                    className="btn-secondary"
-                  >
-                    Contact Support
-                  </a>
-                </div>
-              </div>
-            )}
+          {/* Success State */}
+          {verificationState.isSuccess && (
+            <Box textAlign="center" maxWidth="lg">     
+            
+            <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=check_circle_unread" />         
+            <span class="material-symbols-outlined" style={{ fontSize: 48 }}>
+            check_circle_unread
+            </span>      
+            <Typography variant="h4" component="h4"  sx={{
+                fontWeight: 400,
+              }} gutterBottom>
+                Email Verificado com Sucesso!
+              </Typography>
+              
+              <Box mt={2}>
+                <Typography variant="body1" paragraph>
+                  Obrigado por se inscrever no Daily Scribe! Seu email foi verificado e você receberá nossa newsletter curada.
+                </Typography>
+                
+                {verificationState.email && (
+                  <Typography variant="body2" color="text.secondary" mt={5}>
+                    <strong>Email Verificado:</strong> {verificationState.email}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          )}
 
-            {/* Error State */}
-            {verificationState.error && (
-              <div className="verification-error">
-                <div className="error-icon">
-                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="12" cy="12" r="11" fill="#E53E3E"/>
-                    <path d="M15 9L9 15M9 9L15 15" stroke="white" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                </div>
-                <h1>Verification Failed</h1>
-                <div className="error-details">
-                  <p className="error-message">
-                    {typeof verificationState.error === 'string' 
-                      ? verificationState.error 
-                      : 'An unexpected error occurred.'}
-                  </p>
-                  <div className="error-help">
-                    <h3>Common Issues:</h3>
-                    <ul>
-                      <li><strong>Expired Link:</strong> Verification links expire after 24 hours</li>
-                      <li><strong>Already Verified:</strong> You may have already confirmed this email</li>
-                      <li><strong>Broken Link:</strong> The email link may have been corrupted</li>
-                    </ul>
-                  </div>
-                </div>
-                <div className="error-actions">
-                  <button 
-                    onClick={handleSubscribeAgain}
-                    className="btn-primary"
-                  >
-                    Subscribe Again
-                  </button>
-                  <button 
-                    onClick={handleRetryVerification}
-                    className="btn-secondary"
-                  >
-                    Retry Verification
-                  </button>
-                  <button 
-                    onClick={handleGoHome}
-                    className="btn-tertiary"
-                  >
-                    Go to Home
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Error State */}
+          {verificationState.error && (
+            <Box textAlign="center" maxWidth="lg">
+              <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=error" />
+              <span class="material-symbols-outlined" style={{ fontSize: 48 }}>
+              error
+              </span>
+              
+              <Typography variant="h4" component="h4"  sx={{
+                fontWeight: 400,
+              }} gutterBottom>
+                Falha na Verificação
+              </Typography>
 
-          {/* Footer */}
-          <footer className="verification-footer">
-            <div className="footer-content">
-              <p>
-                Having trouble? 
-                <a href="mailto:support@dailyscribe.com" className="support-link">
-                  Contact our support team
-                </a>
-              </p>
-              <div className="footer-links">
-                <a href="/privacy" className="footer-link">Privacy Policy</a>
-                <a href="/terms" className="footer-link">Terms of Service</a>
-                <button onClick={handleGoHome} className="footer-link">
-                  Back to Daily Scribe
-                </button>
-              </div>
-            </div>
-          </footer>
-        </div>
-      </div>
+              <Typography variant="body1" color="text.secondary" mb={4}>
+                Infelizmente, não conseguimos verificar seu email. Os links de verificação expiram após 24 horas, seu email pode já ter sido verificado ou o link pode estar corrompido.
+              </Typography>
+              
+              <Button 
+                  onClick={handleSubscribeAgain}
+                  variant="contained"
+                  size="medium"
+                >
+                  Inscrever-se Novamente
+                </Button>
+            </Box>
+          )}
+        </Box>
+      </Paper>
     </>
   );
 };

@@ -2,7 +2,6 @@ import  { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import DigestDatePicker from './DigestDatePicker';
 import DigestPreview from './DigestPreview';
-import './DigestSimulator.css';
 
 const DigestSimulator = () => {
   // State management for the simulator

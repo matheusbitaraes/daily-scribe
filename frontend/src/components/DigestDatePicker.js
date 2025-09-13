@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import './DigestDatePicker.css';
 
 const DigestDatePicker = ({ 
   availableDates = [], 
