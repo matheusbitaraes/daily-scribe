@@ -7,6 +7,11 @@ import { useForm } from 'react-hook-form';
 import CategorySelector from './CategorySelector';
 import SourceSelector from './SourceSelector';
 import KeywordManager from './KeywordManager';
+import {
+  Box,
+  Paper,
+  Grid
+} from '@mui/material';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
@@ -50,10 +55,10 @@ const PreferenceForm = ({
   useEffect(() => {
     if (preferences) {
       // Ensure sources are numbers to match the available sources format
-      const sources = (preferences.enabled_sources || []).map(s => 
+      const sources = (preferences.enabled_sources || []).map(s =>
         typeof s === 'string' ? parseInt(s, 10) : s
       ).filter(s => !isNaN(s));
-            
+
       setValue('categories', preferences.enabled_categories || []);
       setValue('sources', sources);
       setValue('keywords', preferences.keywords || []);
@@ -69,19 +74,19 @@ const PreferenceForm = ({
       keywords: data.keywords || [],
       max_news_per_category: preferences?.max_news_per_category || 10
     };
-    
+
     onSave(apiData);
   };
 
   // Handle input changes with preference updates
   const handleChange = (field, value) => {
     setValue(field, value, { shouldDirty: true });
-    
+
     const updatedData = {
       ...watchedValues,
       [field]: value
     };
-    
+
     // Map frontend form fields to API format
     const apiData = {
       enabled_categories: updatedData.categories || [],
@@ -89,7 +94,7 @@ const PreferenceForm = ({
       keywords: updatedData.keywords || [],
       max_news_per_category: preferences?.max_news_per_category || 10
     };
-    
+
     // Update preferences through parent component
     onPreferenceChange(apiData);
   };
@@ -99,18 +104,18 @@ const PreferenceForm = ({
     const fetchAvailableOptions = async () => {
       setIsLoading(true);
       setLoadError(null);
-      
+
       try {
         const response = await fetch(`${API_BASE_URL}/preferences-options`);
-        
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const data = await response.json();
 
         console.log('Fetched available options:', data);
-        
+
         setAvailableOptions({
           categories: data.categories || [],
           sources: data.sources || []
@@ -118,12 +123,12 @@ const PreferenceForm = ({
       } catch (error) {
         console.error('Error fetching available options:', error);
         setLoadError(error.message);
-        
+
         // Fallback to mock data if API fails
         setAvailableOptions({
           categories: [
             'Technology',
-            'Politics', 
+            'Politics',
             'Sports',
             'Entertainment',
             'Science and Health',
@@ -153,74 +158,47 @@ const PreferenceForm = ({
   }
 
   return (
-    <form className="preference-form" onSubmit={handleSubmit(onSubmit)}>
-      {/* Category Selection */}
-      <div className="form-section">
-        <CategorySelector
-          selectedCategories={watchedValues.categories || []}
-          availableCategories={availableOptions.categories || []}
-          onChange={(categories) => handleChange('categories', categories)}
-          error={errors.categories}
-          register={register}
-        />
-      </div>
+    <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+      <Grid container spacing={2}>
+        {/* Category Selection */}
+        <Grid size={6}>
+          <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+            <CategorySelector
+              selectedCategories={watchedValues.categories || []}
+              availableCategories={availableOptions.categories || []}
+              onChange={(categories) => handleChange('categories', categories)}
+              error={errors.categories}
+              register={register}
+            />
+          </Paper>
+        </Grid>
 
-      {/* Source Selection */}
-      <div className="form-section">
-        <SourceSelector
-          selectedSources={watchedValues.sources || []}
-          availableSources={availableOptions.sources || []}
-          onChange={(sources) => handleChange('sources', sources)}
-          error={errors.sources}
-          register={register}
-        />
-      </div>
+        {/* Keyword Management */}
+        <Grid size={6} >
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <KeywordManager
+              keywords={watchedValues.keywords || []}
+              onChange={(keywords) => handleChange('keywords', keywords)}
+              error={errors.keywords}
+              register={register}
+            />
+          </Paper>
+        </Grid>
 
-      {/* Keyword Management */}
-      <div className="form-section">
-        <KeywordManager
-          keywords={watchedValues.keywords || []}
-          onChange={(keywords) => handleChange('keywords', keywords)}
-          error={errors.keywords}
-          register={register}
-        />
-      </div>
-
-      {/* Form Actions */}
-      {/* <div className="form-actions">
-        <div className="action-group">
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={!isDirty}
-          >
-            Salvar Agora
-          </button>
-          
-          <button
-            type="button"
-            onClick={handleReset}
-            className="btn btn-secondary"
-          >
-            Redefinir
-          </button>
-        </div>
-        
-        <div className="form-status">
-          {isDirty && (
-            <span className="status-text status-dirty">
-              📝 Alterações serão salvas automaticamente
-            </span>
-          )}
-          
-          {!isDirty && (
-            <span className="status-text status-saved">
-              ✅ Preferências salvas
-            </span>
-          )}
-        </div>
-      </div> */}
-    </form>
+        {/* Source Selection */}
+        <Grid size={12}>
+          <Paper elevation={2} sx={{ p: 3 }}>
+            <SourceSelector
+              selectedSources={watchedValues.sources || []}
+              availableSources={availableOptions.sources || []}
+              onChange={(sources) => handleChange('sources', sources)}
+              error={errors.sources}
+              register={register}
+            />
+          </Paper>
+        </Grid>
+      </Grid>
+    </Box>
   );
 };
 

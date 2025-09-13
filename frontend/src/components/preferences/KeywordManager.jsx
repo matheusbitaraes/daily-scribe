@@ -1,9 +1,28 @@
+import React, { useState } from 'react';
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Alert,
+  Chip,
+  Stack,
+  Paper,
+  InputAdornment,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
+} from '@mui/material';
+
 /**
  * Keyword management component
  * Allows users to add/remove keywords for content filtering
  */
-import React, { useState } from 'react';
-
 const KeywordManager = ({
   keywords = [],
   onChange,
@@ -12,6 +31,7 @@ const KeywordManager = ({
 }) => {
   const [newKeyword, setNewKeyword] = useState('');
   const [keywordError, setKeywordError] = useState('');
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
   // Predefined suggestions for common keywords
   const keywordSuggestions = [
@@ -81,9 +101,8 @@ const KeywordManager = ({
   };
 
   const handleClearAll = () => {
-    if (window.confirm('Tem certeza que deseja remover todas as palavras-chave?')) {
-      onChange([]);
-    }
+    setConfirmClearOpen(false);
+    onChange([]);
   };
 
   // Filter suggestions to show only those not already added
@@ -91,27 +110,30 @@ const KeywordManager = ({
     suggestion => !keywords.includes(suggestion)
   );
 
+  const isMaxReached = keywords.length >= 20;
+  const canAdd = newKeyword.trim() && !isMaxReached;
+
   return (
-    <div className="keyword-manager">
-      <div className="section-header">
-        <h3>🔍 Palavras-chave</h3>
-        <p className="section-description">
-          Adicione palavras-chave para personalizar ainda mais seu conteúdo. 
-          O sistema priorizará notícias que contenham essas palavras.
-        </p>
-      </div>
+    <Box>
+      <Typography variant="h5" component="h3" gutterBottom>
+        Palavras-chave
+      </Typography>
+      
+      <Typography variant="body2" color="text.secondary" paragraph>
+        Adicione palavras-chave para personalizar ainda mais seu conteúdo. 
+        O sistema priorizará notícias que contenham essas palavras.
+      </Typography>
 
       {error && (
-        <div className="field-error">
+        <Alert severity="error" sx={{ mb: 2 }}>
           {error.message}
-        </div>
+        </Alert>
       )}
 
       {/* Add keyword input */}
-      <div className="keyword-input-section">
-        <div className="keyword-input-group">
-          <input
-            type="text"
+      <Stack spacing={2} sx={{ mb: 3 }}>
+        <Stack direction="row" spacing={1}>
+          <TextField
             value={newKeyword}
             onChange={(e) => {
               setNewKeyword(e.target.value);
@@ -119,105 +141,136 @@ const KeywordManager = ({
             }}
             onKeyPress={handleKeyPress}
             placeholder="Digite uma palavra-chave..."
-            className={`keyword-input ${keywordError ? 'error' : ''}`}
-            maxLength={50}
-            aria-label="Nova palavra-chave"
-            disabled={keywords.length >= 20}
+            size="small"
+            error={!!keywordError}
+            helperText={keywordError}
+            disabled={isMaxReached}
+            inputProps={{ maxLength: 50 }}
+            sx={{ flexGrow: 1 }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <Typography variant="caption" color="text.secondary">
+                    {keywords.length}/20
+                  </Typography>
+                </InputAdornment>
+              ),
+            }}
           />
-          <button
-            type="button"
+          
+          <Button
             onClick={handleAddKeyword}
-            className="btn btn-primary btn-small"
-            disabled={!newKeyword.trim() || keywords.length >= 20}
+            variant="contained"
+            size="small"
+            disabled={!canAdd}
           >
             Adicionar
-          </button>
-        </div>
+          </Button>
+        </Stack>
         
-        {keywordError && (
-          <div className="field-error">
-            {keywordError}
-          </div>
-        )}
-        
-        <div className="keyword-input-help">
-          <small>
-            {keywords.length}/20 palavras-chave • 
-            Pressione Enter ou clique em "Adicionar"
-          </small>
-        </div>
-      </div>
+        <Typography variant="caption" color="text.secondary">
+          Pressione Enter ou clique em "Adicionar"
+        </Typography>
+      </Stack>
 
       {/* Current keywords */}
       {keywords.length > 0 && (
-        <div className="current-keywords">
-          <div className="keywords-header">
-            <h4>Suas palavras-chave ({keywords.length})</h4>
-            <button
-              type="button"
-              onClick={handleClearAll}
-              className="btn btn-small btn-text"
+        <Box sx={{ mb: 3 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+            <Typography variant="h6" component="h4">
+              Suas palavras-chave ({keywords.length})
+            </Typography>
+            <Button
+              onClick={() => setConfirmClearOpen(true)}
+              variant="text"
+              size="small"
+              color="error"
             >
               Limpar todas
-            </button>
-          </div>
+            </Button>
+          </Stack>
           
-          <div className="keyword-tags">
-            {keywords.map((keyword, index) => (
-              <div key={`${keyword}-${index}`} className="keyword-tag">
-                <span className="keyword-text">{keyword}</span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveKeyword(keyword)}
-                  className="keyword-remove"
-                  aria-label={`Remover palavra-chave ${keyword}`}
-                >
-                  ✕
-                </button>
-                <input
-                  type="hidden"
-                  {...register('keywords')}
-                  value={keyword}
+          <Paper variant="outlined" sx={{ p: 2 }}>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {keywords.map((keyword, index) => (
+                <Chip
+                  key={`${keyword}-${index}`}
+                  label={keyword}
+                  onDelete={() => handleRemoveKeyword(keyword)}
+                  color="primary"
+                  variant="filled"
+                  size="small"
                 />
-              </div>
-            ))}
-          </div>
-        </div>
+              ))}
+            </Stack>
+          </Paper>
+          
+          {/* Hidden inputs for form registration */}
+          {keywords.map((keyword, index) => (
+            <input
+              key={`hidden-${keyword}-${index}`}
+              type="hidden"
+              {...register('keywords')}
+              value={keyword}
+            />
+          ))}
+        </Box>
       )}
 
       {/* Keyword suggestions */}
-      {availableSuggestions.length > 0 && keywords.length < 20 && (
-        <div className="keyword-suggestions">
-          <h4>Sugestões</h4>
-          <div className="suggestion-tags">
-            {availableSuggestions.slice(0, 20).map((suggestion) => (
-              <button
-                key={suggestion}
-                type="button"
-                onClick={() => handleSuggestionClick(suggestion)}
-                className="suggestion-tag"
-                aria-label={`Adicionar palavra-chave sugerida ${suggestion}`}
-              >
-                + {suggestion}
-              </button>
-            ))}
-          </div>
-        </div>
+      {availableSuggestions.length > 0 && !isMaxReached && (
+        <Accordion sx={{ mb: 3 }}>
+          <AccordionSummary
+            aria-controls="suggestions-content"
+            id="suggestions-header"
+          >
+            <Typography variant="h6" component="h4">
+              Sugestões ({availableSuggestions.length})
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                {availableSuggestions.slice(0, 20).map((suggestion) => (
+                  <Chip
+                    key={suggestion}
+                    label={suggestion}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    variant="outlined"
+                    size="small"
+                    clickable
+                  />
+                ))}
+              </Stack>
+            </Paper>
+          </AccordionDetails>
+        </Accordion>
       )}
 
-      {/* Summary */}
-      <div className="selection-summary">
-        {keywords.length === 0 ? (
-          <span className="summary-text summary-empty">
-            Nenhuma palavra-chave adicionada. O sistema usará as configurações padrão.
-          </span>
-        ) : (
-          <span className="summary-text">
-            {keywords.length} palavra(s)-chave ativa(s): {keywords.join(', ')}
-          </span>
-        )}
-      </div>
-    </div>
+      {/* Confirmation Dialog */}
+      <Dialog
+        open={confirmClearOpen}
+        onClose={() => setConfirmClearOpen(false)}
+        aria-labelledby="confirm-clear-title"
+      >
+        <DialogTitle id="confirm-clear-title">
+          Limpar todas as palavras-chave?
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Tem certeza que deseja remover todas as palavras-chave? Esta ação não pode ser desfeita.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmClearOpen(false)} color="inherit">
+            Cancelar
+          </Button>
+          <Button onClick={handleClearAll} color="error" variant="contained">
+            Confirmar
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 };
 

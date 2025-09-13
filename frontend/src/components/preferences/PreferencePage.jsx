@@ -12,11 +12,18 @@ import TokenErrorPage from '../errors/TokenErrorPage';
 import ExpiredTokenPage from '../errors/ExpiredTokenPage';
 import AccessDeniedPage from '../errors/AccessDeniedPage';
 import LoadingSpinner from '../ui/LoadingSpinner';
-import ErrorBoundary from '../ui/ErrorBoundary';
 import { useToast } from '../ui/SuccessNotification';
 import { device } from '../../utils/performance';
 import '../../styles/preferences.css';
 import Header from '../Header';
+import {
+  Box,
+  Container,
+  Typography,
+  CircularProgress,
+  Backdrop,
+  Alert
+} from '@mui/material';
 
 const PreferencePage = () => {
   const { token } = useParams();
@@ -218,72 +225,69 @@ const PreferencePage = () => {
 
   // Main preference form (token is valid and preferences loaded)
   return (
-    <ErrorBoundary>
-    <Header />
-      <div className={`preference-page ${isMobile ? 'mobile-optimized' : ''}`}>
-        <div className="preference-container">
-          {/* Skip link for accessibility */}
-          <a href="#main-content" className="skip-link">
-            Pular para o conteúdo principal
-          </a>
-          
-          <header className="preference-header">
-            <h1>📧 Personalize suas notícias</h1>
-            <p className="header-description">
-              Configure suas categorias, fontes e palavras-chave para receber 
-              notícias mais relevantes no seu Daily Scribe.
-            </p>
-            {isMobile && (
-              <p className="mobile-tip">
-                💡 Toque nos itens para selecioná-los
-              </p>
-            )}
-          </header>
+    <Box>
+  <Header />
+  <Container maxWidth="lg">
+    {/* Header Section */}
+    <Box component="header" textAlign="center" py={4}>
+      <Typography variant="h4" component="h1" gutterBottom>
+        Personalize suas notícias
+      </Typography>
+      <Typography variant="body1" color="text.secondary" maxWidth="md" mx="auto" paragraph>
+        Configure suas categorias, fontes e palavras-chave para receber 
+        notícias mais relevantes no seu Daily Scribe.
+      </Typography>
+      {isMobile && (
+        <Typography variant="body2" color="info.main">
+          Toque nos itens para selecioná-los
+        </Typography>
+      )}
+    </Box>
 
-          <main id="main-content">
-            {/* Loading overlay for saving */}
-            {saveStatus === 'saving' && (
-              <LoadingSpinner 
-                overlay={true}
-                message="Salvando preferências..."
-                size="medium"
-              />
-            )}
+    {/* Main Content */}
+    <Box component="main" id="main-content" position="relative">
+      {/* Loading overlay for saving */}
+      {saveStatus === 'saving' && (
+        <Backdrop open sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}>
+          <Box textAlign="center">
+            <CircularProgress color="primary" size={48} />
+            <Typography variant="h6" color="white" mt={2}>
+              Salvando preferências...
+            </Typography>
+          </Box>
+        </Backdrop>
+      )}
 
-            <PreferenceForm
-              preferences={preferences}
-              onPreferenceChange={handlePreferenceUpdate}
-              onSave={savePreferences}
-              onReset={resetPreferences}
-              isMobile={isMobile}
-              isTouch={isTouch}
-            />
-          </main>
+      <PreferenceForm
+        preferences={preferences}
+        onPreferenceChange={handlePreferenceUpdate}
+        onSave={savePreferences}
+        onReset={resetPreferences}
+        isMobile={isMobile}
+        isTouch={isTouch}
+      />
+    </Box>
 
-          <footer className="preference-footer">
-            <p className="footer-note">
-              💡 <strong>Dica:</strong> Suas alterações são salvas automaticamente. 
-              {isMobile ? ' Você pode minimizar o app a qualquer momento.' : ' Você pode fechar esta página a qualquer momento.'}
-            </p>
-            <p className="footer-security">
-              🔒 Esta página usa um link seguro que expira em 24 horas ou após 10 usos.
-            </p>
-            {/* <div className="footer-links">
-              <button 
-                onClick={handleGoHome}
-                className="footer-link"
-                type="button"
-              >
-                Voltar ao início
-              </button>
-            </div> */}
-          </footer>
-        </div>
-        
-        {/* Toast notifications for mobile */}
-        <ToastComponent />
-      </div>
-    </ErrorBoundary>
+    {/* Footer Section */}
+    <Box component="footer" py={4} mt={6}>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        <Typography variant="body2">
+          <strong>Dica:</strong> Suas alterações são salvas automaticamente. 
+          {isMobile 
+            ? ' Você pode minimizar o app a qualquer momento.' 
+            : ' Você pode fechar esta página a qualquer momento.'
+          }
+        </Typography>
+      </Alert>
+      
+      <Alert severity="success" variant="outlined">
+        <Typography variant="body2">
+          Esta página usa um link seguro que expira em 24 horas ou após 10 usos.
+        </Typography>
+      </Alert>
+    </Box>        
+  </Container>
+</Box>
   );
 };
 

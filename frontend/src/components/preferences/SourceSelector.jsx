@@ -1,3 +1,24 @@
+import React, { useState, useMemo } from 'react';
+import {
+  Box,
+  Typography,
+  TextField,
+  FormControlLabel,
+  Checkbox,
+  Button,
+  Alert,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Stack,
+  Chip,
+  InputAdornment,
+  IconButton,
+  Paper
+} from '@mui/material';
+
 /**
  * Source selection component
  * Allows users to select preferred news sources with search and filtering
@@ -8,8 +29,6 @@
  * @param {Object} error - Form validation error object
  * @param {Function} register - React Hook Form register function
  */
-import React, { useState, useMemo } from 'react';
-
 const SourceSelector = ({
   selectedSources = [],
   availableSources = [],
@@ -83,159 +102,190 @@ const SourceSelector = ({
     setShowOnlySelected(false);
   };
 
+  const isAllSelected = filteredSources.every(source => 
+    selectedSources.includes(source.id) || selectedSources.includes(String(source.id))
+  );
+
+  const isNoneSelected = filteredSources.every(source => 
+    !selectedSources.includes(source.id) && !selectedSources.includes(String(source.id))
+  );
+
   return (
-    <div className="source-selector">
-      <div className="section-header">
-        <h3>📡 Fontes de Notícias</h3>
-        <p className="section-description">
-          Selecione suas fontes de notícias preferidas. Se nenhuma for selecionada, 
-          você receberá notícias de todas as fontes disponíveis.
-        </p>
-      </div>
+    <Box>
+      <Typography variant="h5" component="h3" gutterBottom>
+        Fontes de Notícias
+      </Typography>
+      
+      <Typography variant="body2" color="text.secondary" paragraph>
+        Selecione suas fontes de notícias preferidas. Se nenhuma for selecionada, 
+        você receberá notícias de todas as fontes disponíveis.
+      </Typography>
 
       {error && (
-        <div className="field-error">
+        <Alert severity="error" sx={{ mb: 2 }}>
           {error.message}
-        </div>
+        </Alert>
       )}
 
       {/* Search and filters */}
-      <div className="source-controls">
-        <div className="search-box">
-          <input
-            type="text"
-            placeholder="Buscar fontes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-            aria-label="Buscar fontes de notícias"
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => setSearchTerm('')}
-              className="search-clear"
-              aria-label="Limpar busca"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+      <Stack spacing={2} sx={{ mb: 2 }}>
+        <TextField
+          placeholder="Buscar fontes..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          size="small"
+          InputProps={{
+            // startAdornment: (
+            //   <InputAdornment position="start">
+            //     <SearchIcon color="action" />
+            //   </InputAdornment>
+            // ),
+            endAdornment: searchTerm && (
+              <InputAdornment position="end">
+                <IconButton
+                  onClick={() => setSearchTerm('')}
+                  edge="end"
+                  size="small"
+                  aria-label="Limpar busca"
+                >
+                  {/* <ClearIcon /> */}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
+          aria-label="Buscar fontes de notícias"
+        />
 
-        <div className="filter-controls">
-          <label className="filter-checkbox">
-            <input
-              type="checkbox"
+        <FormControlLabel
+          control={
+            <Checkbox
               checked={showOnlySelected}
               onChange={(e) => setShowOnlySelected(e.target.checked)}
+              size="small"
             />
-            Mostrar apenas selecionadas ({selectedSources.length})
-          </label>
-        </div>
-      </div>
+          }
+          label={
+            <Typography variant="body2">
+              Mostrar apenas selecionadas ({selectedSources.length})
+            </Typography>
+          }
+        />
+      </Stack>
 
       {/* Action buttons */}
-      <div className="section-actions">
-        <button
-          type="button"
+      <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap">
+        <Button
           onClick={handleSelectAll}
-          className="btn btn-small btn-outline"
-          disabled={filteredSources.every(source => 
-            selectedSources.includes(source.id) || selectedSources.includes(String(source.id))
-          )}
+          variant="outlined"
+          size="small"
+          disabled={isAllSelected}
         >
           {searchTerm || showOnlySelected ? 'Selecionar Visíveis' : 'Selecionar Todas'}
-        </button>
-        <button
-          type="button"
+        </Button>
+        
+        <Button
           onClick={handleClearAll}
-          className="btn btn-small btn-outline"
-          disabled={filteredSources.every(source => 
-            !selectedSources.includes(source.id) && !selectedSources.includes(String(source.id))
-          )}
+          variant="outlined"
+          size="small"
+          disabled={isNoneSelected}
         >
           {searchTerm || showOnlySelected ? 'Limpar Visíveis' : 'Limpar Todas'}
-        </button>
+        </Button>
+        
         {(searchTerm || showOnlySelected) && (
-          <button
-            type="button"
+          <Button
             onClick={handleClearSearch}
-            className="btn btn-small btn-text"
+            variant="text"
+            size="small"
           >
             Limpar Filtros
-          </button>
+          </Button>
         )}
-      </div>
+      </Stack>
 
       {/* Sources list */}
-      <div className="source-list">
+      <Paper variant="outlined" sx={{ maxHeight: 400, overflow: 'auto', mb: 2 }}>
         {filteredSources.length === 0 ? (
-          <div className="empty-state">
-            {searchTerm ? (
-              <p>Nenhuma fonte encontrada para "{searchTerm}"</p>
-            ) : showOnlySelected ? (
-              <p>Nenhuma fonte selecionada</p>
-            ) : (
-              <p>Nenhuma fonte disponível</p>
-            )}
-          </div>
+          <Box p={3} textAlign="center">
+            <Typography variant="body2" color="text.secondary">
+              {searchTerm ? (
+                <>Nenhuma fonte encontrada para "{searchTerm}"</>
+              ) : showOnlySelected ? (
+                'Nenhuma fonte selecionada'
+              ) : (
+                'Nenhuma fonte disponível'
+              )}
+            </Typography>
+          </Box>
         ) : (
-          filteredSources.map((source) => {
-            const isSelected = selectedSources.includes(source.id) || selectedSources.includes(String(source.id));
-            
-            return (
-              <div
-                key={source.id}
-                className={`source-item ${isSelected ? 'selected' : ''}`}
-                onClick={() => handleSourceToggle(source)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleSourceToggle(source);
-                  }
-                }}
-                aria-pressed={isSelected}
-                aria-label={`${isSelected ? 'Desmarcar' : 'Marcar'} fonte ${source.name}`}
-              >
-                <input
-                  type="checkbox"
-                  {...register('sources')}
-                  value={source.id}
-                  checked={isSelected}
-                  onChange={() => handleSourceToggle(source)}
-                  className="source-checkbox"
-                  aria-label={`Fonte ${source.name}`}
-                />
-                
-                <span className="source-name">{source.name}</span>
-                
-                {isSelected && (
-                  <span className="source-checkmark">✓</span>
-                )}
-              </div>
-            );
-          })
+          <List dense>
+            {filteredSources.map((source) => {
+              const isSelected = selectedSources.includes(source.id) || selectedSources.includes(String(source.id));
+              
+              return (
+                <ListItem
+                  key={source.id}
+                  disablePadding
+                >
+                  <ListItemButton
+                    onClick={() => handleSourceToggle(source)}
+                    selected={isSelected}
+                    sx={{
+                      '&.Mui-selected': {
+                        bgcolor: 'primary.50',
+                        '&:hover': {
+                          bgcolor: 'primary.100',
+                        },
+                      },
+                    }}
+                  >
+                    <ListItemIcon>
+                      <Checkbox
+                        {...register('sources')}
+                        value={source.id}
+                        checked={isSelected}
+                        tabIndex={-1}
+                        disableRipple
+                        inputProps={{ 'aria-labelledby': `source-${source.id}` }}
+                      />
+                    </ListItemIcon>
+                    
+                    <ListItemText
+                      id={`source-${source.id}`}
+                      primary={source.name}
+                      primaryTypographyProps={{
+                        variant: 'body2',
+                        fontWeight: isSelected ? 500 : 400,
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              );
+            })}
+          </List>
         )}
-      </div>
+      </Paper>
 
       {/* Selection summary */}
-      <div className="selection-summary">
+      <Box>
         {selectedSources.length === 0 ? (
-          <span className="summary-text summary-empty">
-            Nenhuma fonte selecionada. <b>Você receberá notícias de todas as fontes.</b>
-          </span>
+          <Alert severity="info" variant="outlined">
+            <Typography variant="body2">
+              Nenhuma fonte selecionada. <strong>Você receberá notícias de todas as fontes.</strong>
+            </Typography>
+          </Alert>
         ) : (
-          <span className="summary-text">
-            {selectedSources.length} fonte(s) selecionada(s)
-            {searchTerm || showOnlySelected ? (
-              ` (${filteredSources.filter(s => selectedSources.includes(s.id)).length} visível(is))`
-            ) : ''}
-          </span>
+          <Box>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              {selectedSources.length} fonte(s) selecionada(s)
+              {searchTerm || showOnlySelected && (
+                <> ({filteredSources.filter(s => selectedSources.includes(s.id) || selectedSources.includes(String(s.id))).length} visível(is))</>
+              )}
+            </Typography>
+          </Box>
         )}
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 };
 
