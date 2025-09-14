@@ -59,8 +59,12 @@ const PreferenceForm = ({
         typeof s === 'string' ? parseInt(s, 10) : s
       ).filter(s => !isNaN(s));
 
-      setValue('categories', preferences.enabled_categories || []);
-      setValue('sources', sources);
+      const orderedCategories = (preferences.enabled_categories || []).sort((a, b) => a.localeCompare(b));
+      const orderedSources = sources
+        .filter(source => sources.includes(source.id))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      setValue('categories', orderedCategories|| []);
+      setValue('sources', orderedSources);
       setValue('keywords', preferences.keywords || []);
     }
   }, [preferences, setValue]);
@@ -146,12 +150,6 @@ const PreferenceForm = ({
     fetchAvailableOptions();
   }, []);
 
-  // Handle reset
-  // const handleReset = () => {
-  //   if (window.confirm('Tem certeza que deseja redefinir todas as preferências para os valores padrão?')) {
-  //     onReset();
-  //   }
-  // };
 
   if (!preferences || isLoading) {
     return <div>Loading form...</div>;
@@ -162,7 +160,7 @@ const PreferenceForm = ({
       <Grid container spacing={2}>
         {/* Category Selection */}
         <Grid size={6}>
-          <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+          <Paper elevation={4} sx={{ p: 3, mb: 3 }}>
             <CategorySelector
               selectedCategories={watchedValues.categories || []}
               availableCategories={availableOptions.categories || []}
@@ -175,7 +173,7 @@ const PreferenceForm = ({
 
         {/* Keyword Management */}
         <Grid size={6} >
-          <Paper elevation={2} sx={{ p: 3 }}>
+          <Paper elevation={4} sx={{ p: 3 }}>
             <KeywordManager
               keywords={watchedValues.keywords || []}
               onChange={(keywords) => handleChange('keywords', keywords)}
@@ -187,7 +185,7 @@ const PreferenceForm = ({
 
         {/* Source Selection */}
         <Grid size={12}>
-          <Paper elevation={2} sx={{ p: 3 }}>
+          <Paper elevation={4} sx={{ p: 3 }}>
             <SourceSelector
               selectedSources={watchedValues.sources || []}
               availableSources={availableOptions.sources || []}

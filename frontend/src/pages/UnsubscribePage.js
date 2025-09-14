@@ -1,6 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import {
+  Container,
+  Paper,
+  Typography,
+  Button,
+  Box,
+  CircularProgress,
+  Alert,
+  Stack
+} from '@mui/material';
 import Header from '../components/Header';
 
 const UnsubscribePage = () => {
@@ -111,114 +121,108 @@ const UnsubscribePage = () => {
   };
 
   const renderLoadingState = () => (
-    <div className="unsubscribe-loading">
-      <div className="loading-spinner"></div>
-      <h2>Processing your request...</h2>
-      <p>Please wait while we unsubscribe you from our newsletter.</p>
-    </div>
+    <Box textAlign="center" py={4}>
+      <CircularProgress size={60} sx={{ mb: 3 }} />
+      <Typography variant="h5" gutterBottom>
+        Processing your request...
+      </Typography>
+      <Typography variant="body1" color="text.secondary">
+        Please wait while we unsubscribe you from our newsletter.
+      </Typography>
+    </Box>
   );
 
   const renderConfirmationState = () => (
-    <div className="unsubscribe-confirmation">
-      <div className="confirmation-icon">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path 
-            d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" 
-            stroke="currentColor" 
-            strokeWidth="1.5" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-          />
-        </svg>
-      </div>
-      <h1>Confirm Unsubscription</h1>
-      <p className="confirmation-message">
-        Are you sure you want to unsubscribe from our daily newsletter?
-        You will no longer receive digest emails at your registered email address.
-      </p>
-      <div className="confirmation-actions">
-        <button 
-          className="btn btn-primary btn-unsubscribe"
+    <Box textAlign="center" py={4}>
+      <span class="material-icons" style={{ fontSize: 80, color: '#f57c00', marginBottom: '16px' }}>
+        warning_amber
+      </span> 
+      <Typography variant="h4" gutterBottom>
+        Confirmar Cancelamento da Inscrição
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 500, mx: 'auto' }}>
+        Tem certeza de que deseja cancelar a inscrição em nosso boletim diário?
+        Você não receberá mais e-mails de resumo em seu endereço de e-mail registrado.
+      </Typography>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center">
+        <Button 
+          variant="contained"
+          color="error"
+          size="large"
           onClick={handleUnsubscribe}
           disabled={unsubscribeState.isLoading}
+          startIcon={unsubscribeState.isLoading ? <CircularProgress size={20} /> : null}
         >
-          {unsubscribeState.isLoading ? 'Processing...' : 'Yes, Unsubscribe Me'}
-        </button>
-        <button 
-          className="btn btn-secondary btn-cancel"
+          {unsubscribeState.isLoading ? 'Processando...' : 'Sim, Cancelar Inscrição'}
+        </Button>
+        <Button 
+          variant="outlined"
+          size="large"
           onClick={handleGoHome}
           disabled={unsubscribeState.isLoading}
         >
-          Cancel
-        </button>
-      </div>
-      <p className="help-text">
-        Changed your mind? You can always subscribe again later.
-      </p>
-    </div>
+          Cancelar
+        </Button>
+      </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
+        Mudou de ideia? Você sempre pode se inscrever novamente mais tarde.
+      </Typography>
+    </Box>
   );
 
   const renderSuccessState = () => (
-    <div className="unsubscribe-success">
-      <div className="success-icon">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path 
-            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" 
-            stroke="currentColor" 
-            strokeWidth="1.5" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-          />
-        </svg>
-      </div>
-      <h1>Successfully Unsubscribed</h1>
+    <Box textAlign="center" py={4}>
+      <span class="material-icons" style={{ fontSize: 80, color: '#4caf50', marginBottom: '16px' }}>
+        check_circle_outline
+      </span>
+      <Typography variant="h4" gutterBottom>
+        Desincrição Bem-Sucedida
+      </Typography>
       {unsubscribeState.email && (
-        <p className="success-email">
-          {unsubscribeState.email} has been removed from our mailing list.
-        </p>
+        <Alert severity="success" sx={{ mb: 3, maxWidth: 500, mx: 'auto' }}>
+          {unsubscribeState.email} foi removido da nossa lista de e-mails.
+        </Alert>
       )}
-      <p className="success-message">
-        You will no longer receive daily digest emails from us. 
-        We're sorry to see you go!
-      </p>
-      <div className="success-actions">
-        <button 
-          className="btn btn-primary"
+      <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 500, mx: 'auto' }}>
+        Pronto! Você não receberá mais e-mails diários de resumo de nossa parte.
+      </Typography>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center">
+        <Button 
+          variant="contained"
+          size="large"
           onClick={handleGoHome}
         >
-          Return to Homepage
-        </button>
-        <button 
-          className="btn btn-secondary"
+          Voltar para a Página Inicial
+        </Button>
+        <Button 
+          variant="outlined"
+          size="large"
           onClick={handleSubscribeAgain}
         >
-          Subscribe Again
-        </button>
-      </div>
-      <p className="help-text">
-        If you have any feedback about our newsletter, we'd love to hear from you.
-      </p>
-    </div>
+          Inscrever-se Novamente
+        </Button>
+      </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
+        Se você tiver algum feedback sobre nosso boletim informativo, adoraríamos ouvir sua opinião.
+      </Typography>
+    </Box>
   );
 
   const renderErrorState = () => (
-    <div className="unsubscribe-error">
-      <div className="error-icon">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path 
-            d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" 
-            stroke="currentColor" 
-            strokeWidth="1.5" 
-            strokeLinecap="round" 
-            strokeLinejoin="round"
-          />
-        </svg>
-      </div>
-      <h1>Unsubscription Failed</h1>
-      <p className="error-message">{unsubscribeState.error}</p>
-      <div className="error-actions">
-        <button 
-          className="btn btn-primary"
+    <Box textAlign="center" py={4}>
+      <span class="material-icons" style={{ fontSize: 80, color: '#f44336', marginBottom: '16px' }}>
+        error_outline
+      </span>
+      <Typography variant="h4" gutterBottom>
+        Unsubscription Failed
+      </Typography>
+      <Alert severity="error" sx={{ mb: 4, maxWidth: 500, mx: 'auto' }}>
+        {unsubscribeState.error}
+      </Alert>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center">
+        <Button 
+          variant="contained"
+          size="large"
           onClick={() => setUnsubscribeState(prev => ({
             ...prev,
             isConfirmationShown: true,
@@ -226,33 +230,32 @@ const UnsubscribePage = () => {
           }))}
         >
           Try Again
-        </button>
-        <button 
-          className="btn btn-secondary"
+        </Button>
+        <Button 
+          variant="outlined"
+          size="large"
           onClick={handleGoHome}
         >
           Return to Homepage
-        </button>
-      </div>
-      <p className="help-text">
+        </Button>
+      </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
         If this problem persists, please contact our support team.
-      </p>
-    </div>
+      </Typography>
+    </Box>
   );
 
   return (
     <>
       <Header />
-      <div className="unsubscribe-page">
-        <div className="unsubscribe-container">
-          <div className="unsubscribe-content">
-            {unsubscribeState.isLoading && renderLoadingState()}
-            {unsubscribeState.isConfirmationShown && !unsubscribeState.isLoading && renderConfirmationState()}
-            {unsubscribeState.isSuccess && renderSuccessState()}
-            {unsubscribeState.error && !unsubscribeState.isConfirmationShown && renderErrorState()}
-          </div>
-        </div>
-      </div>
+      <Container maxWidth="md" sx={{ py: 4 }}>
+        <Paper elevation={3} sx={{ p: 4 }}>
+          {unsubscribeState.isLoading && renderLoadingState()}
+          {unsubscribeState.isConfirmationShown && !unsubscribeState.isLoading && renderConfirmationState()}
+          {unsubscribeState.isSuccess && renderSuccessState()}
+          {unsubscribeState.error && !unsubscribeState.isConfirmationShown && renderErrorState()}
+        </Paper>
+      </Container>
     </>
   );
 };

@@ -2,13 +2,12 @@ import {
   Box,
   Typography,
   Grid,
-  Card,
-  CardContent,
   Checkbox,
   FormControlLabel,
   Alert,
   Chip,
-  Stack
+  Stack,
+  Paper
 } from '@mui/material';
 
 /**
@@ -65,7 +64,7 @@ const CategorySelector = ({
           
           return (
             <Grid item xs={12} sm={6} md={4} key={category}>
-              <Card 
+              <Paper 
                 variant={isSelected ? "elevation" : "outlined"}
                 sx={{
                   cursor: 'pointer',
@@ -79,29 +78,27 @@ const CategorySelector = ({
                 }}
                 onClick={() => handleCategoryToggle(category)}
               >
-                <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                  <Box display="flex" alignItems="center" justifyContent="space-between">
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          {...register('categories')}
-                          value={category}
-                          checked={isSelected}
-                          color="primary"
-                        />
-                      }
-                      label={
-                        <Typography variant="body1" fontWeight={isSelected ? 500 : 400}>
-                          {translatedName}
-                        </Typography>
-                      }
-                      onClick={(e) => e.preventDefault()}
-                      cursor="pointer"
-                      sx={{ m: 0, flexGrow: 1 }}
-                    />
-                  </Box>
-                </CardContent>
-              </Card>
+                <Box py={1} px={2} display="flex" alignItems="center" justifyContent="space-between">
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        {...register('categories')}
+                        value={category}
+                        checked={isSelected}
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Typography variant="body1" fontWeight={isSelected ? 500 : 400}>
+                        {translatedName}
+                      </Typography>
+                    }
+                    onClick={(e) => e.preventDefault()}
+                    cursor="pointer"
+                    sx={{ m: 0, flexGrow: 1 }}
+                  />
+                </Box>
+              </Paper>
             </Grid>
           );
         })}

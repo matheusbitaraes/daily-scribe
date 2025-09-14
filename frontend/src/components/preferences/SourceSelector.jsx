@@ -13,7 +13,6 @@ import {
   ListItemIcon,
   ListItemText,
   Stack,
-  Chip,
   InputAdornment,
   IconButton,
   Paper
@@ -278,7 +277,7 @@ const SourceSelector = ({
           <Box>
             <Typography variant="body2" color="text.secondary" gutterBottom>
               {selectedSources.length} fonte(s) selecionada(s)
-              {searchTerm || showOnlySelected && (
+              {(searchTerm || showOnlySelected) && (
                 <> ({filteredSources.filter(s => selectedSources.includes(s.id) || selectedSources.includes(String(s.id))).length} visível(is))</>
               )}
             </Typography>

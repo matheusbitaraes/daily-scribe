@@ -8,13 +8,7 @@ import {
   Paper,
   Typography,
   Button,
-  CircularProgress,
-  List,
-  ListItem,
-  ListItemText,
-  Link,
-  Stack,
-  Divider
+  CircularProgress
 } from '@mui/material';
 
 const EmailVerificationPage = () => {
@@ -105,26 +99,8 @@ const EmailVerificationPage = () => {
     verifyEmail(token);
   }, [token, verifyEmail]);
 
-  const handleGoHome = () => {
-    navigate('/');
-  };
-
   const handleSubscribeAgain = () => {
     navigate('/#subscribe');
-  };
-
-  const handleRetryVerification = () => {
-    if (token) {
-      // Reset the verification attempt flag
-      verificationAttempted.current = false;
-      setVerificationState({
-        isVerifying: true,
-        isSuccess: false,
-        error: null,
-        email: null
-      });
-      verifyEmail(token);
-    }
   };
 
   return (

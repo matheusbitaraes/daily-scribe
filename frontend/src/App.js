@@ -17,6 +17,8 @@ const theme = createTheme({
 function App() {
   return (
     <ThemeProvider theme={theme}>
+      <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet"></link>
       <Router>
         <div className="App">
           {/* <Navigation /> */}

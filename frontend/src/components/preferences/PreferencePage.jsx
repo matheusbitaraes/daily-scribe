@@ -22,18 +22,21 @@ import {
   Typography,
   CircularProgress,
   Backdrop,
-  Alert
+  Alert,
+  Button,
+  Stack,
+  Paper
 } from '@mui/material';
 
 const PreferencePage = () => {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { showSuccess, showError,ToastComponent } = useToast();
-  
+  const { showSuccess, showError, ToastComponent } = useToast();
+
   // Detect if mobile device for enhanced UX
   const isMobile = device.isMobile();
   const isTouch = device.isTouch();
-  
+
   // Token validation hook
   const {
     isValid: tokenValid,
@@ -108,7 +111,7 @@ const PreferencePage = () => {
     return (
       <div className="preference-page">
         <div className="preference-container">
-          <LoadingSpinner 
+          <LoadingSpinner
             overlay={true}
             message="Validando acesso..."
             size="large"
@@ -187,107 +190,124 @@ const PreferencePage = () => {
 
     // Generic error
     return (
-      <div className="preference-page">
-        <div className="preference-container">
-          <div className="preference-header">
-            <h1>Preferências</h1>
-          </div>
-          <div className="error-page">
-            <div className="error-icon">⚠️</div>
-            <h2>Erro ao Carregar</h2>
-            <p className="error-message">
+      <Box minHeight="100vh" bgcolor="background.default" py={4}>
+        <Container maxWidth="md">
+          <Box textAlign="center" mb={4}>
+            <Typography variant="h3" component="h1">
+              Preferências
+            </Typography>
+          </Box>
+
+          <Paper elevation={2} sx={{ p: 6, textAlign: 'center', maxWidth: 500, mx: 'auto' }}>
+            <span class="material-icons" style={{ fontSize: 48, color: '#f57c00' }}>
+            warning_amber
+            </span>
+
+            <Typography variant="h4" component="h2" gutterBottom>
+              Erro ao Carregar
+            </Typography>
+
+            <Typography variant="body1" color="text.primary" paragraph>
               Não foi possível carregar suas preferências.
-            </p>
-            <p className="error-description">
+            </Typography>
+
+            <Typography variant="body2" color="text.secondary" paragraph>
               Verifique sua conexão com a internet e tente novamente.
-            </p>
-            <div className="error-actions">
-              <button 
-                onClick={handleRetry} 
-                className="btn btn-primary"
+            </Typography>
+
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={2}
+              justifyContent="center"
+              sx={{ mt: 4 }}
+            >
+              <Button
+                onClick={handleRetry}
+                variant="contained"
+                size="large"
               >
-                <span className="btn-icon">🔄</span>
                 Tentar Novamente
-              </button>
-              <button 
-                onClick={handleGoHome} 
-                className="btn btn-secondary"
+              </Button>
+
+              <Button
+                onClick={handleGoHome}
+                variant="outlined"
+                size="large"
               >
-                <span className="btn-icon">🏠</span>
                 Início
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+              </Button>
+            </Stack>
+          </Paper>
+        </Container>
+      </Box>
     );
   }
 
   // Main preference form (token is valid and preferences loaded)
   return (
     <Box>
-  <Header />
-  <Container maxWidth="lg">
-    {/* Header Section */}
-    <Box component="header" textAlign="center" py={4}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Personalize suas notícias
-      </Typography>
-      <Typography variant="body1" color="text.secondary" maxWidth="md" mx="auto" paragraph>
-        Configure suas categorias, fontes e palavras-chave para receber 
-        notícias mais relevantes no seu Daily Scribe.
-      </Typography>
-      {isMobile && (
-        <Typography variant="body2" color="info.main">
-          Toque nos itens para selecioná-los
-        </Typography>
-      )}
-    </Box>
-
-    {/* Main Content */}
-    <Box component="main" id="main-content" position="relative">
-      {/* Loading overlay for saving */}
-      {saveStatus === 'saving' && (
-        <Backdrop open sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}>
-          <Box textAlign="center">
-            <CircularProgress color="primary" size={48} />
-            <Typography variant="h6" color="white" mt={2}>
-              Salvando preferências...
+      <Header />
+      <Container maxWidth="lg">
+        {/* Header Section */}
+        <Box component="header" textAlign="center" py={2}>
+          <Typography variant="h4" component="h4" gutterBottom>
+            Personalize suas notícias
+          </Typography>
+          <Typography variant="body1" color="text.secondary" maxWidth="md" mx="auto" paragraph>
+            Configure suas categorias, fontes e palavras-chave para receber
+            notícias mais relevantes no seu Daily Scribe.
+          </Typography>
+          {isMobile && (
+            <Typography variant="body2" color="info.main">
+              Toque nos itens para selecioná-los
             </Typography>
-          </Box>
-        </Backdrop>
-      )}
+          )}
+        </Box>
 
-      <PreferenceForm
-        preferences={preferences}
-        onPreferenceChange={handlePreferenceUpdate}
-        onSave={savePreferences}
-        onReset={resetPreferences}
-        isMobile={isMobile}
-        isTouch={isTouch}
-      />
+        {/* Main Content */}
+        <Box component="main" id="main-content" position="relative">
+          {/* Loading overlay for saving */}
+          {saveStatus === 'saving' && (
+            <Backdrop open sx={{ zIndex: (theme) => theme.zIndex.modal + 1 }}>
+              <Box textAlign="center">
+                <CircularProgress color="primary" size={48} />
+                <Typography variant="h6" color="white" mt={2}>
+                  Salvando preferências...
+                </Typography>
+              </Box>
+            </Backdrop>
+          )}
+
+          <PreferenceForm
+            preferences={preferences}
+            onPreferenceChange={handlePreferenceUpdate}
+            onSave={savePreferences}
+            onReset={resetPreferences}
+            isMobile={isMobile}
+            isTouch={isTouch}
+          />
+        </Box>
+
+        <Box component="footer" py={4} mt={6}>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              <strong>Dica:</strong> Suas alterações são salvas automaticamente.
+              {isMobile
+                ? ' Você pode minimizar o app a qualquer momento.'
+                : ' Você pode fechar esta página a qualquer momento.'
+              }
+            </Typography>
+          </Alert>
+
+          <Alert severity="success" variant="outlined">
+            <Typography variant="body2">
+              Esta página usa um link seguro que expira em 24 horas ou após 10 usos.
+            </Typography>
+          </Alert>
+        </Box>
+      </Container>
+      <ToastComponent />
     </Box>
-
-    {/* Footer Section */}
-    <Box component="footer" py={4} mt={6}>
-      <Alert severity="info" sx={{ mb: 2 }}>
-        <Typography variant="body2">
-          <strong>Dica:</strong> Suas alterações são salvas automaticamente. 
-          {isMobile 
-            ? ' Você pode minimizar o app a qualquer momento.' 
-            : ' Você pode fechar esta página a qualquer momento.'
-          }
-        </Typography>
-      </Alert>
-      
-      <Alert severity="success" variant="outlined">
-        <Typography variant="body2">
-          Esta página usa um link seguro que expira em 24 horas ou após 10 usos.
-        </Typography>
-      </Alert>
-    </Box>        
-  </Container>
-</Box>
   );
 };
 
