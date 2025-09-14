@@ -818,7 +818,7 @@ async def reset_user_preferences(
         )
 
 @api_router.get(
-    "/preferences-options/",
+    "/preferences-options",
     response_model=AvailableOptionsResponse,
     responses={
         200: {"description": "Available options retrieved successfully"},
