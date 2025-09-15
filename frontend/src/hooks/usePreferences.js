@@ -74,8 +74,7 @@ const usePreferences = (token) => {
     try {
       setSaving(true);
       setSaveStatus('saving');
-      setError(null);
-      
+      setError(null);      
       const response = await fetch(`${API_BASE_URL}/preferences/${token}`, {
         method: 'PUT',
         headers: {

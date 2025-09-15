@@ -113,7 +113,6 @@ const DigestSimulator = () => {
       });
       
       const data = response.data;
-      console.log('Raw user preferences response:', data);
       
       // Ensure we have arrays and convert to strings if needed
       const enabledCategories = Array.isArray(data.enabled_categories) 
@@ -124,8 +123,6 @@ const DigestSimulator = () => {
         ? data.enabled_sources.map(source => String(source))
         : [];
       
-      console.log('Processed preferences - Categories:', enabledCategories, 'Sources:', enabledSources);
-      
       // Update filters with user preferences
       updateState({
         filters: {
@@ -134,7 +131,6 @@ const DigestSimulator = () => {
         }
       });
       
-      console.log('Updated state filters with user preferences');
     } catch (error) {
       console.error('Error loading user preferences:', error);
       // Fall back to empty arrays if preferences can't be loaded

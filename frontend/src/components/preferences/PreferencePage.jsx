@@ -73,11 +73,13 @@ const PreferencePage = () => {
   // Track previous save status to prevent duplicate toasts
   const prevSaveStatusRef = useRef();
 
-  // Handle save status notifications with toast
+  // Handle save status notifications with toast - ONLY for actual API operations
   useEffect(() => {
     // Only show toast if saveStatus changed and is not the initial undefined/null
+    // AND only for actual save/reset operations, not local updates
     if (saveStatus && saveStatus !== prevSaveStatusRef.current) {
       if (saveStatus === 'saved') {
+        // Only show success toast for manual saves (when savePreferences is called)
         showSuccess('Preferências salvas com sucesso!');
       } else if (saveStatus === 'error') {
         showError('Erro ao salvar preferências. Tente novamente.');
@@ -101,9 +103,14 @@ const PreferencePage = () => {
     }
   };
 
-  // Handle successful preference updates with toast feedback
+  // Handle preference updates (local state only - no toast)
   const handlePreferenceUpdate = (updates) => {
     updatePreferences(updates);
+  };
+
+  // Handle manual save (with toast)
+  const handleManualSave = (data) => {
+    savePreferences(data);
   };
 
   // Render loading with enhanced mobile experience
@@ -200,7 +207,7 @@ const PreferencePage = () => {
 
           <Paper elevation={2} sx={{ p: 6, textAlign: 'center', maxWidth: 500, mx: 'auto' }}>
             <span class="material-icons" style={{ fontSize: 48, color: '#f57c00' }}>
-            warning_amber
+              warning_amber
             </span>
 
             <Typography variant="h4" component="h2" gutterBottom>
@@ -281,7 +288,7 @@ const PreferencePage = () => {
           <PreferenceForm
             preferences={preferences}
             onPreferenceChange={handlePreferenceUpdate}
-            onSave={savePreferences}
+            onSave={handleManualSave}
             onReset={resetPreferences}
             isMobile={isMobile}
             isTouch={isTouch}

@@ -9,7 +9,6 @@ const DigestFilters = ({
   selectedSources = [],
   isLoading = false 
 }) => {
-  console.log('DigestFilters props:', { selectedCategories, selectedSources, isLoading });
   
   const [categories, setCategories] = useState([]);
   const [sources, setSources] = useState([]);
@@ -54,7 +53,6 @@ const DigestFilters = ({
         setCategories(categoriesData);
         setSources(sourcesData);
         
-        console.log('Loaded filter options - Categories:', categoriesData, 'Sources:', sourcesData);
       } catch (err) {
         console.error('Error loading filters from API, falling back to mock data:', err);
         
@@ -97,9 +95,7 @@ const DigestFilters = ({
     const newSelectedCategories = selectedCategories.includes(categoryId)
       ? selectedCategories.filter(id => id !== categoryId)
       : [...selectedCategories, categoryId];
-    
-    console.log('Category change:', categoryId, 'New selection:', newSelectedCategories);
-    
+        
     onFiltersChange({
       categories: newSelectedCategories,
       sources: selectedSources
@@ -111,9 +107,7 @@ const DigestFilters = ({
     const newSelectedSources = selectedSources.includes(sourceId)
       ? selectedSources.filter(id => id !== sourceId)
       : [...selectedSources, sourceId];
-    
-    console.log('Source change:', sourceId, 'New selection:', newSelectedSources);
-    
+        
     onFiltersChange({
       categories: selectedCategories,
       sources: newSelectedSources

@@ -38,13 +38,6 @@ const SourceSelector = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [showOnlySelected, setShowOnlySelected] = useState(false);
 
-  // Debug logging
-  React.useEffect(() => {
-    console.log('SourceSelector received:');
-    console.log('selectedSources:', selectedSources, 'type:', typeof selectedSources[0]);
-    console.log('availableSources:', availableSources.slice(0, 3), 'id types:', availableSources.slice(0, 3).map(s => typeof s.id));
-  }, [selectedSources, availableSources]);
-
   // Filter sources based on search term and selected filter
   const filteredSources = useMemo(() => {
     let sources = availableSources;
