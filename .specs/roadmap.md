@@ -47,12 +47,14 @@
 - [x] Publicly expose frontend so that user preferences can be changed
 - [x] Cleanup components/notifier.py
 - [x] kill config.json
+- [x] Revamp all the design
+      - [x] home page
+      - [x] subscribe
+      - [x] unsubscribe
+      - [x] preferences
+- [ ] cronojob to backup db and cleanup
+- [ ] Improve grafana logs and dashboards
 - [ ] make digest builder admin only
-- [ ] Revamp all the design
-      - [ ] home page
-      - [ ] subscribe
-      - [ ] unsubscribe
-      - [ ] preferences
-- [ ] titles on portuguese
-- [ ] Improva grafana logs and dashboards
 - [ ] migrate db to elasticsearch?
+- [ ] titles on portuguese?
+

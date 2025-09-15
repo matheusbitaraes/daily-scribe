@@ -217,7 +217,11 @@ class EmailService:
                 ip_address=ip_address
             )
 
-            isPreferenceButtonEnabled = email_address == "matheusbitaraesdenovaes@gmail.com"
+            enabled_addresses = [
+                "matheusbitaraesdenovaes@gmail.com",
+                "anadetomi@hotmail.com",
+            ]
+            isPreferenceButtonEnabled = email_address in enabled_addresses
             
             if not preference_token:
                 logger.warning(f"Failed to generate preference token for {email_address}, building digest without preference button")
