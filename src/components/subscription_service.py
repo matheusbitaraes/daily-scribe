@@ -219,8 +219,10 @@ class SubscriptionService:
         </html>
         """
 
-        admin_email = os.getenv("EMAIL_FROM_ADMIN")
-        
+        email_from_admin = os.getenv("EMAIL_FROM_ADMIN")
+        admin_name = os.getenv("ADMIN_NAME", "Admin")
+        admin_email = f'"{admin_name}" <{email_from_admin}>'
+
         try:
             self.email_notifier.send_digest(html_content, email, admin_email, subject)
             self.logger.info(f"Verification email sent to {email}")
