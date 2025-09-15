@@ -6,7 +6,6 @@ Separates the concerns of digest generation from email delivery.
 """
 
 import logging
-import locale
 import time
 import uuid
 import os
@@ -20,8 +19,6 @@ from components.notifier import EmailNotifier
 from components.email_service import EmailService
 
 logger = logging.getLogger(__name__)
-
-locale.setlocale(locale.LC_TIME, 'pt_BR.UTF-8')
 
 
 class DigestService:
@@ -150,7 +147,7 @@ class DigestService:
             clustered_articles = result["clustered_articles"]
             
             notifier = EmailNotifier()
-            subject = f"Suas Notícias de {time.strftime('%d %b %Y') }"
+            subject = f"Suas Notícias de {time.strftime('%d/%m/%Y') }"
             
             email_from_editor = os.getenv("EMAIL_FROM_EDITOR")
             editor_name = os.getenv("EDITOR_NAME", "Editor")
