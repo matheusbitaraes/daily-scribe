@@ -52,7 +52,7 @@
       - [x] subscribe
       - [x] unsubscribe
       - [x] preferences
-- [ ] cronojob to backup db and cleanup
+- [x] cronojob to backup db and cleanup
 - [ ] Improve grafana logs and dashboards
 - [ ] make digest builder admin only
 - [ ] migrate db to elasticsearch?

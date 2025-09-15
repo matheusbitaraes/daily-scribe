@@ -122,7 +122,7 @@ class EmailService:
     def build_preference_button_html(
         self,
         token: str,
-        button_text: str = "⚙️ Configurar Preferências"
+        button_text: str = "Configurar Preferências"
     ) -> str:
         """
         Build HTML for the preference configuration button.
