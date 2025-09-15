@@ -1,7 +1,26 @@
-import  { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import DigestDatePicker from './DigestDatePicker';
-import DigestPreview from './DigestPreview';
+import {
+  Box,
+  Container,
+  Typography,
+  TextField,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  Alert,
+  CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Grid,
+  Paper,
+  Divider,
+  Chip,
+  IconButton
+} from '@mui/material';
 
 const DigestSimulator = () => {
   // State management for the simulator
@@ -238,74 +257,215 @@ const DigestSimulator = () => {
   };
 
   return (
-    <div className="digest-simulator">
-      <div className="simulator-header">
-        <h1>Email Digest Simulator</h1>
-        <p>Simulate and preview email digests for any user and date</p>
-      </div>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      {/* Header */}
+      <Box mb={4}>
+        <Typography variant="h3" component="h1" gutterBottom>
+          Email Digest Simulator
+        </Typography>
+        <Typography variant="h6" color="text.secondary">
+          Simulate and preview email digests for any user and date
+        </Typography>
+      </Box>
 
       {/* Error Display */}
       {(state.error || state.dateError || state.digestError) && (
-        <div className="error-banner">
-          <div className="error-content">
-            <strong>Error:</strong> {state.error || state.dateError || state.digestError}
-            <button onClick={clearErrors} className="error-close">×</button>
-          </div>
-        </div>
+        <Alert 
+          severity="error" 
+          sx={{ mb: 3 }}
+          action={
+            <IconButton
+              aria-label="close"
+              color="inherit"
+              size="small"
+              onClick={clearErrors}
+            >
+              <span className='material-icons'>close</span>
+            </IconButton>
+          }
+        >
+          {state.error || state.dateError || state.digestError}
+        </Alert>
       )}
 
-      {/* Controls Sidebar */}
-      <div className="simulator-controls">
-        {/* User Input Section */}
-        <div className="simulator-section">
-          <h2>User</h2>
-          <div className="user-input">
-            <label htmlFor="userEmail">Email:</label>
-            <input
-              id="userEmail"
-              type="email"
-              value={state.userEmail}
-              onChange={(e) => handleEmailChange(e.target.value)}
-              placeholder="Enter user email address"
-              className="email-input"
+      <Grid container spacing={3}>
+        {/* Controls Panel */}
+        <Grid item size={12} md={4}>
+          <Card>
+            <CardHeader 
+              title="Configuration"
+              action={
+                <IconButton onClick={loadAvailableDates} disabled={state.isLoadingDates}>
+                  <span className='material-icons'>refresh</span>
+                </IconButton>
+              }
             />
-          </div>
-        </div>
+            <CardContent>
+              {/* User Email Input */}
+              <TextField
+                fullWidth
+                label="User Email"
+                type="email"
+                value={state.userEmail}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                placeholder="Enter user email address"
+                margin="normal"
+                variant="outlined"
+              />
 
-        {/* Date Selection Section */}
-        <div className="simulator-section">
-          <DigestDatePicker
-            availableDates={state.availableDates}
-            selectedDate={state.selectedDate}
-            onDateChange={handleDateChange}
-            isLoading={state.isLoadingDates}
-          />
-        </div>
+              <Divider sx={{ my: 2 }} />
 
-        {/* Generate Button */}
-        <div className="simulator-section">
-          <button
-            onClick={generateDigest}
-            disabled={state.isLoadingDigest || !state.userEmail.trim()}
-            className="generate-button"
-          >
-            {state.isLoadingDigest ? 'Generating...' : 'Generate Preview'}
-          </button>
-        </div>
-      </div>
+              {/* Date Selection */}
+              <Typography variant="h6" gutterBottom>
+                Date Selection
+              </Typography>
+              {state.isLoadingDates ? (
+                <Box display="flex" justifyContent="center" py={2}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : (
+                <FormControl fullWidth margin="normal">
+                  <InputLabel>Select Date</InputLabel>
+                  <Select
+                    value={state.selectedDate || ''}
+                    label="Select Date"
+                    onChange={(e) => handleDateChange(e.target.value)}
+                  >
+                    {state.availableDates.map((dateInfo) => (
+                      <MenuItem key={dateInfo.date} value={dateInfo.date}>
+                        {dateInfo.date} ({dateInfo.article_count} articles)
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
 
-      {/* Preview Section */}
-      <div className="simulator-preview">
-        <DigestPreview
-          digestContent={state.digestContent}
-          digestMetadata={state.digestMetadata}
-          isLoading={state.isLoadingDigest}
-          error={state.digestError}
-          onCopyToClipboard={handleCopyToClipboard}
-          onExport={handleExport}
-        />
-      </div>
-    </div>
+              <Divider sx={{ my: 2 }} />
+
+              {/* Generate Button */}
+              <Button
+                fullWidth
+                variant="contained"
+                size="large"
+                onClick={generateDigest}
+                disabled={state.isLoadingDigest || !state.userEmail.trim()}
+                sx={{ mt: 2 }}
+              >
+                {state.isLoadingDigest ? (
+                  <>
+                    <CircularProgress size={20} sx={{ mr: 1 }} />
+                    Generating...
+                  </>
+                ) : (
+                  'Generate Preview'
+                )}
+              </Button>
+
+              {/* Metadata Display */}
+              {state.digestMetadata && (
+                <>
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="h6" gutterBottom>
+                    Digest Metadata
+                  </Typography>
+                  <Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Total Articles: {state.digestMetadata.total_articles}
+                    </Typography>
+                    {state.digestMetadata.categories && Object.keys(state.digestMetadata.categories).length > 0 && (
+                      <Box mt={1}>
+                        <Typography variant="body2" gutterBottom>
+                          Categories:
+                        </Typography>
+                        <Box display="flex" flexWrap="wrap" gap={0.5}>
+                          {Object.entries(state.digestMetadata.categories).map(([category, count]) => (
+                            <Chip
+                              key={category}
+                              label={`${category} (${count})`}
+                              size="small"
+                              variant="outlined"
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Preview Panel */}
+        <Grid item size={12} md={8}>
+          <Card>
+            <CardHeader 
+              title="Digest Preview"
+              action={
+                state.digestContent && (
+                  <Box>
+                    <IconButton
+                      onClick={() => handleCopyToClipboard('success')}
+                      title="Copy to clipboard"
+                    >
+                      <span className='material-icons'>content_copy</span>
+                    </IconButton>
+                    <IconButton
+                      onClick={() => handleExport('html')}
+                      title="Export"
+                    >
+                      <span className='material-icons'>download</span>
+                    </IconButton>
+                  </Box>
+                )
+              }
+            />
+            <CardContent>
+              {state.isLoadingDigest ? (
+                <Box display="flex" flexDirection="column" alignItems="center" py={8}>
+                  <CircularProgress size={40} />
+                  <Typography variant="body1" sx={{ mt: 2 }}>
+                    Generating digest preview...
+                  </Typography>
+                </Box>
+              ) : state.digestError ? (
+                <Alert severity="error">
+                  {state.digestError}
+                </Alert>
+              ) : state.digestContent ? (
+                <Paper 
+                  variant="outlined" 
+                  sx={{ 
+                    p: 2, 
+                    maxHeight: '70vh', 
+                    overflow: 'auto',
+                    backgroundColor: 'grey.50'
+                  }}
+                >
+                  <div dangerouslySetInnerHTML={{ __html: state.digestContent }} />
+                </Paper>
+              ) : (
+                <Box 
+                  display="flex" 
+                  flexDirection="column" 
+                  alignItems="center" 
+                  justifyContent="center" 
+                  py={8}
+                  color="text.secondary"
+                >
+                  <Typography variant="h6" gutterBottom>
+                    No preview available
+                  </Typography>
+                  <Typography variant="body2">
+                    Enter an email address and click "Generate Preview" to see the digest
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Container>
   );
 };
 
