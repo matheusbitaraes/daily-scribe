@@ -21,6 +21,9 @@ class NewsMetadata(BaseModel):
     keywords: List[str] = Field(description="A list of key people, organizations, or locations mentioned.")
     category: str = Field(description="The main category of the news. Select one of those options: 'Politics', 'Technology', 'Science and Health', 'Business', 'Entertainment', 'Sports'. Use the category 'Other' if none of the options fit.")
     region: str = Field(description="The primary geographical place the news is about (e.g., Brazil, USA, Europe, Asia).")
+    urgency_score: int = Field(description="Rate the urgency of this news on a scale of 1-5. 1=Evergreen (timeless content), 2=Long-Term (relevant for weeks/months), 3=Topical (recent events, follow-up), 4=Time-Sensitive (urgent, needs attention within days), 5=Breaking News (happening now or just occurred).")
+    impact_score: int = Field(description="Rate the impact of this news on a scale of 1-5. 1=Minor Update (very low impact, small number of people), 2=Niche Impact (significant to specific community), 3=Moderate Impact (affects large community), 4=Significant Impact (major consequences for region/country/industry), 5=Major Development (landmark event with profound consequences).")
+    subject_pt: str = Field(description="Create a very short 2-3 word phrase in Portuguese that can be used as part of an email subject line to represent this news headline.")
 
 class Summarizer:
     """Handles summarizing text using the Gemini API and OpenAI API."""

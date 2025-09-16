@@ -31,14 +31,12 @@ class DigestService:
     def generate_digest_for_user(
         self,
         email_address: str,
-        use_alt_method: bool = False
     ) -> Dict:
         """
         Generate a digest for a specific user using their preferences.
         
         Args:
             email_address: User's email address
-            use_alt_method: Whether to use the alternative clustering method
             
         Returns:
             Dict containing html_content, metadata, and clustered articles for sending
@@ -51,10 +49,7 @@ class DigestService:
         
         # Use curator to get articles based on user preferences
         curator = NewsCurator()
-        if use_alt_method:
-            clustered_articles = curator.curate_and_cluster_for_user_alt(email_address)
-        else:
-            clustered_articles = curator.curate_and_cluster_for_user(email_address)
+        clustered_articles = curator.curate_and_cluster_for_user(email_address)
         
         if not clustered_articles:
             return {
@@ -64,7 +59,7 @@ class DigestService:
                     "email_address": email_address,
                     "article_count": 0,
                     "clusters": 0,
-                    "method": "alt" if use_alt_method else "standard"
+                    "method": "standard"
                 },
                 "clustered_articles": [],
                 "message": "No curated articles found for user after applying preferences."
@@ -92,7 +87,7 @@ class DigestService:
             "email_address": email_address,
             "article_count": total_articles,
             "clusters": len(clustered_articles),
-            "method": "alt" if use_alt_method else "standard",
+            "method": "standard",
             "generated_at": time.strftime('%Y-%m-%d %H:%M:%S'),
             "has_preference_button": preference_metadata.get("has_preference_button", False),
             "preference_url": preference_metadata.get("preference_url")
@@ -110,7 +105,6 @@ class DigestService:
         self,
         email_address: str,
         force: bool = False,
-        use_alt_method: bool = False
     ) -> Dict:
         """
         Generate and send a digest to a specific user.
@@ -118,7 +112,6 @@ class DigestService:
         Args:
             email_address: User's email address
             force: Whether to force sending even if already sent today
-            use_alt_method: Whether to use alternative clustering method
             
         Returns:
             Dict containing success status and details
@@ -136,7 +129,7 @@ class DigestService:
                 }
             
             # Generate the digest
-            result = self.generate_digest_for_user(email_address, use_alt_method)
+            result = self.generate_digest_for_user(email_address)
             
             if not result["success"]:
                 logger.info(f"No curated articles to send to {email_address}")
@@ -146,8 +139,10 @@ class DigestService:
             html_digest = result["html_content"]
             clustered_articles = result["clustered_articles"]
             
+            # Generate subject with top 3 highest scoring articles
+            subject = self._generate_email_subject(clustered_articles)
+            
             notifier = EmailNotifier()
-            subject = f"Suas Notícias de {time.strftime('%d/%m/%Y') }"
             
             email_from_editor = os.getenv("EMAIL_FROM_EDITOR")
             editor_name = os.getenv("EDITOR_NAME", "Editor")
@@ -180,3 +175,49 @@ class DigestService:
                 "reason": "error",
                 "error": str(e)
             }
+    
+    def _generate_email_subject(self, clustered_articles: List[List[Dict]]) -> str:
+        """
+        Generate email subject using subject_pt from top 3 highest scoring clusters.
+        
+        Args:
+            clustered_articles: List of article clusters
+            
+        Returns:
+            Email subject string
+        """
+        # Sort clusters by sum of urgency_score + impact_score of their main article (descending)
+        def get_cluster_sort_key(cluster):
+            if not cluster:
+                return 0
+            main_article = cluster[0]
+            urgency = main_article.get('urgency_score', 0) or 0
+            impact = main_article.get('impact_score', 0) or 0
+            return -(urgency + impact)
+        
+        sorted_clusters = sorted(clustered_articles, key=get_cluster_sort_key)
+        
+        # Get top 3 clusters with subject_pt from their main article
+        top_subjects = []
+        for cluster in sorted_clusters[:3]:
+            if cluster:
+                main_article = cluster[0]
+                subject_pt = main_article.get('subject_pt')
+                if subject_pt and subject_pt.strip():
+                    top_subjects.append(subject_pt.strip())
+        
+        # Generate subject
+        date_str = time.strftime('%d/%m/%Y')
+        
+        if top_subjects:
+            if len(top_subjects) == 1:
+                subject = f"{top_subjects[0]} - {date_str}"
+            elif len(top_subjects) == 2:
+                subject = f"{top_subjects[0]} • {top_subjects[1]} - {date_str}"
+            else:  # 3 or more
+                subject = f"{top_subjects[0]} • {top_subjects[1]} • {top_subjects[2]} - {date_str}"
+        else:
+            # Fallback to original subject if no subject_pt available
+            subject = f"Suas Notícias de {date_str}"
+        
+        return subject

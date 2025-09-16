@@ -62,9 +62,16 @@ class NewsCurator:
                     a['user_similarity'] = sim
                 else:
                     a['user_similarity'] = 0.0
-            # Sort articles by similarity (descending)
-            articles = sorted(articles, key=lambda x: x.get('user_similarity', 0), reverse=True)
         
+        # Sort articles by sum of urgency_score + impact_score (descending), then by user similarity if available
+        def get_sort_key(article):
+            urgency = article.get('urgency_score', 0) or 0
+            impact = article.get('impact_score', 0) or 0
+            similarity = article.get('user_similarity', 0)
+            # Primary sort: sum of urgency + impact (desc), then similarity (desc)
+            return (-(urgency + impact), -similarity)
+        
+        articles = sorted(articles, key=get_sort_key)
         
         clustered_curated_articles = []
         category_counts = defaultdict(int)
@@ -106,65 +113,3 @@ class NewsCurator:
                     category_counts[cat] += 1
         
         return clustered_curated_articles
-
-    def curate_and_cluster_for_user_alt(self, email_address: str):
-        """
-        Curates and clusters articles by first filtering, then clustering within categories.
-        1) Gets articles from the last 24h and filters based on user preferences.
-        2) Calls clusterer.perform_clustering to get up to max_news_per_category clusters for each category.
-        """
-        # 1. Get articles from last 24h and filter based on user preferences.
-        prefs = self.db_service.get_user_preferences(email_address)
-        enabled_sources = prefs.get('enabled_sources') if prefs else None
-        enabled_categories = prefs.get('enabled_categories') if prefs else None
-        max_news_per_category = prefs.get('max_news_per_category', 10) if prefs else 10
-
-        end_date = datetime.now(timezone.utc)
-        start_date = end_date - timedelta(hours=24)
-        start_date_str = start_date.isoformat()
-        end_date_str = end_date.isoformat()
-
-        articles = self.db_service.get_unsent_articles(
-            email_address,
-            start_date=start_date_str,
-            end_date=end_date_str,
-            source_ids=[str(s) for s in enabled_sources] if enabled_sources else None,
-            categories=enabled_categories
-        )
-
-        if not articles:
-            self.logger.info("No articles found for curation.")
-            return []
-
-        # Group articles by category
-        articles_by_category = defaultdict(list)
-        for article in articles:
-            categories = article.get('category')
-            if not categories:
-                categories = ['uncategorized']
-            elif isinstance(categories, str):
-                categories = [cat.strip() for cat in categories.split(',')]
-            
-            for cat in categories:
-                articles_by_category[cat].append(article)
-
-        # 2. Call clusterer.perform_clustering for each category
-        clusterer = ArticleClusterer()
-        all_clustered_articles = []
-        
-        for category, cat_articles in articles_by_category.items():
-            if not cat_articles:
-                continue
-            
-            num_clusters = min(max_news_per_category, len(cat_articles))
-            if num_clusters == 0:
-                continue
-
-            self.logger.info(f"Clustering {len(cat_articles)} articles for category '{category}' into {num_clusters} clusters.")
-            
-            clusters = clusterer.perform_clustering(articles=cat_articles, n_clusters=num_clusters)
-            
-            all_clustered_articles.extend(clusters[:max_news_per_category])
-
-        return all_clustered_articles
-

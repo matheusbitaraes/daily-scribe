@@ -1,4 +1,11 @@
 # Development Best Practices
+    
+## Frontend best practices
+- Follow component-based architecture
+- Always use Material-UI for UI components, dont crete any css files. If you are changing a file that has css files, migrate it to MUI.
+
+## Backend best practices
+- Follow RESTful API design principles
 
 ## Python Best Practices
 
@@ -94,7 +101,7 @@
 - Implement proper prop types with TypeScript
 - Split large components into smaller, focused ones
 
-## Hooks
+### Hooks
 - Follow the Rules of Hooks
 - Use custom hooks for reusable logic
 - Keep hooks focused and simple
@@ -102,7 +109,7 @@
 - Implement cleanup in useEffect when needed
 - Avoid nested hooks
 
-## State Management
+### State Management
 - Use useState for local component state
 - Implement useReducer for complex state logic
 - Use Context API for shared state
@@ -110,7 +117,7 @@
 - Avoid prop drilling through proper state management
 - Use state management libraries only when necessary
 
-## Performance
+### Performance
 - Implement proper memoization (useMemo, useCallback)
 - Use React.memo for expensive components
 - Avoid unnecessary re-renders
@@ -118,7 +125,7 @@
 - Use proper key props in lists
 - Profile and optimize render performance
 
-## Forms
+### Forms
 - Use controlled components for form inputs
 - Implement proper form validation
 - Handle form submission states properly
@@ -126,7 +133,7 @@
 - Use form libraries for complex forms
 - Implement proper accessibility for forms
 
-## Error Handling
+### Error Handling
 - Implement Error Boundaries
 - Handle async errors properly
 - Show user-friendly error messages
@@ -134,7 +141,7 @@
 - Log errors appropriately
 - Handle edge cases gracefully
 
-## Testing
+### Testing
 - Write unit tests for components
 - Implement integration tests for complex flows
 - Use React Testing Library
@@ -142,7 +149,7 @@
 - Test error scenarios
 - Implement proper mock data
 
-## Accessibility
+### Accessibility
 - Use semantic HTML elements
 - Implement proper ARIA attributes
 - Ensure keyboard navigation
@@ -150,7 +157,7 @@
 - Handle focus management
 - Provide proper alt text for images
 
-## Code Organization
+### Code Organization
 - Group related components together
 - Use proper file naming conventions
 - Implement proper directory structure

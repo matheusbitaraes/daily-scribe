@@ -234,7 +234,7 @@ class DatabaseService:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, url, title, summary, summary_pt, sentiment, keywords, category, region, published_at, processed_at, source_id, raw_content FROM articles WHERE url = ?", (url,))
+                cursor.execute("SELECT id, url, title, summary, summary_pt, sentiment, keywords, category, region, published_at, processed_at, source_id, raw_content, urgency_score, impact_score, subject_pt FROM articles WHERE url = ?", (url,))
                 row = cursor.fetchone()
                 if row:
                     columns = [desc[0] for desc in cursor.description]
@@ -309,7 +309,7 @@ class DatabaseService:
 
         Args:
             url: The URL of the article to mark as processed.
-            metadata: The NewsMetadata dict (summary, sentiment, keywords, category, region).
+            metadata: The NewsMetadata dict (summary, sentiment, keywords, category, region, urgency_score, impact_score, subject_pt).
             published_at: The published date/time of the article (ISO format string or None).
             title: The title of the article.
             source_id: The id of the source in the sources table.
@@ -319,7 +319,7 @@ class DatabaseService:
                 cursor = conn.cursor()
                 keywords_str = ','.join(metadata.get('keywords', [])) if metadata.get('keywords') else None
                 cursor.execute(
-                    "INSERT INTO articles (url, title, summary, sentiment, keywords, category, region, published_at, source_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO articles (url, title, summary, sentiment, keywords, category, region, published_at, source_id, urgency_score, impact_score, subject_pt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         url,
                         title,
@@ -329,7 +329,10 @@ class DatabaseService:
                         metadata.get('category'),
                         metadata.get('region'),
                         published_at,
-                        source_id
+                        source_id,
+                        metadata.get('urgency_score'),
+                        metadata.get('impact_score'),
+                        metadata.get('subject_pt')
                     )
                 )
                 conn.commit()
@@ -461,7 +464,7 @@ class DatabaseService:
         """
         query = """
             SELECT a.id, a.title, a.url, a.summary, a.summary_pt, a.sentiment, a.keywords, a.category, a.region, 
-                   a.published_at, a.processed_at, a.source_id, s.name as source_name
+                   a.published_at, a.processed_at, a.source_id, s.name as source_name, a.urgency_score, a.impact_score, a.subject_pt
             FROM articles a
             LEFT JOIN sources s ON a.source_id = s.id
             WHERE (a.summary is not null OR a.summary_pt is not null)
@@ -822,7 +825,7 @@ class DatabaseService:
                     cursor.execute(
                         """
                         UPDATE articles
-                        SET summary_pt = ?, sentiment = ?, keywords = ?, category = ?, region = ?
+                        SET summary_pt = ?, sentiment = ?, keywords = ?, category = ?, region = ?, urgency_score = ?, impact_score = ?, subject_pt = ?
                         WHERE id = ?
                         """,
                         (
@@ -831,6 +834,9 @@ class DatabaseService:
                             keywords_str,
                             metadata.get('category'),
                             metadata.get('region'),
+                            metadata.get('urgency_score'),
+                            metadata.get('impact_score'),
+                            metadata.get('subject_pt'),
                             article_id
                         )
                     )
@@ -838,7 +844,7 @@ class DatabaseService:
                     cursor.execute(
                         """
                         UPDATE articles
-                        SET summary = ?, sentiment = ?, keywords = ?, category = ?, region = ?
+                        SET summary = ?, sentiment = ?, keywords = ?, category = ?, region = ?, urgency_score = ?, impact_score = ?, subject_pt = ?
                         WHERE id = ?
                         """,
                         (
@@ -847,6 +853,9 @@ class DatabaseService:
                             keywords_str,
                             metadata.get('category'),
                             metadata.get('region'),
+                            metadata.get('urgency_score'),
+                            metadata.get('impact_score'),
+                            metadata.get('subject_pt'),
                             article_id
                         )
                     )

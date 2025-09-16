@@ -142,8 +142,7 @@ def send_digest(
         digest_service = DigestService()
         result = digest_service.send_digest_to_user(
             email_address=email_address,
-            force=force,
-            use_alt_method=False
+            force=force
         )
         
         if result["success"]:

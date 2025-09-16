@@ -121,12 +121,17 @@ class DigestBuilder:
             if category_pt in categories:
                 html_digest += f'<div class="category">{category_pt}</div>'
                 
-                # Sort clusters within category by size (largest first), then by date (newest first)
-                sorted_clusters = sorted(
-                    categories[category_pt],
-                    key=lambda cluster: (len(cluster), DigestBuilder._get_cluster_date(cluster)),
-                    reverse=True
-                )
+                # Sort clusters within category by urgency + impact scores (highest first), then by size (largest first)
+                def get_cluster_sort_key(cluster):
+                    if not cluster:
+                        return (0, 0, 0)
+                    main_article = cluster[0]
+                    urgency = main_article.get('urgency_score', 0) or 0
+                    impact = main_article.get('impact_score', 0) or 0
+                    cluster_size = len(cluster)
+                    return (-(urgency + impact), -cluster_size)
+                
+                sorted_clusters = sorted(categories[category_pt], key=get_cluster_sort_key)
                 
                 for cluster in sorted_clusters:
                     html_digest += '<div class="cluster">'

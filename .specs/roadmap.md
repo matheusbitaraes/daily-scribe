@@ -53,8 +53,10 @@
       - [x] unsubscribe
       - [x] preferences
 - [x] cronojob to backup db and cleanup
-- [ ] improve curator quality; extract if its hard or soft news, try extracting the importance or weight of the news, ... research on more to extract\      
-      - [ ] Ao invés de ‘Suas Notícias de 15/09/2025’, uns top 3 assuntos
+- [ ] Improve curator quality; extract if its hard or soft news, try extracting the importance or weight of the news, ... research on more to extract
+      - [ ] Ao invés de ‘Suas Notícias de 15/09/2025’, uns top 3 assuntos. store a headline_pt
+      - Translation API to title? or title_pt?
+- [ ] Improve copilot agent rules and documentation
 - [ ] Improve grafana logs and dashboards
 - [ ] make digest builder admin only
 - [ ] migrate db to elasticsearch?
