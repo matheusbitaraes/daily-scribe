@@ -13,8 +13,8 @@
 # full enrichment run hourly
 0 * * * * cd /app && python -m src.main full-run >> /var/log/cron/full-run.log 2>&1
 
-# Daily database backup and cleanup - run daily at 2 AM UTC
-0 2 * * * cd /app && python /app/cron/daily_cleanup_and_backup.py >> /var/log/cron/db-backup-cleanup.log 2>&1
+# Daily database backup and cleanup - run daily at 4 AM UTC
+0 4 * * * cd /app && python daily_cleanup_and_backup.py >> /var/log/cron/db-backup-cleanup.log 2>&1
 
 # Log rotation and cleanup - run weekly at 3 AM Sunday UTC
 0 3 * * 0 find /var/log/cron -name "*.log" -mtime +7 -delete >> /var/log/cron/cleanup.log 2>&1

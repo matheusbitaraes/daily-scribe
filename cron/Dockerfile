@@ -22,6 +22,7 @@ RUN apt-get update && \
 # Copy cron configuration and entrypoint script
 COPY cron/crontab /app/crontab
 COPY cron/entrypoint.sh /app/entrypoint.sh
+COPY cron/daily_cleanup_and_backup.py /app/daily_cleanup_and_backup.py
 
 # Make entrypoint script executable and set proper ownership
 RUN chmod +x /app/entrypoint.sh && \
