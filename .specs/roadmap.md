@@ -58,8 +58,8 @@
       - Translation API to title? or title_pt?
 - [x] ui bug on source selection 
 - [x] add save button
-- [ ]home page with news in tabs
-- [ ]reference to home page in email
+- [x] home page with news in tabs
+- [x] reference to home page in email
 - [ ] redirect urls in email
 - [ ] Improve copilot agent rules and documentation
 - [ ] Improve grafana logs and dashboards

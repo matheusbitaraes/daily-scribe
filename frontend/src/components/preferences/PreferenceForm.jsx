@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import CategorySelector from './CategorySelector';
 import SourceSelector from './SourceSelector';
 import KeywordManager from './KeywordManager';
+import { STANDARD_CATEGORY_ORDER } from '../../utils/categories';
 import {
   Box,
   Paper,
@@ -128,15 +129,7 @@ const PreferenceForm = ({
 
         // Fallback to mock data if API fails
         setAvailableOptions({
-          categories: [
-            'Technology',
-            'Politics',
-            'Sports',
-            'Entertainment',
-            'Science and Health',
-            'Business',
-            'Other'
-          ],
+          categories: STANDARD_CATEGORY_ORDER,
           sources: []
         });
       } finally {

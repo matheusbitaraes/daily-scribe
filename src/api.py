@@ -21,6 +21,8 @@ from models.preferences import (
     ErrorResponse,
     AvailableOptionsResponse
 )
+from components.news_curator import NewsCurator
+from utils.categories import STANDARD_CATEGORY_ORDER
 
 logger = logging.getLogger(__name__)
 
@@ -299,10 +301,85 @@ def get_categories():
     """
     Get all unique categories from articles.
     """
-    articles = db_service.get_articles()
-    categories = sorted(set(a.get('category') for a in articles if a.get('category')))
-    return categories
+    # returns translated categories in standard order
+    return STANDARD_CATEGORY_ORDER
 
+
+@api_router.get("/news/clustered")
+def get_clustered_news(
+    category: Optional[str] = Query(None, description="Category to filter by"),
+    start_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    limit: int = Query(10, ge=1, le=200, description="Maximum number of clusters to return"),
+    offset: int = Query(0, ge=0, description="Number of clusters to skip for pagination"),
+):
+    """
+    Get articles organized into clusters, similar to email digest format.
+    Returns articles grouped by similarity with main article and related articles.
+    """
+    try:
+        news_curator = NewsCurator()
+        
+        clustered_articles = news_curator.curate_for_homepage(
+            categories=[category],
+            limit=limit,
+            start_date=start_date,
+            end_date=end_date,
+            offset=offset
+        )
+        # Format clusters for response
+        formatted_clusters = []
+        for cluster in clustered_articles:
+            main_article = cluster[0]
+            related_articles = cluster[1:] if len(cluster) > 1 else []
+            
+            formatted_cluster = {
+                "main_article": {
+                    "id": main_article['id'],
+                    "title": main_article['title'],
+                    "summary": main_article.get('summary_pt') or main_article.get('summary', ''),
+                    "url": main_article['url'],
+                    "published_at": main_article['published_at'],
+                    "source_name": main_article.get('source_name', ''),
+                    "category": main_article.get('category', ''),
+                    "urgency_score": main_article.get('urgency_score', 0),
+                    "impact_score": main_article.get('impact_score', 0)
+                },
+                "related_articles": [
+                    {
+                        "id": art['id'],
+                        "title": art['title'],
+                        "url": art['url'],
+                        "source_name": art.get('source_name', ''),
+                        "published_at": art['published_at']
+                    } for art in related_articles
+                ],
+                "cluster_size": len(cluster)
+            }
+            formatted_clusters.append(formatted_cluster)
+        
+        return {
+            "success": True,
+            "clusters": formatted_clusters,
+            # "total_clusters": total_clusters,
+            # "has_more": has_more,
+            "metadata": {
+                "category": category,
+                "start_date": start_date.isoformat() if start_date else None,
+                "end_date": end_date.isoformat() if end_date else None,
+                # "total_articles": len(articles),
+                "returned_clusters": len(formatted_clusters),
+                "offset": offset,
+                "limit": limit
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting clustered news: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error while getting clustered news: {str(e)}"
+        )
 @api_router.get("/sources")
 def get_sources():
     """
@@ -323,8 +400,6 @@ def get_user_preferences(
     """
     try:
         preferences = db_service.get_user_preferences(user_email)
-
-        print(preferences)
         
         # If no preferences are found, return sensible defaults
         if not preferences:
@@ -836,8 +911,8 @@ async def get_available_options() -> AvailableOptionsResponse:
         # Get available sources from database
         sources = db_service.get_all_sources()
         
-        # For now, just return default categories
-        category_list = ['Politics', 'Technology', 'Science and Health', 'Business', 'Entertainment', 'Sports', 'Other']
+        # Use shared category constants
+        category_list = STANDARD_CATEGORY_ORDER
         
         return {
             "sources": sources,

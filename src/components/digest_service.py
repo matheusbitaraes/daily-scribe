@@ -49,7 +49,7 @@ class DigestService:
         
         # Use curator to get articles based on user preferences
         curator = NewsCurator()
-        clustered_articles = curator.curate_and_cluster_for_user(email_address)
+        clustered_articles = curator.curate_and_cluster(email_address)
         
         if not clustered_articles:
             return {

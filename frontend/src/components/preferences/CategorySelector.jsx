@@ -9,6 +9,7 @@ import {
   Stack,
   Paper
 } from '@mui/material';
+import { CATEGORY_TRANSLATIONS } from '../../utils/categories';
 
 /**
  * Category selection component
@@ -21,17 +22,6 @@ const CategorySelector = ({
   error,
   register
 }) => {
-  // Category Portuguese translations
-  const categoryTranslations = {
-    'Politics': 'Política',
-    'Technology': 'Tecnologia',
-    'Science and Health': 'Saúde e Ciência',
-    'Business': 'Negócios',
-    'Entertainment': 'Entretenimento',
-    'Sports': 'Esportes',
-    'Other': 'Outros'
-  };
-
   const handleCategoryToggle = (category) => {
     const isSelected = selectedCategories.includes(category);
     let newCategories;
@@ -60,7 +50,7 @@ const CategorySelector = ({
       <Grid container spacing={2} sx={{ mb: 3 }}>
         {availableCategories.map((category) => {
           const isSelected = selectedCategories.includes(category);
-          const translatedName = categoryTranslations[category] || category;
+          const translatedName = CATEGORY_TRANSLATIONS[category] || category;
           
           return (
             <Grid item xs={12} sm={6} md={4} key={category}>
@@ -120,7 +110,7 @@ const CategorySelector = ({
               {selectedCategories.map((category) => (
                 <Chip
                   key={category}
-                  label={categoryTranslations[category] || category}
+                  label={CATEGORY_TRANSLATIONS[category] || category}
                   color="primary"
                   variant="filled"
                   size="small"

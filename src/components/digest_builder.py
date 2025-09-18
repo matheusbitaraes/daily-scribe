@@ -6,31 +6,18 @@ This module handles building the HTML digest from article summaries.
 
 from typing import List, Dict
 from collections import defaultdict
-
-STANDARD_CATEGORY_ORDER = [  # Fixed typo: STANDAND -> STANDARD
-    'Politics', 'Technology', 'Science and Health', 'Business', 'Entertainment', 'Sports', 'Other'
-]
+from utils.categories import STANDARD_CATEGORY_ORDER, CATEGORY_TRANSLATIONS
 
 class DigestBuilder:
     @staticmethod
     def build_html_digest(clustered_summaries: List[List[Dict[str, str]]], preference_token: str = "", unsubscribe_link_html: str = "", max_clusters: int = 20, base_url: str = "http://localhost:3000") -> str:
-        category_translation = {
-            'Politics': 'Política',
-            'Technology': 'Tecnologia',
-            'Science and Health': 'Saúde E Ciência',
-            'Business': 'Negócios',
-            'Entertainment': 'Entretenimento',
-            'Sports': 'Esportes',
-            'Other': 'Outros'
-        }
-
         # Group clusters by category
         categories = defaultdict(list)
         for cluster in clustered_summaries:
             if cluster:
                 # Use the first article's category for the entire cluster
                 category = cluster[0].get('category', 'Other') or 'Other'
-                category_pt = category_translation.get(category, category)
+                category_pt = CATEGORY_TRANSLATIONS.get(category, category)
                 categories[category_pt].append(cluster)
 
         html_digest = """
@@ -136,7 +123,7 @@ class DigestBuilder:
         
         # Calculate how many categories actually have content
         active_categories = [category_en for category_en in STANDARD_CATEGORY_ORDER 
-                           if category_translation.get(category_en, category_en) in categories]
+                           if CATEGORY_TRANSLATIONS.get(category_en, category_en) in categories]
         
         # Calculate clusters per category (distribute evenly)
         clusters_per_category = max_clusters // len(active_categories) if active_categories else max_clusters
@@ -146,7 +133,7 @@ class DigestBuilder:
             if max_clusters_reached:
                 break
                 
-            category_pt = category_translation.get(category_en, category_en)
+            category_pt = CATEGORY_TRANSLATIONS.get(category_en, category_en)
             if category_pt in categories:
                 html_digest += f'<div class="category">{category_pt}</div>'
                 
