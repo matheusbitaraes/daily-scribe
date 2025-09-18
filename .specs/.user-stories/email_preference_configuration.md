@@ -237,7 +237,7 @@ class SecureToken:
     created_at: datetime
     expires_at: datetime
     usage_count: int = 0
-    max_usage: int = 10  # Limit token reuse
+    max_usage: int = 50  # Limit token reuse
 
 class SecureTokenManager:
     def __init__(self, secret_key: str):

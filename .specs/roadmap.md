@@ -53,9 +53,14 @@
       - [x] unsubscribe
       - [x] preferences
 - [x] cronojob to backup db and cleanup
-- [ ] Improve curator quality; extract if its hard or soft news, try extracting the importance or weight of the news, ... research on more to extract
-      - [ ] Ao invés de ‘Suas Notícias de 15/09/2025’, uns top 3 assuntos. store a headline_pt
+- [x] Improve curator quality; extract if its hard or soft news, try extracting the importance or weight of the news, ... research on more to extract
+      - [x] Ao invés de ‘Suas Notícias de 15/09/2025’, uns top 3 assuntos. store a headline_pt
       - Translation API to title? or title_pt?
+- [x] ui bug on source selection 
+- [x] add save button
+- [ ]home page with news in tabs
+- [ ]reference to home page in email
+- [ ] redirect urls in email
 - [ ] Improve copilot agent rules and documentation
 - [ ] Improve grafana logs and dashboards
 - [ ] make digest builder admin only

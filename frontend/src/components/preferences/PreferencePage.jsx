@@ -2,7 +2,7 @@
  * Main preference configuration page component
  * Handles token validation and renders the preference form
  */
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PreferenceForm from './PreferenceForm';
 import usePreferences from '../../hooks/usePreferences';
@@ -32,6 +32,9 @@ const PreferencePage = () => {
   const { token } = useParams();
   const navigate = useNavigate();
   const { showSuccess, showError, ToastComponent } = useToast();
+  
+  // Track unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Detect if mobile device for enhanced UX
   const isMobile = device.isMobile();
@@ -81,14 +84,33 @@ const PreferencePage = () => {
       if (saveStatus === 'saved') {
         // Only show success toast for manual saves (when savePreferences is called)
         showSuccess('Preferências salvas com sucesso!');
+        setHasUnsavedChanges(false); // Clear unsaved changes flag
       } else if (saveStatus === 'error') {
         showError('Erro ao salvar preferências. Tente novamente.');
       } else if (saveStatus === 'reset') {
         showSuccess('Preferências redefinidas com sucesso!');
+        setHasUnsavedChanges(false); // Clear unsaved changes flag
       }
       prevSaveStatusRef.current = saveStatus;
     }
   }, [saveStatus, showSuccess, showError]);
+
+  // Prevent navigation with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [hasUnsavedChanges]);
 
   // Helper functions
   const handleGoHome = () => {
@@ -106,11 +128,18 @@ const PreferencePage = () => {
   // Handle preference updates (local state only - no toast)
   const handlePreferenceUpdate = (updates) => {
     updatePreferences(updates);
+    setHasUnsavedChanges(true); // Mark as having unsaved changes
   };
 
   // Handle manual save (with toast)
   const handleManualSave = (data) => {
     savePreferences(data);
+  };
+
+  // Handle reset with unsaved changes clearing
+  const handleReset = () => {
+    resetPreferences();
+    setHasUnsavedChanges(false);
   };
 
   // Render loading with enhanced mobile experience
@@ -270,6 +299,14 @@ const PreferencePage = () => {
             </Typography>
           )}
         </Box>
+                  {/* {hasUnsavedChanges && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                <strong>Atenção:</strong> Você tem alterações não salvas. 
+                Lembre-se de clicar em "Salvar Alterações" antes de sair da página.
+              </Typography>
+            </Alert>
+          )} */}
 
         {/* Main Content */}
         <Box component="main" id="main-content" position="relative">
@@ -289,28 +326,20 @@ const PreferencePage = () => {
             preferences={preferences}
             onPreferenceChange={handlePreferenceUpdate}
             onSave={handleManualSave}
-            onReset={resetPreferences}
+            onReset={handleReset}
             isMobile={isMobile}
             isTouch={isTouch}
+            hasUnsavedChanges={hasUnsavedChanges}
           />
         </Box>
 
         <Box component="footer" py={4} mt={6}>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="body2">
-              <strong>Dica:</strong> Suas alterações são salvas automaticamente.
-              {isMobile
-                ? ' Você pode minimizar o app a qualquer momento.'
-                : ' Você pode fechar esta página a qualquer momento.'
-              }
-            </Typography>
-          </Alert>
 
-          <Alert severity="success" variant="outlined">
+          {/* <Alert severity="success" variant="outlined">
             <Typography variant="body2">
               Esta página usa um link seguro que expira em 24 horas
             </Typography>
-          </Alert>
+          </Alert> */}
         </Box>
       </Container>
       <ToastComponent />

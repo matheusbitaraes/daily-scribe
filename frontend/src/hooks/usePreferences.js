@@ -169,49 +169,17 @@ const usePreferences = (token) => {
   }, []);
 
   /**
-   * Debounced save function to avoid excessive API calls
-   */
-  const debouncedSave = useCallback((updatedPreferences) => {
-    // Clear any existing timer
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    
-    // Set new timer
-    debounceTimerRef.current = setTimeout(() => {
-      savePreferences(updatedPreferences);
-    }, 1000);
-  }, [savePreferences]);
-
-  /**
-   * Updates preferences with debounced saving
+   * Updates preferences locally without saving (manual save only)
    */
   const updatePreferences = useCallback((updates) => {
-    const updatedPreferences = {
-      ...preferences,
-      ...updates
-    };
-    
-    // Update UI immediately (optimistic)
+    // Update UI immediately (optimistic update for better UX)
     updatePreferencesOptimistically(updates);
-    
-    // Save with debouncing
-    debouncedSave(updatedPreferences);
-  }, [preferences, updatePreferencesOptimistically, debouncedSave]);
+  }, [updatePreferencesOptimistically]);
 
   // Fetch preferences on mount or token change
   useEffect(() => {
     fetchPreferences();
   }, [fetchPreferences]);
-
-  // Cleanup debounce timer on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, []);
 
   return {
     preferences,

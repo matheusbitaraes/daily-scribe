@@ -10,7 +10,10 @@ import KeywordManager from './KeywordManager';
 import {
   Box,
   Paper,
-  Grid
+  Grid,
+  Button,
+  Stack,
+  Typography
 } from '@mui/material';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
@@ -21,7 +24,8 @@ const PreferenceForm = ({
   onSave,
   onReset,
   isMobile = false,
-  isTouch = false
+  isTouch = false,
+  hasUnsavedChanges = false
 }) => {
   const [availableOptions, setAvailableOptions] = useState({
     categories: [],
@@ -35,7 +39,7 @@ const PreferenceForm = ({
     handleSubmit,
     watch,
     setValue,
-    formState: { errors }
+    formState: { errors, isDirty }
   } = useForm({
     defaultValues: {
       categories: [],
@@ -76,7 +80,7 @@ const PreferenceForm = ({
     onSave(apiData);
   };
 
-  // Handle input changes with preference updates
+  // Handle input changes without auto-save
   const handleChange = (field, value) => {    
     setValue(field, value, { shouldDirty: true });
 
@@ -95,7 +99,7 @@ const PreferenceForm = ({
       max_news_per_category: preferences?.max_news_per_category || 10
     };
 
-    // Update preferences through parent component
+    // Update preferences locally only (no auto-save)
     onPreferenceChange(apiData);
   };
 
@@ -186,6 +190,57 @@ const PreferenceForm = ({
               register={register}
             />
           </Paper>
+        </Grid>
+
+        {/* Action Buttons */}
+        <Grid size={12}>
+          {/* <Paper elevation={2} sx={{ p: 3, mt: 2 }}> */}
+            <Stack 
+              direction={{ xs: 'column', sm: 'row' }} 
+              spacing={2} 
+              mt={4}
+              justifyContent="center"
+              alignItems="center"
+            >
+              <Button
+                type="submit"
+                variant="contained"
+                size="large"
+                disabled={!hasUnsavedChanges}
+                sx={{ 
+                  minWidth: { xs: '100%', sm: '200px' },
+                  py: 1.5 
+                }}
+              >
+                {hasUnsavedChanges ? 'Salvar Alterações' : 'Salvo'}
+              </Button>
+              
+              {/* <Button
+                type="button"
+                variant="outlined"
+                size="large"
+                onClick={() => {
+                  if (window.confirm('Tem certeza que deseja redefinir todas as preferências para os valores padrão?')) {
+                    onReset();
+                  }
+                }}
+                sx={{ 
+                  minWidth: { xs: '100%', sm: '200px' },
+                  py: 1.5 
+                }}
+              >
+                Redefinir Padrões
+              </Button> */}
+            </Stack>
+            
+            {hasUnsavedChanges && (
+              <Box textAlign="center" mt={2}>
+                <Typography variant="body2" color="warning.main">
+                  Você tem alterações não salvas
+                </Typography>
+              </Box>
+            )}
+          {/* </Paper> */}
         </Grid>
       </Grid>
     </Box>

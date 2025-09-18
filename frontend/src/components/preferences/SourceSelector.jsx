@@ -166,14 +166,14 @@ const SourceSelector = ({
 
       {/* Action buttons */}
       <Stack direction="row" spacing={1} sx={{ mb: 2 }} flexWrap="wrap">
-        <Button
+        {/* <Button
           onClick={handleSelectAll}
           variant="outlined"
           size="small"
           disabled={isAllSelected}
         >
           {searchTerm || showOnlySelected ? 'Selecionar Visíveis' : 'Selecionar Todas'}
-        </Button>
+        </Button> */}
         
         <Button
           onClick={handleClearAll}

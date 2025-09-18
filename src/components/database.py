@@ -981,7 +981,7 @@ class DatabaseService:
     # Token Management Methods
 
     def create_user_token(self, token_id: str, token_hash: str, user_preferences_id: int, 
-                         device_fingerprint: str, expires_at: str, max_usage: int = 10, purpose: str = 'email_preferences') -> Optional[int]:
+                         device_fingerprint: str, expires_at: str, max_usage: int = 50, purpose: str = 'email_preferences') -> Optional[int]:
         """
         Create a new user token for secure preference access.
         
