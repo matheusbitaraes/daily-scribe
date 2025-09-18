@@ -119,45 +119,6 @@ class EmailService:
             logger.error(f"Error generating unsubscribe token for {email_address}: {e}")
             return None
     
-    def build_preference_button_html(
-        self,
-        token: str,
-        button_text: str = "Configurar Preferências"
-    ) -> str:
-        """
-        Build HTML for the preference configuration button.
-        
-        Args:
-            token: Secure preference access token
-            button_text: Text to display on the button
-            
-        Returns:
-            HTML string for the preference button
-        """
-        # Build the preference URL with token
-        preference_url = f"{self.base_url}/preferences/{token}"
-        
-        # Create responsive button HTML that works across email clients
-        button_html = f"""
-        <div style="margin: 8px 0; text-align: center;">
-            <!-- Main button (works in most email clients) -->
-            <table cellpadding="0" cellspacing="0" style="margin: 0 auto;">
-                <tr>
-                    <td style="background-color: #0a97f5; border-radius: 4px; text-align: center;">
-                        <a href="{preference_url}" 
-                           target="_blank" 
-                           rel="noopener"
-                           style="display: inline-block; padding: 6px 12px; color: #ffffff; text-decoration: none; font-weight: 500; font-size: 12px; border-radius: 4px; border: none;">
-                            {button_text}
-                        </a>
-                    </td>
-                </tr>
-            </table>
-        </div>
-        """
-        
-        return button_html
-    
     def build_unsubscribe_link_html(
         self,
         token: str,
@@ -216,22 +177,6 @@ class EmailService:
                 user_agent=user_agent,
                 ip_address=ip_address
             )
-
-            # Deprecated
-            # enabled_addresses = [
-            #     "matheusbitaraesdenovaes@gmail.com",
-            #     "anadetomi@hotmail.com",
-            # ]
-            # isPreferenceButtonEnabled = email_address in enabled_addresses
-            
-            if not preference_token:
-                logger.warning(f"Failed to generate preference token for {email_address}, building digest without preference button")
-                preference_button_html = ""
-            else:
-                # Build preference button HTML
-                preference_button_html = self.build_preference_button_html(
-                    token=preference_token,
-                )
             
             # Generate unsubscribe token
             unsubscribe_token = self.generate_unsubscribe_token(
@@ -252,8 +197,10 @@ class EmailService:
             # Build the main digest HTML with preference button and unsubscribe link included
             digest_html = DigestBuilder.build_html_digest(
                 clustered_summaries=clustered_summaries,
-                preference_button_html=preference_button_html if preference_button_html else "",
-                unsubscribe_link_html=unsubscribe_link_html if unsubscribe_link_html else ""
+                preference_token=preference_token if preference_token else "",
+                unsubscribe_link_html=unsubscribe_link_html if unsubscribe_link_html else "",
+                max_clusters=20,
+                base_url=self.base_url
             )
             
             return {
@@ -275,7 +222,11 @@ class EmailService:
             logger.error(f"Error building digest with preferences for {email_address}: {e}")
             # Fallback to basic digest without preference button
             return {
-                "html_content": DigestBuilder.build_html_digest(clustered_summaries),
+                "html_content": DigestBuilder.build_html_digest(
+                    clustered_summaries=clustered_summaries,
+                    max_clusters=20,
+                    base_url=self.base_url
+                ),
                 "preference_token": None,
                 "unsubscribe_token": None,
                 "email_address": email_address,

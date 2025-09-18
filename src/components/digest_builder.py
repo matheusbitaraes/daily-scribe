@@ -13,7 +13,7 @@ STANDARD_CATEGORY_ORDER = [  # Fixed typo: STANDAND -> STANDARD
 
 class DigestBuilder:
     @staticmethod
-    def build_html_digest(clustered_summaries: List[List[Dict[str, str]]], preference_button_html: str = "", unsubscribe_link_html: str = "") -> str:
+    def build_html_digest(clustered_summaries: List[List[Dict[str, str]]], preference_token: str = "", unsubscribe_link_html: str = "", max_clusters: int = 20, base_url: str = "http://localhost:3000") -> str:
         category_translation = {
             'Politics': 'Política',
             'Technology': 'Tecnologia',
@@ -93,6 +93,28 @@ class DigestBuilder:
                     text-decoration: underline;
                     opacity: 1;
                 }
+                .view-more-button {
+                    margin: 24px 0;
+                    text-align: center;
+                    padding: 16px;
+                    background-color: #f8f9fa;
+                    border-radius: 8px;
+                    border: 1px solid #e0e0e0;
+                }
+                .view-more-button a {
+                    display: inline-block;
+                    background-color: #0a97f5;
+                    color: white;
+                    text-decoration: none;
+                    padding: 12px 24px;
+                    border-radius: 6px;
+                    font-weight: 600;
+                    font-size: 14px;
+                    transition: background-color 0.2s ease;
+                }
+                .view-more-button a:hover {
+                    background-color: #0878d1;
+                }
                 /* Mobile optimizations */
                 @media (max-width: 600px) {
                     .related-list {
@@ -109,17 +131,31 @@ class DigestBuilder:
         <body>
 
         <div class="content">
-        <div>
-        """ + preference_button_html + """
-        </div>   
-        
         """
 
         # Process categories in the specified order
-        for category_en in STANDARD_CATEGORY_ORDER:
+        cluster_count = 0
+        max_clusters_reached = False
+        
+        # Calculate how many categories actually have content
+        active_categories = [category_en for category_en in STANDARD_CATEGORY_ORDER 
+                           if category_translation.get(category_en, category_en) in categories]
+        
+        # Calculate clusters per category (distribute evenly)
+        clusters_per_category = max_clusters // len(active_categories) if active_categories else max_clusters
+        remaining_clusters = max_clusters % len(active_categories) if active_categories else 0
+        
+        for category_index, category_en in enumerate(STANDARD_CATEGORY_ORDER):
+            if max_clusters_reached:
+                break
+                
             category_pt = category_translation.get(category_en, category_en)
             if category_pt in categories:
                 html_digest += f'<div class="category">{category_pt}</div>'
+                
+                # Calculate limit for this category (add 1 extra to first categories if there's remainder)
+                category_limit = clusters_per_category + (1 if category_index < remaining_clusters else 0)
+                category_cluster_count = 0
                 
                 # Sort clusters within category by urgency + impact scores (highest first), then by size (largest first)
                 def get_cluster_sort_key(cluster):
@@ -134,6 +170,14 @@ class DigestBuilder:
                 sorted_clusters = sorted(categories[category_pt], key=get_cluster_sort_key)
                 
                 for cluster in sorted_clusters:
+                    # Check if adding this cluster would exceed the category or global limit
+                    if category_cluster_count >= category_limit or cluster_count >= max_clusters:
+                        if cluster_count >= max_clusters:
+                            max_clusters_reached = True
+                        break
+                    
+                    cluster_count += 1
+                    category_cluster_count += 1
                     html_digest += '<div class="cluster">'
                     main_article = cluster[0]
                     source = main_article.get('source_name')
@@ -166,6 +210,22 @@ class DigestBuilder:
                             """
                         html_digest += '</ul>'
                     html_digest += '</div>'
+        
+        if preference_token:
+            html_digest += '<div class="view-more-button">'
+            
+            # Add "View more in browser" button if cluster limit was reached
+            view_more_url = f"{base_url}/news"
+            html_digest += f'<a href="{view_more_url}">Ver todas as notícias</a>'
+            
+            # Add preference button if token is provided
+            
+            preference_url = f"{base_url}/preferences/{preference_token}"
+            # Add margin if both buttons are present
+            margin_style = 'margin-left: 12px;'
+            html_digest += f'<a href="{preference_url}" style="{margin_style}">Gerenciar preferências</a>'
+            
+            html_digest += '</div>'
 
         # Add unsubscribe link at the bottom if provided
         if unsubscribe_link_html:
