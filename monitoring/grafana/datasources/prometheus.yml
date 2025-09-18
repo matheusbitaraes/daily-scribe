@@ -7,9 +7,19 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: true
+    uid: prometheus
+    jsonData:
+      httpMethod: POST
+      queryTimeout: 60s
+      timeInterval: 15s
 
   - name: Loki
     type: loki
     access: proxy
     url: http://loki:3100
     editable: true
+    uid: loki
+    jsonData:
+      httpMethod: GET
+      queryTimeout: 300s
+      maxLines: 1000

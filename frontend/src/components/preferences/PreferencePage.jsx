@@ -308,7 +308,7 @@ const PreferencePage = () => {
 
           <Alert severity="success" variant="outlined">
             <Typography variant="body2">
-              Esta página usa um link seguro que expira em 24 horas ou após 10 usos.
+              Esta página usa um link seguro que expira em 24 horas
             </Typography>
           </Alert>
         </Box>

@@ -341,101 +341,53 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: true
+    uid: prometheus
+    jsonData:
+      httpMethod: POST
+      queryTimeout: 60s
+      timeInterval: 15s
 
   - name: Loki
     type: loki
     access: proxy
     url: http://loki:3100
     editable: true
+    uid: loki
+    jsonData:
+      httpMethod: GET
+      queryTimeout: 300s
+      maxLines: 1000
 EOF
 
-    # Create simple dashboard configuration
+    # Create dashboard provisioning configuration
     cat > "$MONITORING_DIR/grafana/dashboards/dashboard.yml" << 'EOF'
 apiVersion: 1
 
 providers:
-  - name: 'daily-scribe'
+  - name: 'daily-scribe-dashboards'
     orgId: 1
-    folder: ''
+    folder: 'Daily Scribe'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
-      path: /etc/grafana/provisioning/dashboards
+      path: /var/lib/grafana/dashboards
 EOF
 
     # Create Daily Scribe dashboard JSON
-    cat > "$DASHBOARDS_DIR/daily-scribe-overview.json" << 'EOF'
-{
-  "dashboard": {
-    "id": null,
-    "title": "Daily Scribe Overview",
-    "tags": ["daily-scribe"],
-    "timezone": "browser",
-    "panels": [
-      {
-        "id": 1,
-        "title": "Service Status",
-        "type": "stat",
-        "targets": [
-          {
-            "expr": "up{job=\"daily-scribe-app\"}",
-            "legendFormat": "Application"
-          }
-        ],
-        "fieldConfig": {
-          "defaults": {
-            "color": {
-              "mode": "thresholds"
-            },
-            "thresholds": {
-              "steps": [
-                {
-                  "color": "red",
-                  "value": 0
-                },
-                {
-                  "color": "green",
-                  "value": 1
-                }
-              ]
-            }
-          }
-        },
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 0,
-          "y": 0
-        }
-      },
-      {
-        "id": 2,
-        "title": "Request Rate",
-        "type": "graph",
-        "targets": [
-          {
-            "expr": "rate(http_requests_total[5m])",
-            "legendFormat": "Requests/sec"
-          }
-        ],
-        "gridPos": {
-          "h": 8,
-          "w": 12,
-          "x": 12,
-          "y": 0
-        }
-      }
-    ],
-    "time": {
-      "from": "now-1h",
-      "to": "now"
-    },
-    "refresh": "30s"
-  }
-}
-EOF
+    if [ -f "$DASHBOARDS_DIR/daily-scribe-overview.json" ]; then
+        log_info "daily-scribe-overview.json already exists, skipping creation."
+    else
+        log_info "Creating daily-scribe-overview.json..."
+        # Using the enhanced dashboard definition
+        cp "$PROJECT_ROOT/monitoring/dashboards/daily-scribe-overview.json" "$DASHBOARDS_DIR/daily-scribe-overview.json"
+    fi
+
+    # Set permissions
+    chmod 644 "$MONITORING_DIR/grafana/dashboards/dashboard.yml"
+    chmod 644 "$MONITORING_DIR/grafana/datasources/prometheus.yml"
+    chmod -R 644 "$DASHBOARDS_DIR"/*.json 2>/dev/null || true
 
     log_success "Grafana configuration created"
 }

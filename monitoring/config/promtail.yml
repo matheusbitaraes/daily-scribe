@@ -9,26 +9,28 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
+  # Docker container logs
   - job_name: containers
     static_configs:
       - targets:
           - localhost
         labels:
           job: containerlogs
-          __path__: /var/lib/docker/containers/*/*log
+          __path__: /var/lib/docker/containers/*/*-json.log
 
     pipeline_stages:
       - json:
           expressions:
             output: log
             stream: stream
-            attrs:
+            time: time
+            attrs: attrs
       - json:
           expressions:
-            tag:
+            tag: tag
           source: attrs
       - regex:
-          expression: (?P<container_name>(?:[^|]*))\|
+          expression: (?P<container_name>(?:[^|]*))
           source: tag
       - timestamp:
           format: RFC3339Nano
@@ -39,6 +41,7 @@ scrape_configs:
       - output:
           source: output
 
+  # System logs
   - job_name: syslog
     static_configs:
       - targets:
@@ -47,19 +50,133 @@ scrape_configs:
           job: syslog
           __path__: /var/log/syslog
 
-  - job_name: cronlogs
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\S+)\s+(?P<service>\S+):\s*(?P<message>.*)'
+      - timestamp:
+          format: 'Jan 02 15:04:05'
+          source: timestamp
+      - labels:
+          hostname:
+          service:
+      - output:
+          source: message
+
+  # Docker daemon logs (alternative way to get container logs)
+  - job_name: docker-daemon
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: dockerlogs
+          __path__: /var/log/docker.log
+
+  # Individual cron job logs
+  - job_name: send-digest-logs
     static_configs:
       - targets:
           - localhost
         labels:
           job: cronlogs
-          __path__: /app/cron-logs/*.log
+          cronjob: send-digest
+          __path__: /mnt/cron-logs/send-digest.log
 
     pipeline_stages:
       - regex:
-          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<logger>\S+) - (?P<level>\S+) - (?P<message>.*)'
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\d+\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\S+)\s+-\s+(?P<message>.*)'
       - timestamp:
-          format: '2006-01-02 15:04:05,000'
+          format: '2006-01-02 15:04:05'
+          source: timestamp
+      - labels:
+          level:
+          logger:
+      - output:
+          source: message
+
+  - job_name: full-run-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: cronlogs
+          cronjob: full-run
+          __path__: /mnt/cron-logs/full-run.log
+
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\d+\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\S+)\s+-\s+(?P<message>.*)'
+      - timestamp:
+          format: '2006-01-02 15:04:05'
+          source: timestamp
+      - labels:
+          level:
+          logger:
+      - output:
+          source: message
+
+  - job_name: db-backup-cleanup-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: cronlogs
+          cronjob: db-backup-cleanup
+          __path__: /mnt/cron-logs/db-backup-cleanup.log
+
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\d+\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\S+)\s+-\s+(?P<message>.*)'
+      - timestamp:
+          format: '2006-01-02 15:04:05'
+          source: timestamp
+      - labels:
+          level:
+          logger:
+      - output:
+          source: message
+
+  - job_name: cleanup-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: cronlogs
+          cronjob: cleanup
+          __path__: /mnt/cron-logs/cleanup.log
+
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\d+\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\S+)\s+-\s+(?P<message>.*)'
+      - timestamp:
+          format: '2006-01-02 15:04:05'
+          source: timestamp
+      - labels:
+          level:
+          logger:
+      - output:
+          source: message
+
+  # Alternative container log collection using docker inspect
+  - job_name: daily-scribe-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["com.docker.compose.project=daily-scribe"]
+
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container_name'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\d+\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\S+)\s+-\s+(?P<message>.*)'
+      - timestamp:
+          format: '2006-01-02 15:04:05'
           source: timestamp
       - labels:
           level:

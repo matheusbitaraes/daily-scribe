@@ -47,13 +47,17 @@ services:
       - "3001:3000"
     volumes:
       - grafana-data:/var/lib/grafana
+      # Provisioning configurations
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      # Dashboard JSON files
       - ./monitoring/dashboards:/var/lib/grafana/dashboards
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      # Enable provisioning logs for debugging
+      - GF_LOG_LEVEL=info
     networks:
       - daily-scribe-network
     restart: unless-stopped
@@ -77,8 +81,10 @@ services:
     volumes:
       - /var/log:/var/log:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./monitoring/config/promtail.yml:/etc/promtail/config.yml
-      - daily_scribe_cron_logs:/app/cron-logs:ro
+      # Mount the cron logs volume to access cron job logs
+      - daily-scribe_daily_scribe_cron_logs:/mnt/cron-logs:ro
     command: -config.file=/etc/promtail/config.yml
     networks:
       - daily-scribe-network
@@ -88,9 +94,8 @@ volumes:
   prometheus-data:
   grafana-data:
   loki-data:
-  daily_scribe_cron_logs:
+  daily-scribe_daily_scribe_cron_logs:
     external: true
-    name: daily-scribe_daily_scribe_cron_logs
 
 networks:
   daily-scribe-network:

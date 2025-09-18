@@ -1,12 +1,31 @@
+# File: monitoring/grafana/dashboards/dashboard.yml
+# This tells Grafana where to find dashboard JSON files
 apiVersion: 1
 
 providers:
-  - name: 'daily-scribe'
+  - name: 'daily-scribe-dashboards'
     orgId: 1
-    folder: ''
+    folder: 'Daily Scribe'
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10
     allowUiUpdates: true
     options:
-      path: /etc/grafana/provisioning/dashboards
+      path: /var/lib/grafana/dashboards
+
+---
+# File structure you need to create:
+# 
+# monitoring/
+# ├── grafana/
+# │   ├── dashboards/
+# │   │   └── dashboard.yml                    # ← This file (provisioning config)
+# │   └── datasources/
+# │       └── prometheus.yml
+# ├── dashboards/                              # ← Directory for actual dashboard JSONs
+# │   ├── daily-scribe-overview.json          # ← Your existing dashboard
+# │   └── daily-scribe-enhanced.json          # ← The new enhanced dashboard
+# └── config/
+#     ├── prometheus.yml
+#     ├── loki.yml
+#     └── promtail.yml
