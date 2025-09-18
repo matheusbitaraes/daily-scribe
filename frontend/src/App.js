@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import NewsPage from './pages/NewsPage';
+import RedirectPage from './pages/RedirectPage';
 import DigestSimulator from './components/DigestSimulator';
 import PreferencePage from './components/preferences/PreferencePage';
 import EmailVerificationPage from './pages/EmailVerificationPage';
@@ -27,6 +28,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/news" element={<NewsPage />} />
+              <Route path="/redirect" element={<RedirectPage />} />
               <Route path="/digest-simulator" element={<DigestSimulator />} />
               <Route path="/preferences/:token" element={<PreferencePage />} />
               <Route path="/verify-email" element={<EmailVerificationPage />} />

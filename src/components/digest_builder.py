@@ -6,9 +6,30 @@ This module handles building the HTML digest from article summaries.
 
 from typing import List, Dict
 from collections import defaultdict
+from urllib.parse import quote
 from utils.categories import STANDARD_CATEGORY_ORDER, CATEGORY_TRANSLATIONS
 
 class DigestBuilder:
+    @staticmethod
+    def wrap_with_redirect_page(url: str, base_url: str) -> str:
+        """
+        Wrap an external URL with the redirect page to hide external domains in emails.
+        
+        Args:
+            url: The original URL to wrap
+            base_url: The base URL of the application
+            
+        Returns:
+            The wrapped URL using the redirect page
+        """
+        if not url:
+            return url
+            
+        # URL encode the original URL to safely pass it as a query parameter
+        encoded_url = quote(url, safe='')
+        
+        # Return the redirect URL
+        return f"{base_url}/redirect?url={encoded_url}"
     @staticmethod
     def build_html_digest(clustered_summaries: List[List[Dict[str, str]]], preference_token: str = "", unsubscribe_link_html: str = "", max_clusters: int = 20, base_url: str = "http://localhost:3000") -> str:
         # Group clusters by category
@@ -171,11 +192,14 @@ class DigestBuilder:
                     # Use Portuguese summary if available, otherwise fallback to English
                     preferred_summary = main_article.get('summary_pt') or main_article.get('summary', '')
                     
+                    # Wrap the main article URL with redirect page
+                    wrapped_url = DigestBuilder.wrap_with_redirect_page(main_article['url'], base_url)
+                    
                     html_digest += f"""
                     <div class="main-article">
                         <p class="summary">
                             <span class="title">{main_article['title']}:</span>
-                            {preferred_summary} <a href="{main_article['url']}">[{source}]</a>
+                            {preferred_summary} <a href="{wrapped_url}">[{source}]</a>
                         </p>
                     </div>
                     """
@@ -187,9 +211,13 @@ class DigestBuilder:
                                 title = article['title']
                             else:
                                 title = f"[{related_source}] {article['title']}"
+                            
+                            # Wrap the related article URL with redirect page
+                            wrapped_related_url = DigestBuilder.wrap_with_redirect_page(article['url'], base_url)
+                            
                             html_digest += f"""
                             <li>
-                                <a href="{article['url']}">{title}</a>
+                                <a href="{wrapped_related_url}">{title}</a>
                             </li>
                             """
                         html_digest += '</ul>'
