@@ -55,7 +55,7 @@ class SecureTokenManager:
         self.secret_key = secret_key or get_jwt_secret_key()
         self.algorithm = "HS256"
         self.default_expiry_hours = 24
-        self.default_max_usage = 10
+        self.default_max_usage = 50
         
         # Development mode: skip device fingerprint validation when ENV=dev
         self.development_mode = os.getenv('ENV', '').lower() == 'local'
@@ -101,7 +101,7 @@ class SecureTokenManager:
             user_agent: Browser user agent string
             ip_address: Client IP address
             expiry_hours: Token expiration in hours (default: 24)
-            max_usage: Maximum token usage count (default: 10)
+            max_usage: Maximum token usage count (default: 50)
             
         Returns:
             JWT token string if successful, None otherwise
