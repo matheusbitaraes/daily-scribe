@@ -96,10 +96,6 @@ class DigestBuilder:
                 .view-more-button {
                     margin: 24px 0;
                     text-align: center;
-                    padding: 16px;
-                    background-color: #f8f9fa;
-                    border-radius: 8px;
-                    border: 1px solid #e0e0e0;
                 }
                 .view-more-button a {
                     display: inline-block;
@@ -111,6 +107,7 @@ class DigestBuilder:
                     font-weight: 600;
                     font-size: 14px;
                     transition: background-color 0.2s ease;
+                    margin: 10px;
                 }
                 .view-more-button a:hover {
                     background-color: #0878d1;
@@ -222,8 +219,7 @@ class DigestBuilder:
             
             preference_url = f"{base_url}/preferences/{preference_token}"
             # Add margin if both buttons are present
-            margin_style = 'margin-left: 12px;'
-            html_digest += f'<a href="{preference_url}" style="{margin_style}">Gerenciar preferências</a>'
+            html_digest += f'<a href="{preference_url}"">Gerenciar preferências</a>'
             
             html_digest += '</div>'
 
