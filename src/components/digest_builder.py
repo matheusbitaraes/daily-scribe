@@ -192,13 +192,16 @@ class DigestBuilder:
                     # Use Portuguese summary if available, otherwise fallback to English
                     preferred_summary = main_article.get('summary_pt') or main_article.get('summary', '')
                     
+                    # Use Portuguese title if available, otherwise fallback to original title
+                    preferred_title = main_article.get('title_pt') or main_article.get('title', '')
+                    
                     # Wrap the main article URL with redirect page
                     wrapped_url = DigestBuilder.wrap_with_redirect_page(main_article['url'], base_url)
                     
                     html_digest += f"""
                     <div class="main-article">
                         <p class="summary">
-                            <span class="title">{main_article['title']}:</span>
+                            <span class="title">{preferred_title}:</span>
                             {preferred_summary} <a href="{wrapped_url}">[{source}]</a>
                         </p>
                     </div>
@@ -207,10 +210,14 @@ class DigestBuilder:
                         html_digest += '<ul class="related-list">'
                         for article in cluster[1:]:
                             related_source = article.get('source_name')
+                            
+                            # Use Portuguese title if available, otherwise fallback to original title
+                            preferred_related_title = article.get('title_pt') or article.get('title', '')
+                            
                             if not related_source:
-                                title = article['title']
+                                title = preferred_related_title
                             else:
-                                title = f"[{related_source}] {article['title']}"
+                                title = f"[{related_source}] {preferred_related_title}"
                             
                             # Wrap the related article URL with redirect page
                             wrapped_related_url = DigestBuilder.wrap_with_redirect_page(article['url'], base_url)

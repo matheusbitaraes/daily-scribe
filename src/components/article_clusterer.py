@@ -21,8 +21,11 @@ class ArticleClusterer:
 
     def create_text_for_embedding(self, article: Dict) -> str:
         parts = []
-        if article.get('title'):
-            parts.append(f"Title: {article['title']}")
+        
+        # Use Portuguese title if available, otherwise fallback to original title
+        preferred_title = article.get('title_pt') or article.get('title')
+        if preferred_title:
+            parts.append(f"Title: {preferred_title}")
         
         # Use Portuguese summary if available, otherwise fallback to English
         preferred_summary = article.get('summary_pt') or article.get('summary')
@@ -54,7 +57,7 @@ class ArticleClusterer:
                 for content_type, texts in content_by_type.items():
                     if content_type == 'title':
                         # Skip title if we already have it from the article metadata
-                        if not article.get('title'):
+                        if not preferred_title:
                             parts.append(f"Title: {' | '.join(texts)}")
                     elif content_type == 'summary':
                         # Skip summary if we already have it from the article metadata

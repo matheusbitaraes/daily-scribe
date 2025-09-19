@@ -336,7 +336,7 @@ def get_clustered_news(
             formatted_cluster = {
                 "main_article": {
                     "id": main_article['id'],
-                    "title": main_article['title'],
+                    "title": main_article.get('title_pt') or main_article.get('title', ''),
                     "summary": main_article.get('summary_pt') or main_article.get('summary', ''),
                     "url": main_article['url'],
                     "published_at": main_article['published_at'],
@@ -348,7 +348,7 @@ def get_clustered_news(
                 "related_articles": [
                     {
                         "id": art['id'],
-                        "title": art['title'],
+                        "title": art.get('title_pt') or art.get('title', ''),
                         "url": art['url'],
                         "source_name": art.get('source_name', ''),
                         "published_at": art['published_at']

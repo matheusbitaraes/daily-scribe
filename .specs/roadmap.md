@@ -60,10 +60,12 @@
 - [x] add save button
 - [x] home page with news in tabs
 - [x] reference to home page in email
-- [ ] redirect urls in email
+- [x] redirect urls in email
+- [x] titles in portuguese
+- [ ] Add some sort of cache to the news page?
 - [ ] Improve copilot agent rules and documentation
-- [ ] Improve grafana logs and dashboards
+- [x] Improve grafana logs and dashboards
 - [ ] make digest builder admin only
 - [ ] migrate db to elasticsearch?
-- [ ] titles on portuguese?
+
 

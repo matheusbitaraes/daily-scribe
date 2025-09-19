@@ -234,7 +234,7 @@ class DatabaseService:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, url, title, summary, summary_pt, sentiment, keywords, category, region, published_at, processed_at, source_id, raw_content, urgency_score, impact_score, subject_pt FROM articles WHERE url = ?", (url,))
+                cursor.execute("SELECT id, url, title, summary, summary_pt, sentiment, keywords, category, region, published_at, processed_at, source_id, raw_content, urgency_score, impact_score, subject_pt, title_pt FROM articles WHERE url = ?", (url,))
                 row = cursor.fetchone()
                 if row:
                     columns = [desc[0] for desc in cursor.description]
@@ -319,7 +319,7 @@ class DatabaseService:
                 cursor = conn.cursor()
                 keywords_str = ','.join(metadata.get('keywords', [])) if metadata.get('keywords') else None
                 cursor.execute(
-                    "INSERT INTO articles (url, title, summary, sentiment, keywords, category, region, published_at, source_id, urgency_score, impact_score, subject_pt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO articles (url, title, summary, sentiment, keywords, category, region, published_at, source_id, urgency_score, impact_score, subject_pt, summary_pt, title_pt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (
                         url,
                         title,
@@ -332,7 +332,9 @@ class DatabaseService:
                         source_id,
                         metadata.get('urgency_score'),
                         metadata.get('impact_score'),
-                        metadata.get('subject_pt')
+                        metadata.get('subject_pt'),
+                        metadata.get('summary_pt'),
+                        metadata.get('title_pt')
                     )
                 )
                 conn.commit()
@@ -464,7 +466,7 @@ class DatabaseService:
         """
         query = """
             SELECT a.id, a.title, a.url, a.summary, a.summary_pt, a.sentiment, a.keywords, a.category, a.region, 
-                   a.published_at, a.processed_at, a.source_id, s.name as source_name, a.urgency_score, a.impact_score, a.subject_pt
+                   a.published_at, a.processed_at, a.source_id, s.name as source_name, a.urgency_score, a.impact_score, a.subject_pt, a.title_pt
             FROM articles a
             LEFT JOIN sources s ON a.source_id = s.id
             WHERE (a.summary is not null OR a.summary_pt is not null)
@@ -587,7 +589,7 @@ class DatabaseService:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
-                    SELECT a.id, a.title, a.summary, a.summary_pt, a.keywords, a.category
+                    SELECT a.id, a.title, a.summary, a.summary_pt, a.keywords, a.category, a.title_pt
                     FROM articles a
                     LEFT JOIN article_embeddings ae ON a.id = ae.article_id
                     WHERE ae.article_id IS NULL
@@ -825,7 +827,7 @@ class DatabaseService:
                     cursor.execute(
                         """
                         UPDATE articles
-                        SET summary_pt = ?, sentiment = ?, keywords = ?, category = ?, region = ?, urgency_score = ?, impact_score = ?, subject_pt = ?
+                        SET summary_pt = ?, sentiment = ?, keywords = ?, category = ?, region = ?, urgency_score = ?, impact_score = ?, subject_pt = ?, title_pt = ?
                         WHERE id = ?
                         """,
                         (
@@ -837,6 +839,7 @@ class DatabaseService:
                             metadata.get('urgency_score'),
                             metadata.get('impact_score'),
                             metadata.get('subject_pt'),
+                            metadata.get('title_pt'),
                             article_id
                         )
                     )
@@ -844,7 +847,7 @@ class DatabaseService:
                     cursor.execute(
                         """
                         UPDATE articles
-                        SET summary = ?, sentiment = ?, keywords = ?, category = ?, region = ?, urgency_score = ?, impact_score = ?, subject_pt = ?
+                        SET summary = ?, sentiment = ?, keywords = ?, category = ?, region = ?, urgency_score = ?, impact_score = ?, subject_pt = ?, title_pt = ?
                         WHERE id = ?
                         """,
                         (
@@ -856,6 +859,7 @@ class DatabaseService:
                             metadata.get('urgency_score'),
                             metadata.get('impact_score'),
                             metadata.get('subject_pt'),
+                            metadata.get('title_pt'),
                             article_id
                         )
                     )
@@ -905,6 +909,30 @@ class DatabaseService:
                 conn.commit()
         except sqlite3.Error as e:
             self.logger.error(f"Error updating article Portuguese summary in database: {e}")
+
+    def get_preferred_title(self, article: dict) -> str:
+        """
+        Get the preferred title for an article (Portuguese if available, otherwise original title).
+        
+        Args:
+            article: Article dict containing title and title_pt fields
+            
+        Returns:
+            The preferred title text
+        """
+        return article.get('title_pt') or article.get('title', '')
+
+    def get_preferred_title_field_name(self, article: dict) -> str:
+        """
+        Get the name of the field containing the preferred title.
+        
+        Args:
+            article: Article dict containing title and title_pt fields
+            
+        Returns:
+            'title_pt' if Portuguese title exists, otherwise 'title'
+        """
+        return 'title_pt' if article.get('title_pt') else 'title'
 
     def get_all_user_email_addresses(self) -> list:
         """
