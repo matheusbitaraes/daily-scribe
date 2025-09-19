@@ -910,30 +910,6 @@ class DatabaseService:
         except sqlite3.Error as e:
             self.logger.error(f"Error updating article Portuguese summary in database: {e}")
 
-    def get_preferred_title(self, article: dict) -> str:
-        """
-        Get the preferred title for an article (Portuguese if available, otherwise original title).
-        
-        Args:
-            article: Article dict containing title and title_pt fields
-            
-        Returns:
-            The preferred title text
-        """
-        return article.get('title_pt') or article.get('title', '')
-
-    def get_preferred_title_field_name(self, article: dict) -> str:
-        """
-        Get the name of the field containing the preferred title.
-        
-        Args:
-            article: Article dict containing title and title_pt fields
-            
-        Returns:
-            'title_pt' if Portuguese title exists, otherwise 'title'
-        """
-        return 'title_pt' if article.get('title_pt') else 'title'
-
     def get_all_user_email_addresses(self) -> list:
         """
         Return a list of all unique active user email addresses from the users table.
