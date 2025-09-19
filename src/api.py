@@ -23,6 +23,7 @@ from models.preferences import (
 )
 from components.news_curator import NewsCurator
 from utils.categories import STANDARD_CATEGORY_ORDER
+from utils.cache import SimpleCache
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,9 @@ app.add_middleware(
 )
 
 db_service = DatabaseService()
+
+# Initialize global news cache with 30-minute TTL
+news_cache = SimpleCache(ttl_seconds=1800)  # 30 minutes
 
 
 @app.get("/healthz")
@@ -318,6 +322,18 @@ def get_clustered_news(
     Returns articles grouped by similarity with main article and related articles.
     """
     try:
+        # Create cache key based on request parameters
+        cache_key = f"clustered_news:{category}:{start_date}:{end_date}:{limit}:{offset}"
+        
+        # Try to get from cache first
+        cached_result = news_cache.get(cache_key)
+        if cached_result:
+            logger.info(f"Returning cached result for key: {cache_key}")
+            # Add cache indicator to metadata
+            cached_result["metadata"]["cached"] = True
+            return cached_result
+        
+        # If not in cache, generate the result
         news_curator = NewsCurator()
         
         clustered_articles = news_curator.curate_for_homepage(
@@ -327,6 +343,7 @@ def get_clustered_news(
             end_date=end_date,
             offset=offset
         )
+        
         # Format clusters for response
         formatted_clusters = []
         for cluster in clustered_articles:
@@ -358,21 +375,25 @@ def get_clustered_news(
             }
             formatted_clusters.append(formatted_cluster)
         
-        return {
+        result = {
             "success": True,
             "clusters": formatted_clusters,
-            # "total_clusters": total_clusters,
-            # "has_more": has_more,
             "metadata": {
                 "category": category,
                 "start_date": start_date.isoformat() if start_date else None,
                 "end_date": end_date.isoformat() if end_date else None,
-                # "total_articles": len(articles),
                 "returned_clusters": len(formatted_clusters),
                 "offset": offset,
-                "limit": limit
+                "limit": limit,
+                "cached": False
             }
         }
+        
+        # Store in cache
+        news_cache.set(cache_key, result)
+        logger.info(f"Cached result for key: {cache_key}")
+        
+        return result
         
     except Exception as e:
         logger.error(f"Error getting clustered news: {str(e)}")
@@ -621,6 +642,58 @@ def get_digest_metadata(
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error while fetching digest metadata: {str(e)}"
+        )
+
+# =============================================================================
+# CACHE MANAGEMENT ENDPOINTS
+# =============================================================================
+
+@api_router.post("/admin/cache/clear")
+def clear_news_cache():
+    """
+    Clear the news cache (admin endpoint).
+    This endpoint clears all cached news data and forces fresh data generation.
+    """
+    try:
+        cache_size_before = news_cache.size()
+        news_cache.clear()
+        logger.info(f"Cache cleared. Removed {cache_size_before} entries.")
+        
+        return {
+            "success": True,
+            "message": f"Cache cleared successfully. Removed {cache_size_before} entries.",
+            "cache_size_before": cache_size_before,
+            "cache_size_after": 0
+        }
+    except Exception as e:
+        logger.error(f"Error clearing cache: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error while clearing cache: {str(e)}"
+        )
+
+@api_router.get("/admin/cache/stats")
+def get_cache_stats():
+    """
+    Get cache statistics (admin endpoint).
+    Returns information about current cache state including size and expired entries.
+    """
+    try:
+        # Get comprehensive stats from the cache
+        stats = news_cache.get_stats()
+        expired_count = news_cache.cleanup_expired()
+        
+        return {
+            "success": True,
+            "cache_stats": stats,
+            "expired_entries_removed": expired_count,
+            "cache_size_after_cleanup": news_cache.size()
+        }
+    except Exception as e:
+        logger.error(f"Error getting cache stats: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error while getting cache stats: {str(e)}"
         )
 
 # =============================================================================
