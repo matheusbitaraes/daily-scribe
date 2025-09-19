@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import CategorySelector from './CategorySelector';
 import SourceSelector from './SourceSelector';
 import KeywordManager from './KeywordManager';
-import { STANDARD_CATEGORY_ORDER } from '../../utils/categories';
+import { CATEGORY_PREFERENCES_ORDER } from '../../utils/categories';
 import {
   Box,
   Paper,
@@ -119,17 +119,24 @@ const PreferenceForm = ({
 
         const data = await response.json();
 
+        const orderedCategories = (data.categories || []).sort((a, b) => {
+          const indexA = CATEGORY_PREFERENCES_ORDER.indexOf(a);
+          const indexB = CATEGORY_PREFERENCES_ORDER.indexOf(b);
+          return (indexA === -1 ? Number.MAX_VALUE : indexA) - (indexB === -1 ? Number.MAX_VALUE : indexB);
+        })
+
         setAvailableOptions({
-          categories: data.categories || [],
+          categories: orderedCategories,
           sources: data.sources || []
         });
+
       } catch (error) {
         console.error('Error fetching available options:', error);
         setLoadError(error.message);
 
         // Fallback to mock data if API fails
         setAvailableOptions({
-          categories: STANDARD_CATEGORY_ORDER,
+          categories: CATEGORY_PREFERENCES_ORDER,
           sources: []
         });
       } finally {

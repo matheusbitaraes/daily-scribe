@@ -15,6 +15,17 @@ export const STANDARD_CATEGORY_ORDER = [
   'Other'
 ];
 
+// Preferred order for user preferences UI
+export const CATEGORY_PREFERENCES_ORDER = [
+  'Politics',
+  'Technology',
+  'Business',
+  'Sports',
+  'Entertainment',
+  'Science and Health',
+  'Other'
+];
+
 // Portuguese translations for categories
 export const CATEGORY_TRANSLATIONS = {
   'Politics': 'Política',

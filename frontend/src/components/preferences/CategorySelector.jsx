@@ -47,7 +47,7 @@ const CategorySelector = ({
         </Alert>
       )}
 
-      <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Grid container spacing={2} sx={{ mb: 3 }} justifyContent="space-between">
         {availableCategories.map((category) => {
           const isSelected = selectedCategories.includes(category);
           const translatedName = CATEGORY_TRANSLATIONS[category] || category;
@@ -61,14 +61,15 @@ const CategorySelector = ({
                   transition: 'all 0.2s ease-in-out',
                   bgcolor: isSelected ? 'primary.50' : 'background.paper',
                   borderColor: isSelected ? 'primary.main' : 'divider',
+                  borderRadius: 10,
                   '&:hover': {
                     boxShadow: 2,
                     transform: 'translateY(-1px)'
-                  }
+                  },
                 }}
                 onClick={() => handleCategoryToggle(category)}
               >
-                <Box py={1} px={2} display="flex" alignItems="center" justifyContent="space-between">
+                <Box py={0} px={2} display="flex" alignItems="center" justifyContent="space-between">
                   <FormControlLabel
                     control={
                       <Checkbox
@@ -79,7 +80,7 @@ const CategorySelector = ({
                       />
                     }
                     label={
-                      <Typography variant="body1" fontWeight={isSelected ? 500 : 400}>
+                      <Typography variant="body2" fontWeight={isSelected ? 500 : 400}>
                         {translatedName}
                       </Typography>
                     }
