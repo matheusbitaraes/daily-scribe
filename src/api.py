@@ -24,6 +24,8 @@ from models.preferences import (
 from components.news_curator import NewsCurator
 from utils.categories import STANDARD_CATEGORY_ORDER
 from utils.cache import SimpleCache
+from dotenv import load_dotenv
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -291,14 +293,35 @@ def get_articles(
     return articles
 
 @api_router.get("/articles/{article_id}")
-def get_article(article_id: int):
+def get_article(article_id: int, include_related: bool = Query(True, description="Whether to include related articles")):
     """
-    Get details for a single article by ID.
+    Get details for a single article by ID, optionally with related articles.
     """
     article = db_service.get_article_by_id(article_id)
     if not article:
         return {"error": "Article not found"}
-    return article
+    
+    result = article.copy()
+
+    
+    
+    if include_related:
+        try:
+            from components.article_clusterer import ArticleClusterer
+            clusterer = ArticleClusterer()
+            related_articles = clusterer.get_similar_articles(
+                article_id, 
+                enabled_source_ids=None, 
+                top_k=int(os.getenv("CLUSTERIZATION_TOP_K", "20")),
+                similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD", "0.75")),
+            )
+            result["related_articles"] = related_articles
+        except Exception as e:
+            logger.warning(f"Could not get related articles for {article_id}: {e}")
+            result["related_articles"] = []
+            result["related_articles"] = []
+    
+    return result
 
 @api_router.get("/categories")
 def get_categories():

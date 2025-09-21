@@ -64,10 +64,9 @@
 
         .category-link-item {
             padding: 8px 0;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: flex-start;
+            display: block;
+            margin-bottom: 4px;
+            margin-left: 4px;
         }
 
         .category-link-item:last-child {
@@ -86,9 +85,8 @@
         }
 
         .cluster-number-info {
-            font-size: 12px;
+            font-size: 10px;
             color: #666;
-            margin-left: 8px;
         }
 
         .cluster {
@@ -213,7 +211,7 @@
                 </ul>
                 {{#if has_more_related}}
                 <div class="view-more-related">
-                    <a href="{{base_url}}/news/{{main_article.article_id}}">
+                    <a href="{{../base_url}}/news/{{main_article.article_id}}">
                         + {{additional_related_count}} notícias relacionadas - veja mais
                     </a>
                 </div>
@@ -227,12 +225,12 @@
         {{#if category_links}}
         <div class="category-links-section">
             {{#each category_links}}
-            <div class="category">{{category_name}}</div>
+            <div class="category">Outras em {{category_name}}</div>
             {{#each articles}}
             <div class="category-link-item">
-                <a href="{{../base_url}}/news/{{article_id}}">{{preferred_title}}</a>
+                <a href="{{../../base_url}}/news/{{article_id}}">{{preferred_title}}</a>
                 {{#if similar_news_count}}
-                <span class="cluster-number-info">+ {{similar_news_count}} notícias similares</span>
+                <span class="cluster-number-info">[+{{similar_news_count}} similares]</span>
                 {{/if}}
             </div>
             {{/each}}

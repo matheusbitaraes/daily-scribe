@@ -13,6 +13,7 @@ import {
     Button,
     Stack,
     Divider,
+    Collapse,
 } from '@mui/material';
 import {
     ArrowBack,
@@ -20,6 +21,8 @@ import {
     AccessTime,
     Category,
     Source,
+    ExpandMore,
+    ExpandLess,
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -28,6 +31,98 @@ import { CATEGORY_TRANSLATIONS } from '../utils/categories';
 import Header from '../components/Header';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+
+// Component for related news section
+const RelatedNews = ({ relatedArticles }) => {
+    const [expanded, setExpanded] = useState(false);
+
+    const formatDate = (dateString) => {
+        try {
+            return format(parseISO(dateString), 'HH:mm - dd/MM/yyyy', { locale: pt });
+        } catch {
+            return dateString;
+        }
+    };
+
+    if (!relatedArticles || relatedArticles.length === 0) {
+        return null;
+    }
+
+    return (
+        <Card sx={{ mt: 3 }}>
+            <CardContent>
+                <Button
+                    startIcon={expanded ? <ExpandLess /> : <ExpandMore />}
+                    onClick={() => setExpanded(!expanded)}
+                    size="medium"
+                    sx={{ mb: 1, textTransform: 'none' }}
+                >
+                    <Typography variant="h6" component="span">
+                        {relatedArticles.length} notícia{relatedArticles.length > 1 ? 's' : ''} relacionada{relatedArticles.length > 1 ? 's' : ''}
+                    </Typography>
+                </Button>
+
+                <Collapse in={expanded}>
+                    <Box sx={{ mt: 2 }}>
+                        {relatedArticles.map((article, index) => (
+                            <Card 
+                                key={article.id} 
+                                variant="outlined" 
+                                sx={{ 
+                                    mb: 2,
+                                    '&:hover': { boxShadow: 2 },
+                                    '&:last-child': { mb: 0 }
+                                }}
+                            >
+                                <CardContent sx={{ pb: '16px !important' }}>
+                                    <Typography variant="h6" component="h4" sx={{ mb: 1, fontSize: '1.1rem' }}>
+                                        <Link
+                                            href={article.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            sx={{
+                                                textDecoration: 'none',
+                                                color: 'inherit',
+                                                '&:hover': { color: 'primary.main' }
+                                            }}
+                                        >
+                                            {article.title}
+                                        </Link>
+                                    </Typography>
+
+                                    {article.summary && (
+                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                            {article.summary}
+                                        </Typography>
+                                    )}
+
+                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+                                        <Chip
+                                            label={article.source_name}
+                                            size="small"
+                                            variant="outlined"
+                                        />
+                                        {article.similarity_score && (
+                                            <Chip
+                                                label={`Similaridade: ${(article.similarity_score * 100).toFixed(0)}%`}
+                                                size="small"
+                                                color="info"
+                                                variant="outlined"
+                                            />
+                                        )}
+                                        <Typography variant="caption" color="text.secondary">
+                                            {formatDate(article.published_at)}
+                                        </Typography>
+                                    </Box>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </Box>
+                </Collapse>
+            </CardContent>
+        </Card>
+    );
+};
 
 const ArticlePage = () => {
     const { articleId } = useParams();
@@ -266,6 +361,11 @@ const ArticlePage = () => {
                         </Stack>
                     </CardContent>
                 </Card>
+
+                {/* Related News Section */}
+                {article.related_articles && (
+                    <RelatedNews relatedArticles={article.related_articles} />
+                )}
             </Container>
         </>
     );

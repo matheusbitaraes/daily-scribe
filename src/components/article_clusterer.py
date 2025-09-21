@@ -235,9 +235,6 @@ class ArticleClusterer:
             raise ValueError(f"No user preferences found for {email_address}")
         categories = prefs.get('enabled_categories', [])
         user_keywords = prefs.get('keywords', [])
-
-        print(f"User preferences for {email_address}: categories={categories}, keywords={user_keywords}")
-        
         # Combine keywords and categories into a single text string
         text_parts = []
         if user_keywords:

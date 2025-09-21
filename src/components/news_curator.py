@@ -2,7 +2,10 @@ from collections import defaultdict
 from components.database import DatabaseService
 from datetime import datetime, timedelta, timezone, date
 from components.article_clusterer import ArticleClusterer
+import os
 import logging
+from dotenv import load_dotenv
+load_dotenv()
 
 class NewsCurator:
     """
@@ -64,7 +67,12 @@ class NewsCurator:
                 current_cluster_ids = {article['id']}
                 
                 try:
-                    similar = clusterer.get_similar_articles(article['id'], enabled_source_ids=None, top_k=5, similarity_threshold=0.55)
+                    similar = clusterer.get_similar_articles(
+                        article['id'],
+                        enabled_source_ids=None,
+                        top_k=int(os.getenv("CLUSTERIZATION_TOP_K", 20)),
+                        similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD", 0.75)),
+                    )
                     for sim_article in similar:
                         if sim_article['id'] not in used_article_ids:
                             cluster.append(sim_article)
@@ -168,7 +176,13 @@ class NewsCurator:
                 try:
                     # date threshold is start_date minus 1 day to allow for more similar articles
                     date_threshold = start_date - timedelta(days=1)
-                    similar = clusterer.get_similar_articles(article['id'], enabled_source_ids, top_k=20, similarity_threshold=0.75, date_threshold=date_threshold)
+                    similar = clusterer.get_similar_articles(
+                        article['id'],
+                        enabled_source_ids,
+                        top_k=int(os.getenv("CLUSTERIZATION_TOP_K", 20)),
+                        similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD", 0.75)),
+                        date_threshold=date_threshold
+                    )
                     for sim_article in similar:
                         if sim_article['id'] not in used_article_ids:
                             cluster.append(sim_article)

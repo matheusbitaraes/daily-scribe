@@ -103,6 +103,43 @@ class DigestBuilder:
         template = self._load_template(template_name)
         return template(template_data)
     
+    def get_cluster_sort_key(self, cluster):
+        # Sort all clusters by urgency + impact scores (highest first), then by size (largest first)
+        if not cluster:
+            return (0, 0, 0)
+        main_article = cluster[0]
+        urgency = main_article.get('urgency_score', 0) or 0
+        impact = main_article.get('impact_score', 0) or 0
+        cluster_size = len(cluster) - 1 
+        # return a weighted comparisson where urgency + impact is primary and size is secondary
+        CLUSTERIZATION_TOP_K = int(os.getenv("CLUSTERIZATION_TOP_K", 20))
+        normalized_cluster_size = cluster_size / CLUSTERIZATION_TOP_K if CLUSTERIZATION_TOP_K > 0 else 0
+
+        normalized_urgency_impact_score = (urgency + impact) / 10  # max combined score is 10
+
+        urgency_impact_weighted = normalized_urgency_impact_score * 0.7
+        cluster_size_weighted = normalized_cluster_size * 0.3
+        score = urgency_impact_weighted + cluster_size_weighted if cluster_size > 0 else 0
+        return -score
+
+    def sort_clusters(self, clusters, limit=None):
+        sorted_clusters = sorted(clusters, key=self.get_cluster_sort_key)
+        if limit is not None:
+            sorted_clusters = sorted_clusters[:limit]
+
+
+        # print status for first 10 clusters, showing urgency + impact and size
+        for i, cluster in enumerate(sorted_clusters[:10]):
+            main_article = cluster[0]
+            urgency = main_article.get('urgency_score', 0) or 0
+            impact = main_article.get('impact_score', 0) or 0
+            cluster_size = len(cluster)
+            sort_key = self.get_cluster_sort_key(cluster)
+            print(f"Cluster {i+1}: Urgency + Impact = {urgency + impact}, Size = {cluster_size}, Sort Key = {sort_key}, Title = {main_article.get('title', '')[:20]}...")
+
+        return sorted_clusters
+
+    
     def _prepare_template_data(self, clustered_summaries: List[List[Dict[str, str]]], preference_token: str, unsubscribe_link_html: str, max_clusters: int, base_url: str) -> Dict:
         """Prepare data structure for Handlebars template."""
         # Group clusters by category
@@ -136,19 +173,9 @@ class DigestBuilder:
                 # Calculate limit for this category (add 1 extra to first categories if there's remainder)
                 category_limit = clusters_per_category + (1 if category_index < remaining_clusters else 0)
                 category_cluster_count = 0
-                
-                # Sort clusters within category by urgency + impact scores (highest first), then by size (largest first)
-                def get_cluster_sort_key(cluster):
-                    if not cluster:
-                        return (0, 0, 0)
-                    main_article = cluster[0]
-                    urgency = main_article.get('urgency_score', 0) or 0
-                    impact = main_article.get('impact_score', 0) or 0
-                    cluster_size = len(cluster)
-                    return (-(urgency + impact), -cluster_size)
-                
-                sorted_clusters = sorted(categories_dict[category_pt], key=get_cluster_sort_key)
-                
+
+                sorted_clusters = self.sort_clusters(categories_dict[category_pt])
+
                 processed_clusters = []
                 for cluster in sorted_clusters:
                     # Check if adding this cluster would exceed the category or global limit
@@ -229,26 +256,17 @@ class DigestBuilder:
                 category_pt = CATEGORY_TRANSLATIONS.get(category, category)
                 categories_dict[category_pt].append(cluster)
 
-        # Sort all clusters by urgency + impact scores (highest first), then by size (largest first)
-        def get_cluster_sort_key(cluster):
-            if not cluster:
-                return (0, 0, 0)
-            main_article = cluster[0]
-            urgency = main_article.get('urgency_score', 0) or 0
-            impact = main_article.get('impact_score', 0) or 0
-            cluster_size = len(cluster)
-            return (-(urgency + impact), -cluster_size)
-
         # Flatten all clusters and sort them globally
         all_clusters = []
         for category_pt, clusters in categories_dict.items():
             for cluster in clusters:
                 all_clusters.append((cluster, category_pt))
         
-        all_clusters.sort(key=lambda x: get_cluster_sort_key(x[0]))
+        all_clusters.sort(key=lambda x: self.get_cluster_sort_key(x[0]))
 
         # Split into main_news (top clusters with full content) and category_links (remaining as links)
-        main_news_count = min(3, len(all_clusters))  # Show top 3 as main news regardless of total
+        MAIN_ARTICLES_NUMBER_FOR_BODY = int(os.getenv("MAIN_ARTICLES_NUMBER_FOR_BODY", 4))
+        main_news_count = min(MAIN_ARTICLES_NUMBER_FOR_BODY, len(all_clusters))  # Show top news regardless of total
         main_news_clusters = all_clusters[:main_news_count]
         remaining_clusters = all_clusters[main_news_count:]
 

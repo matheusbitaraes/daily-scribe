@@ -27,6 +27,7 @@ class DigestService:
     def __init__(self):
         self.db_service = DatabaseService()
         self.email_service = EmailService()
+        self.digest_builder = DigestBuilder()
     
     def generate_digest_for_user(
         self,
@@ -186,20 +187,14 @@ class DigestService:
         Returns:
             Email subject string
         """
-        # Sort clusters by sum of urgency_score + impact_score of their main article (descending)
-        def get_cluster_sort_key(cluster):
-            if not cluster:
-                return 0
-            main_article = cluster[0]
-            urgency = main_article.get('urgency_score', 0) or 0
-            impact = main_article.get('impact_score', 0) or 0
-            return -(urgency + impact)
-        
-        sorted_clusters = sorted(clustered_articles, key=get_cluster_sort_key)
-        
+        print("Generating email subject...")
+
+        sorted_clusters = self.digest_builder.sort_clusters(clustered_articles, limit=3)
+
         # Get top 3 clusters with subject_pt from their main article
         top_subjects = []
-        for cluster in sorted_clusters[:3]:
+        MAIN_ARTICLES_NUMBER_FOR_SUBJECT = int(os.getenv("MAIN_ARTICLES_NUMBER_FOR_SUBJECT", 3))
+        for cluster in sorted_clusters[:MAIN_ARTICLES_NUMBER_FOR_SUBJECT]:
             if cluster:
                 main_article = cluster[0]
                 subject_pt = main_article.get('subject_pt')
