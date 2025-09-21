@@ -62,9 +62,13 @@
 - [x] reference to home page in email
 - [x] redirect urls in email
 - [x] titles in portuguese
-- [ ] Add some sort of cache to the news page?
-- [ ] Improve copilot agent rules and documentation
+- [x] Add some sort of cache to the news page?
 - [x] Improve grafana logs and dashboards
+- [ ] improve email experience - today, there are too many news
+      - [x] add a page that will display only one article with all information available, with a button that goes to the news feed
+      - [ ] Get x headline articles. Create rules to define how to define those.
+- [ ] improve ranking
+- [ ] Improve copilot agent rules and documentation
 - [ ] make digest builder admin only
 - [ ] migrate db to elasticsearch?
 
