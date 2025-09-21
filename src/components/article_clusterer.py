@@ -176,7 +176,7 @@ class ArticleClusterer:
     def analyze_clusters(self, run_id: str) -> Dict:
         return self.db_service.analyze_clusters(run_id)
 
-    def get_similar_articles(self, article_id: int, enabled_source_ids: List[int] = None, top_k: int = 5, similarity_threshold: float = 0.85) -> List[Dict]:
+    def get_similar_articles(self, article_id: int, enabled_source_ids: List[int] = None, top_k: int = 5, similarity_threshold: float = 0.85, date_threshold: datetime = None) -> List[Dict]:
         embeddings, article_ids = self.get_all_embeddings()
         if article_id not in article_ids:
             raise ValueError(f"Article ID {article_id} not found in embeddings")
@@ -196,6 +196,24 @@ class ArticleClusterer:
                 # Filter by enabled source IDs if provided
                 if enabled_source_ids is not None and str(article.get('source_id')) not in enabled_source_ids:
                     continue
+
+                # Filter by date if date_threshold is provided
+                if date_threshold is not None and article.get('published_at'):
+                    published_at = datetime.fromisoformat(article['published_at'])
+                    
+                    # Handle timezone awareness mismatch
+                    if date_threshold.tzinfo is not None and published_at.tzinfo is None:
+                        # date_threshold is timezone-aware, published_at is naive
+                        # Assume published_at is in UTC if no timezone info
+                        from datetime import timezone
+                        published_at = published_at.replace(tzinfo=timezone.utc)
+                    elif date_threshold.tzinfo is None and published_at.tzinfo is not None:
+                        # date_threshold is naive, published_at is timezone-aware
+                        # Convert published_at to naive UTC
+                        published_at = published_at.replace(tzinfo=None)
+                    
+                    if published_at < date_threshold:
+                        continue
                 article['similarity_score'] = float(similarity_score)
                 results.append(article)
             if len(results) >= top_k:

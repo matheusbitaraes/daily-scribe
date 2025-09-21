@@ -1,0 +1,257 @@
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #fff;
+        }
+
+        .content {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+
+        .category {
+            margin: 24px 0 12px 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: #black;
+            padding-bottom: 0px;
+        }
+
+        .main-news-section {
+            margin-bottom: 32px;
+        }
+
+        .main-news-title {
+            margin: 24px 0 16px 0;
+            font-size: 20px;
+            font-weight: bold;
+            color: #0a97f5;
+            padding-bottom: 8px;
+        }
+
+        .category-tag {
+            display: inline-block;
+            background-color: #f0f8ff;
+            color: #0a97f5;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .category-links-section {
+            margin-top: 32px;
+        }
+
+        .category-links-title {
+            margin: 24px 0 16px 0;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            border-bottom: 2px solid #0a97f5;
+            padding-bottom: 6px;
+        }
+
+        .category-link-item {
+            padding: 8px 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .category-link-item:last-child {
+            border-bottom: none;
+        }
+
+        .category-link-item a {
+            color: #0a97f5;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .category-link-item a:hover {
+            text-decoration: underline;
+        }
+
+        .cluster-number-info {
+            font-size: 12px;
+            color: #666;
+            margin-left: 8px;
+        }
+
+        .cluster {
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+        }
+
+        .title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 6px;
+        }
+
+        .summary {
+            font-size: 15px;
+            color: #444;
+            margin-bottom: 10px;
+        }
+
+        .related-list {
+            margin: 6px 0 0 16px;
+            padding: 0;
+            list-style-type: disc;
+        }
+
+        .related-list li {
+            margin-bottom: 3px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .related-list a {
+            color: #0a97f5;
+            text-decoration: none;
+            opacity: 0.8;
+        }
+
+        .related-list a:hover {
+            text-decoration: underline;
+            opacity: 1;
+        }
+
+        .view-more-related {
+            margin-top: 8px;
+            margin-left: 16px;
+        }
+
+        .view-more-related a {
+            color: #0a97f5;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0.9;
+        }
+
+        .view-more-related a:hover {
+            text-decoration: underline;
+            opacity: 1;
+        }
+
+        .view-more-button {
+            margin: 24px 0;
+            text-align: center;
+        }
+
+        .view-more-button a {
+            display: inline-block;
+            background-color: #0a97f5;
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background-color 0.2s ease;
+            margin: 10px;
+        }
+
+        .view-more-button a:hover {
+            background-color: #0878d1;
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 600px) {
+            .related-list {
+                margin: 4px 0 0 14px;
+            }
+
+            .related-list li {
+                margin-bottom: 2px;
+                font-size: 11px;
+                line-height: 1.3;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="content">
+        {{#if main_news}}
+        <div class="main-news-section">
+
+            {{#each main_news}}
+            <div class="cluster">
+                <div class="main-article">
+                    <p class="summary">
+                        <span class="title">{{main_article.preferred_title}}:</span>
+                        {{main_article.preferred_summary}} <a
+                            href="{{main_article.wrapped_url}}">[{{main_article.source}}]</a>
+                    </p>
+                </div>
+
+                {{#if related_articles}}
+                <ul class="related-list">
+                    {{#each related_articles}}
+                    <li>
+                        <a href="{{wrapped_url}}">{{display_title}}</a>
+                    </li>
+                    {{/each}}
+                </ul>
+                {{#if has_more_related}}
+                <div class="view-more-related">
+                    <a href="{{base_url}}/news/{{main_article.article_id}}">
+                        + {{additional_related_count}} notícias relacionadas - veja mais
+                    </a>
+                </div>
+                {{/if}}
+                {{/if}}
+            </div>
+            {{/each}}
+        </div>
+        {{/if}}
+
+        {{#if category_links}}
+        <div class="category-links-section">
+            {{#each category_links}}
+            <div class="category">{{category_name}}</div>
+            {{#each articles}}
+            <div class="category-link-item">
+                <a href="{{../base_url}}/news/{{article_id}}">{{preferred_title}}</a>
+                {{#if similar_news_count}}
+                <span class="cluster-number-info">+ {{similar_news_count}} notícias similares</span>
+                {{/if}}
+            </div>
+            {{/each}}
+            {{/each}}
+        </div>
+        {{/if}}
+
+        {{#if preference_token}}
+        <div class="view-more-button">
+            <a href="{{base_url}}/news">Ver todas as notícias</a>
+            <a href="{{base_url}}/preferences/{{preference_token}}">Gerenciar preferências</a>
+        </div>
+        {{/if}}
+
+        {{#if unsubscribe_link_html}}
+        {{{unsubscribe_link_html}}}
+        {{/if}}
+    </div>
+
+</body>
+
+</html>

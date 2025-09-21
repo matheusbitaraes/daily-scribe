@@ -164,9 +164,11 @@ class NewsCurator:
                 # Form a cluster around the current article
                 cluster = [article]
                 current_cluster_ids = {article['id']}
-                
+        
                 try:
-                    similar = clusterer.get_similar_articles(article['id'], enabled_source_ids, top_k=5, similarity_threshold=0.55)
+                    # date threshold is start_date minus 1 day to allow for more similar articles
+                    date_threshold = start_date - timedelta(days=1)
+                    similar = clusterer.get_similar_articles(article['id'], enabled_source_ids, top_k=20, similarity_threshold=0.75, date_threshold=date_threshold)
                     for sim_article in similar:
                         if sim_article['id'] not in used_article_ids:
                             cluster.append(sim_article)

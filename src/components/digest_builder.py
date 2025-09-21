@@ -4,12 +4,47 @@ DigestBuilder service for Daily Scribe application.
 This module handles building the HTML digest from article summaries.
 """
 
+import os
 from typing import List, Dict
 from collections import defaultdict
 from urllib.parse import quote
+from pybars import Compiler
 from utils.categories import STANDARD_CATEGORY_ORDER, CATEGORY_TRANSLATIONS
 
 class DigestBuilder:
+    def __init__(self, template_dir: str = None):
+        """
+        Initialize DigestBuilder with template directory.
+        
+        Args:
+            template_dir: Directory containing Handlebars templates. 
+                         Defaults to 'templates' in project root.
+        """
+        if template_dir is None:
+            # Get the project root directory (assumes this file is in src/components/)
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(current_dir))
+            template_dir = os.path.join(project_root, 'templates')
+        
+        self.template_dir = template_dir
+        self.compiler = Compiler()
+        self._templates = {}
+    
+    def _load_template(self, template_name: str):
+        """Load and compile a Handlebars template."""
+        if template_name not in self._templates:
+            template_path = os.path.join(self.template_dir, template_name)
+            
+            if not os.path.exists(template_path):
+                raise FileNotFoundError(f"Template not found: {template_path}")
+            
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_source = f.read()
+            
+            self._templates[template_name] = self.compiler.compile(template_source)
+        
+        return self._templates[template_name]
+    
     @staticmethod
     def wrap_with_redirect_page(url: str, base_url: str) -> str:
         """
@@ -30,121 +65,63 @@ class DigestBuilder:
         
         # Return the redirect URL
         return f"{base_url}/redirect?url={encoded_url}"
-    @staticmethod
-    def build_html_digest(clustered_summaries: List[List[Dict[str, str]]], preference_token: str = "", unsubscribe_link_html: str = "", max_clusters: int = 20, base_url: str = "http://localhost:3000") -> str:
+    
+    def build_html_digest(self, clustered_summaries: List[List[Dict[str, str]]], preference_token: str = "", unsubscribe_link_html: str = "", max_clusters: int = 20, base_url: str = "http://localhost:3000", template_name: str = "digest_v2.hbs") -> str:
+        """
+        Build HTML digest using Handlebars template.
+        
+        Args:
+            clustered_summaries: List of article clusters
+            preference_token: Token for preference management links
+            unsubscribe_link_html: HTML for unsubscribe link
+            max_clusters: Maximum number of clusters to include
+            base_url: Base URL for the application
+            template_name: Name of the template file to use
+            
+        Returns:
+            Rendered HTML digest
+        """
+        # Choose data preparation method based on template
+        if template_name.startswith("digest_v2"):
+            template_data = self._prepare_template_data_v2(
+                clustered_summaries, 
+                preference_token, 
+                unsubscribe_link_html, 
+                max_clusters, 
+                base_url
+            )
+        else:
+            template_data = self._prepare_template_data(
+                clustered_summaries, 
+                preference_token, 
+                unsubscribe_link_html, 
+                max_clusters, 
+                base_url
+            )
+        
+        # Load and render template
+        template = self._load_template(template_name)
+        return template(template_data)
+    
+    def _prepare_template_data(self, clustered_summaries: List[List[Dict[str, str]]], preference_token: str, unsubscribe_link_html: str, max_clusters: int, base_url: str) -> Dict:
+        """Prepare data structure for Handlebars template."""
         # Group clusters by category
-        categories = defaultdict(list)
+        categories_dict = defaultdict(list)
         for cluster in clustered_summaries:
             if cluster:
                 # Use the first article's category for the entire cluster
                 category = cluster[0].get('category', 'Other') or 'Other'
                 category_pt = CATEGORY_TRANSLATIONS.get(category, category)
-                categories[category_pt].append(cluster)
-
-        html_digest = """
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-            <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-                    line-height: 1.6;
-                    color: #333;
-                    background-color: #fff;
-                }
-                .content {
-                    max-width: 600px;
-                    margin: 0 auto;
-                    padding: 16px;
-                }
-                .category {
-                    margin: 24px 0 12px 0;
-                    font-size: 18px;
-                    font-weight: bold;
-                    color: #0a97f5;
-                    border-bottom: 2px solid #0a97f5;
-                    padding-bottom: 6px;
-                }
-                .cluster {
-                    margin-bottom: 20px;
-                    padding-bottom: 16px;
-                    border-bottom: 1px solid #e0e0e0;
-                }
-                .title {
-                    font-size: 16px;
-                    font-weight: 700;
-                    color: #1a1a1a;
-                    margin-bottom: 6px;
-                }
-                .summary {
-                    font-size: 15px;
-                    color: #444;
-                    margin-bottom: 10px;
-                }
-                .related-list {
-                    margin: 6px 0 0 16px;
-                    padding: 0;
-                    list-style-type: disc;
-                }
-                .related-list li {
-                    margin-bottom: 3px;
-                    font-size: 12px;
-                    line-height: 1.4;
-                }
-                .related-list a {
-                    color: #0a97f5;
-                    text-decoration: none;
-                    opacity: 0.8;
-                }
-                .related-list a:hover {
-                    text-decoration: underline;
-                    opacity: 1;
-                }
-                .view-more-button {
-                    margin: 24px 0;
-                    text-align: center;
-                }
-                .view-more-button a {
-                    display: inline-block;
-                    background-color: #0a97f5;
-                    color: white;
-                    text-decoration: none;
-                    padding: 12px 24px;
-                    border-radius: 6px;
-                    font-weight: 600;
-                    font-size: 14px;
-                    transition: background-color 0.2s ease;
-                    margin: 10px;
-                }
-                .view-more-button a:hover {
-                    background-color: #0878d1;
-                }
-                /* Mobile optimizations */
-                @media (max-width: 600px) {
-                    .related-list {
-                        margin: 4px 0 0 14px;
-                    }
-                    .related-list li {
-                        margin-bottom: 2px;
-                        font-size: 11px;
-                        line-height: 1.3;
-                    }
-                }
-            </style>
-        </head>
-        <body>
-
-        <div class="content">
-        """
+                categories_dict[category_pt].append(cluster)
 
         # Process categories in the specified order
+        categories_list = []
         cluster_count = 0
         max_clusters_reached = False
         
         # Calculate how many categories actually have content
         active_categories = [category_en for category_en in STANDARD_CATEGORY_ORDER 
-                           if CATEGORY_TRANSLATIONS.get(category_en, category_en) in categories]
+                           if CATEGORY_TRANSLATIONS.get(category_en, category_en) in categories_dict]
         
         # Calculate clusters per category (distribute evenly)
         clusters_per_category = max_clusters // len(active_categories) if active_categories else max_clusters
@@ -155,9 +132,7 @@ class DigestBuilder:
                 break
                 
             category_pt = CATEGORY_TRANSLATIONS.get(category_en, category_en)
-            if category_pt in categories:
-                html_digest += f'<div class="category">{category_pt}</div>'
-                
+            if category_pt in categories_dict:
                 # Calculate limit for this category (add 1 extra to first categories if there's remainder)
                 category_limit = clusters_per_category + (1 if category_index < remaining_clusters else 0)
                 category_cluster_count = 0
@@ -172,8 +147,9 @@ class DigestBuilder:
                     cluster_size = len(cluster)
                     return (-(urgency + impact), -cluster_size)
                 
-                sorted_clusters = sorted(categories[category_pt], key=get_cluster_sort_key)
+                sorted_clusters = sorted(categories_dict[category_pt], key=get_cluster_sort_key)
                 
+                processed_clusters = []
                 for cluster in sorted_clusters:
                     # Check if adding this cluster would exceed the category or global limit
                     if category_cluster_count >= category_limit or cluster_count >= max_clusters:
@@ -183,11 +159,10 @@ class DigestBuilder:
                     
                     cluster_count += 1
                     category_cluster_count += 1
-                    html_digest += '<div class="cluster">'
+                    
+                    # Process main article
                     main_article = cluster[0]
-                    source = main_article.get('source_name')
-                    if not source:
-                        source = 'link'
+                    source = main_article.get('source_name') or 'link'
                     
                     # Use Portuguese summary if available, otherwise fallback to English
                     preferred_summary = main_article.get('summary_pt') or main_article.get('summary', '')
@@ -198,16 +173,9 @@ class DigestBuilder:
                     # Wrap the main article URL with redirect page
                     wrapped_url = DigestBuilder.wrap_with_redirect_page(main_article['url'], base_url)
                     
-                    html_digest += f"""
-                    <div class="main-article">
-                        <p class="summary">
-                            <span class="title">{preferred_title}:</span>
-                            {preferred_summary} <a href="{wrapped_url}">[{source}]</a>
-                        </p>
-                    </div>
-                    """
+                    # Process related articles
+                    related_articles = []
                     if len(cluster) > 1:
-                        html_digest += '<ul class="related-list">'
                         for article in cluster[1:]:
                             related_source = article.get('source_name')
                             
@@ -215,42 +183,173 @@ class DigestBuilder:
                             preferred_related_title = article.get('title_pt') or article.get('title', '')
                             
                             if not related_source:
-                                title = preferred_related_title
+                                display_title = preferred_related_title
                             else:
-                                title = f"[{related_source}] {preferred_related_title}"
+                                display_title = f"[{related_source}] {preferred_related_title}"
                             
                             # Wrap the related article URL with redirect page
                             wrapped_related_url = DigestBuilder.wrap_with_redirect_page(article['url'], base_url)
                             
-                            html_digest += f"""
-                            <li>
-                                <a href="{wrapped_related_url}">{title}</a>
-                            </li>
-                            """
-                        html_digest += '</ul>'
-                    html_digest += '</div>'
+                            related_articles.append({
+                                'wrapped_url': wrapped_related_url,
+                                'display_title': display_title
+                            })
+                    
+                    processed_clusters.append({
+                        'main_article': {
+                            'preferred_title': preferred_title,
+                            'preferred_summary': preferred_summary,
+                            'wrapped_url': wrapped_url,
+                            'source': source
+                        },
+                        'related_articles': related_articles if related_articles else None
+                    })
+                
+                if processed_clusters:
+                    categories_list.append({
+                        'name': category_pt,
+                        'clusters': processed_clusters
+                    })
         
-        if preference_token:
-            html_digest += '<div class="view-more-button">'
-            
-            # Add "View more in browser" button if cluster limit was reached
-            view_more_url = f"{base_url}/news"
-            html_digest += f'<a href="{view_more_url}">Ver todas as notícias</a>'
-            
-            # Add preference button if token is provided
-            
-            preference_url = f"{base_url}/preferences/{preference_token}"
-            # Add margin if both buttons are present
-            html_digest += f'<a href="{preference_url}"">Gerenciar preferências</a>'
-            
-            html_digest += '</div>'
+        return {
+            'categories': categories_list,
+            'preference_token': preference_token if preference_token else None,
+            'base_url': base_url,
+            'unsubscribe_link_html': unsubscribe_link_html if unsubscribe_link_html else None
+        }
 
-        # Add unsubscribe link at the bottom if provided
-        if unsubscribe_link_html:
-            html_digest += unsubscribe_link_html
+    def _prepare_template_data_v2(self, clustered_summaries: List[List[Dict[str, str]]], preference_token: str, unsubscribe_link_html: str, max_clusters: int, base_url: str) -> Dict:
+        """Prepare data structure for v2 Handlebars templates with main_news and category_links sections."""
+        # Group clusters by category
+        categories_dict = defaultdict(list)
+        for cluster in clustered_summaries:
+            if cluster:
+                # Use the first article's category for the entire cluster
+                category = cluster[0].get('category', 'Other') or 'Other'
+                category_pt = CATEGORY_TRANSLATIONS.get(category, category)
+                categories_dict[category_pt].append(cluster)
 
-        html_digest += "</div></body></html>"
-        return html_digest
+        # Sort all clusters by urgency + impact scores (highest first), then by size (largest first)
+        def get_cluster_sort_key(cluster):
+            if not cluster:
+                return (0, 0, 0)
+            main_article = cluster[0]
+            urgency = main_article.get('urgency_score', 0) or 0
+            impact = main_article.get('impact_score', 0) or 0
+            cluster_size = len(cluster)
+            return (-(urgency + impact), -cluster_size)
+
+        # Flatten all clusters and sort them globally
+        all_clusters = []
+        for category_pt, clusters in categories_dict.items():
+            for cluster in clusters:
+                all_clusters.append((cluster, category_pt))
+        
+        all_clusters.sort(key=lambda x: get_cluster_sort_key(x[0]))
+
+        # Split into main_news (top clusters with full content) and category_links (remaining as links)
+        main_news_count = min(3, len(all_clusters))  # Show top 3 as main news regardless of total
+        main_news_clusters = all_clusters[:main_news_count]
+        remaining_clusters = all_clusters[main_news_count:]
+
+        # Prepare main_news section
+        main_news = []
+        for cluster, category_pt in main_news_clusters:
+            main_article = cluster[0]
+            source = main_article.get('source_name') or 'link'
+            
+            # Use Portuguese summary if available, otherwise fallback to English
+            preferred_summary = main_article.get('summary_pt') or main_article.get('summary', '')
+            
+            # Use Portuguese title if available, otherwise fallback to original title
+            preferred_title = main_article.get('title_pt') or main_article.get('title', '')
+            
+            # Wrap the main article URL with redirect page
+            wrapped_url = DigestBuilder.wrap_with_redirect_page(main_article['url'], base_url)
+            
+            # Process related articles
+            related_articles = []
+            has_more_related = False
+            additional_related_count = 0
+            
+            if len(cluster) > 1:
+                all_related = cluster[1:]  # All articles except the main one
+                
+                # Limit to first 4 related articles for display
+                displayed_related = all_related[:4]
+                
+                # Check if there are more than 4 related articles
+                if len(all_related) > 4:
+                    has_more_related = True
+                    additional_related_count = len(all_related) - 4
+                
+                for article in displayed_related:
+                    related_source = article.get('source_name')
+                    
+                    # Use Portuguese title if available, otherwise fallback to original title
+                    preferred_related_title = article.get('title_pt') or article.get('title', '')
+                    
+                    if not related_source:
+                        display_title = preferred_related_title
+                    else:
+                        display_title = f"[{related_source}] {preferred_related_title}"
+                    
+                    # Wrap the related article URL with redirect page
+                    wrapped_related_url = DigestBuilder.wrap_with_redirect_page(article['url'], base_url)
+                    
+                    related_articles.append({
+                        'wrapped_url': wrapped_related_url,
+                        'display_title': display_title
+                    })
+            
+            main_news.append({
+                'category': category_pt,
+                'main_article': {
+                    'preferred_title': preferred_title,
+                    'preferred_summary': preferred_summary,
+                    'wrapped_url': wrapped_url,
+                    'source': source,
+                    'article_id': main_article.get('id')  # Add article_id for the "view more" link
+                },
+                'related_articles': related_articles if related_articles else None,
+                'has_more_related': has_more_related,
+                'additional_related_count': additional_related_count
+            })
+
+        # Prepare category_links section
+        category_links_dict = defaultdict(list)
+        for cluster, category_pt in remaining_clusters:
+            main_article = cluster[0]
+            similar_news_count = len(cluster) - 1  # Exclude main article
+            
+            # Use Portuguese title if available, otherwise fallback to original title
+            preferred_title = main_article.get('title_pt') or main_article.get('title', '')
+            
+            category_links_dict[category_pt].append({
+                'article_id': main_article.get('id'),
+                'preferred_title': preferred_title,
+                'category': category_pt,
+                'similar_news_count': similar_news_count
+            })
+
+        # Convert to list format ordered by category
+        category_links = []
+        for category_en in STANDARD_CATEGORY_ORDER:
+            category_pt = CATEGORY_TRANSLATIONS.get(category_en, category_en)
+            if category_pt in category_links_dict:
+                category_links.append({
+                    'category_name': category_pt,
+                    'articles': category_links_dict[category_pt],
+                    'num_similar_news': len(category_links_dict[category_pt])
+                })
+
+        return {
+            'main_news': main_news if main_news else None,
+            'category_links': category_links if category_links else None,
+            'preference_token': preference_token if preference_token else None,
+            'base_url': base_url,
+            'unsubscribe_link_html': unsubscribe_link_html if unsubscribe_link_html else None
+        }
 
     @staticmethod
     def _get_cluster_date(cluster: List[Dict[str, str]]) -> float:

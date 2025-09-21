@@ -195,7 +195,8 @@ class EmailService:
                 unsubscribe_link_html = ""
             
             # Build the main digest HTML with preference button and unsubscribe link included
-            digest_html = DigestBuilder.build_html_digest(
+            digest_builder = DigestBuilder()
+            digest_html = digest_builder.build_html_digest(
                 clustered_summaries=clustered_summaries,
                 preference_token=preference_token if preference_token else "",
                 unsubscribe_link_html=unsubscribe_link_html if unsubscribe_link_html else "",
@@ -221,8 +222,9 @@ class EmailService:
         except Exception as e:
             logger.error(f"Error building digest with preferences for {email_address}: {e}")
             # Fallback to basic digest without preference button
+            digest_builder = DigestBuilder()
             return {
-                "html_content": DigestBuilder.build_html_digest(
+                "html_content": digest_builder.build_html_digest(
                     clustered_summaries=clustered_summaries,
                     max_clusters=20,
                     base_url=self.base_url
