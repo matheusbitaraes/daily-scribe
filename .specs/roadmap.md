@@ -64,12 +64,18 @@
 - [x] titles in portuguese
 - [x] Add some sort of cache to the news page?
 - [x] Improve grafana logs and dashboards
-- [ ] improve email experience - today, there are too many news
+- [x] improve email experience - today, there are too many news
       - [x] add a page that will display only one article with all information available, with a button that goes to the news feed
-      - [ ] Get x headline articles. Create rules to define how to define those.
-- [ ] improve ranking
-- [ ] Improve copilot agent rules and documentation
+      - [x] Get x headline articles. Create rules to define how to define those.
+- [x] news page for mobile
+- [ ] add elasticsearch db 
+      - do a simple search term
+      - how to index? which frequency?
+      - script to read from all backups
+- [ ] Improve ranking
+- [ ] cleanup code: 
+      Improve copilot agent rules and documentation
+      remove unused cripts
 - [ ] make digest builder admin only
-- [ ] migrate db to elasticsearch?
 
 
