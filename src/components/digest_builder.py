@@ -21,10 +21,10 @@ class DigestBuilder:
                          Defaults to 'templates' in project root.
         """
         if template_dir is None:
-            # Get the project root directory (assumes this file is in src/components/)
+            # Get the project root directory (assumes this file is in src/components/ and the templates folder is in src/templates/)
             current_dir = os.path.dirname(os.path.abspath(__file__))
             project_root = os.path.dirname(os.path.dirname(current_dir))
-            template_dir = os.path.join(project_root, 'templates')
+            template_dir = os.path.join(project_root, 'src/templates')
         
         self.template_dir = template_dir
         self.compiler = Compiler()

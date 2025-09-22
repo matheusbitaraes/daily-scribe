@@ -61,7 +61,7 @@ const NewsCluster = ({ cluster }) => {
             <CardContent>
                 {/* Main Article */}
                 <Box sx={{ mb: 2 }}>
-                    <Typography variant="h6" component="h3" sx={{ mb: 1, fontWeight: 600 }}>
+                    <Typography variant="h3" component="h3" sx={{ mb: 1, fontWeight: 600 }}>
                         <Link
                             href={main_article.url}
                             target="_blank"
