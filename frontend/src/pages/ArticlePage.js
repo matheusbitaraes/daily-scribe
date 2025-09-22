@@ -74,8 +74,8 @@ const RelatedNews = ({ relatedArticles }) => {
                                     '&:last-child': { mb: 0 }
                                 }}
                             >
-                                <CardContent sx={{ pb: '16px !important' }}>
-                                    <Typography variant="h6" component="h4" sx={{ mb: 1, fontSize: '1.1rem' }}>
+                                <CardContent>
+                                    <Typography variant="h6" component="h4" sx={{ mb: 1 }}>
                                         <Link
                                             href={article.url}
                                             target="_blank"
@@ -83,7 +83,8 @@ const RelatedNews = ({ relatedArticles }) => {
                                             sx={{
                                                 textDecoration: 'none',
                                                 color: 'inherit',
-                                                '&:hover': { color: 'primary.main' }
+                                                '&:hover': { color: 'primary.main' },
+                                                textAlign: 'justify'
                                             }}
                                         >
                                             {article.title}
@@ -91,17 +92,13 @@ const RelatedNews = ({ relatedArticles }) => {
                                     </Typography>
 
                                     {article.summary && (
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, 
+                                                textAlign: 'justify' }}>
                                             {article.summary}
                                         </Typography>
                                     )}
 
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <Chip
-                                            label={article.source_name}
-                                            size="small"
-                                            variant="outlined"
-                                        />
                                         {article.similarity_score && (
                                             <Chip
                                                 label={`Similaridade: ${(article.similarity_score * 100).toFixed(0)}%`}
@@ -110,6 +107,11 @@ const RelatedNews = ({ relatedArticles }) => {
                                                 variant="outlined"
                                             />
                                         )}
+                                        <Chip
+                                            label={article.source_name}
+                                            size="small"
+                                            variant="outlined"
+                                        />
                                         <Typography variant="caption" color="text.secondary">
                                             {formatDate(article.published_at)}
                                         </Typography>
@@ -256,8 +258,12 @@ const ArticlePage = () => {
                             gutterBottom
                             sx={{ 
                                 fontWeight: 600,
-                                lineHeight: 1.2,
-                                mb: 3 
+                                mb: 3,
+                                fontSize: {
+                                    xs: '1.5rem',  // Mobile: smaller title
+                                    sm: '2rem',    // Tablet: medium title
+                                    md: '2.125rem' // Desktop: default h4 size
+                                }, textAlign: 'justify'
                             }}
                         >
                             {article.title}
@@ -273,7 +279,16 @@ const ArticlePage = () => {
                             {/* Publication Date */}
                             <Box display="flex" alignItems="center" gap={1}>
                                 <AccessTime fontSize="small" color="action" />
-                                <Typography variant="body2" color="text.secondary">
+                                <Typography 
+                                    variant="body2" 
+                                    color="text.secondary"
+                                    sx={{
+                                        fontSize: {
+                                            xs: '0.75rem',  // Mobile: smaller metadata text
+                                            sm: '0.875rem'  // Tablet and up: default body2 size
+                                        }
+                                    }}
+                                >
                                     {formatDate(article.published_at)}
                                 </Typography>
                             </Box>
@@ -323,7 +338,14 @@ const ArticlePage = () => {
                             variant="h6" 
                             component="h2" 
                             gutterBottom
-                            sx={{ fontWeight: 500, mb: 2 }}
+                            sx={{ 
+                                fontWeight: 500, 
+                                mb: 2,
+                                fontSize: {
+                                    xs: '1.1rem',   // Mobile: smaller section title
+                                    sm: '1.25rem'   // Tablet and up: default h6 size
+                                }
+                            }}
                         >
                             Resumo
                         </Typography>
@@ -333,7 +355,13 @@ const ArticlePage = () => {
                             sx={{ 
                                 lineHeight: 1.6,
                                 mb: 3,
-                                whiteSpace: 'pre-wrap'
+                                whiteSpace: 'pre-wrap',
+                                textAlign: 'justify',
+                                fontSize: {
+                                    xs: '0.9rem',   // Mobile: smaller body text
+                                    sm: '1rem'      // Tablet and up: default body1 size
+                                }
+                            
                             }}
                         >
                             {article.summary_pt || article.summary || 'Resumo não disponível.'}
@@ -342,12 +370,17 @@ const ArticlePage = () => {
                         <Divider sx={{ my: 3 }} />
 
                         {/* Action Buttons */}
-                        <Stack direction="row" spacing={2} justifyContent="center">
+                        <Stack direction={
+                            { xs: 'column', sm: 'row' }
+                        } spacing={2} justifyContent="center">
                             <Button
                                 variant="contained"
                                 startIcon={<OpenInNew />}
                                 onClick={() => handleSourceClick(article.url)}
-                                sx={{ minWidth: 200 }}
+                                sx={{ minWidth: {
+                                    xs: '100%',  // Mobile: full width
+                                    sm: 200   // Tablet and up: auto width 
+                                } }}
                             >
                                 Ler Artigo Completo
                             </Button>
@@ -355,6 +388,10 @@ const ArticlePage = () => {
                                 variant="outlined"
                                 startIcon={<ArrowBack />}
                                 onClick={handleBackToNews}
+                                sx={{ minWidth: {
+                                    xs: '100%',  // Mobile: full width
+                                    sm: 200   // Tablet and up: auto width 
+                                } }}
                             >
                                 Voltar para Notícias
                             </Button>
