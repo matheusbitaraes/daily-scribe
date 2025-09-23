@@ -68,6 +68,7 @@
       - [x] add a page that will display only one article with all information available, with a button that goes to the news feed
       - [x] Get x headline articles. Create rules to define how to define those.
 - [x] news page for mobile
+- [x] add preferences during user onboarding
 - [ ] add elasticsearch db 
       - do a simple search term
       - how to index? which frequency?

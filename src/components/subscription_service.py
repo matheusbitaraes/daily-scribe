@@ -44,12 +44,13 @@ class SubscriptionService:
         token = secrets.token_urlsafe(32)
         return token
 
-    def create_subscription_request(self, email: str) -> dict:
+    def create_subscription_request(self, email: str, preferences: dict = None) -> dict:
         """
         Create a new subscription request.
         
         Args:
             email: User's email address
+            preferences: Optional user preferences to store temporarily
             
         Returns:
             Dictionary with success status and message
@@ -77,11 +78,12 @@ class SubscriptionService:
             # Set expiration time (24 hours from now)
             expires_at = (datetime.utcnow() + timedelta(hours=24)).isoformat()
             
-            # Create pending subscription
+            # Create pending subscription with preferences
             success = self.db_service.create_pending_subscription(
                 email=email,
                 verification_token=verification_token,
-                expires_at=expires_at
+                expires_at=expires_at,
+                preferences=preferences  # Pass preferences dict directly
             )
             
             if not success:

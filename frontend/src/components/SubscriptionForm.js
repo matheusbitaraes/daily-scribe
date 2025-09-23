@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -8,10 +8,19 @@ import {
   Alert,
   CircularProgress,
   Container,
-  Stack
+  Stack,
+  Collapse,
+  Divider,
+  Grid,
+  Chip,
+  FormControlLabel,
+  Checkbox,
+  InputAdornment,
+  IconButton
 } from '@mui/material';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import axios from 'axios';
+import { CATEGORY_PREFERENCES_ORDER, CATEGORY_TRANSLATIONS } from '../utils/categories';
 
 const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) => {
   const [submissionState, setSubmissionState] = useState({
@@ -20,31 +29,170 @@ const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) =>
     error: null
   });
 
+  // Preference state
+  const [showPreferences, setShowPreferences] = useState(false);
+  const [availableOptions, setAvailableOptions] = useState({
+    categories: [],
+    sources: []
+  });
+  const [loadingOptions, setLoadingOptions] = useState(false);
+  const [preferences, setPreferences] = useState({
+    enabled_categories: [],
+    enabled_sources: [],
+    keywords: [],
+    max_news_per_category: 10
+  });
+  const [newKeyword, setNewKeyword] = useState('');
+
   const {
     register,
     handleSubmit,
     formState: { errors },
-    reset
+    reset,
+    control,
+    trigger
   } = useForm({
-    mode: 'onChange'
+    mode: 'onChange',
+    defaultValues: {
+      email: ''
+    }
+  });
+
+  // Watch email field to show preferences when valid
+  const watchedEmail = useWatch({
+    control,
+    name: 'email'
   });
 
   const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+
+  // Validate email and show preferences
+  useEffect(() => {
+    const validateAndShowPreferences = async () => {
+      if (watchedEmail && watchedEmail.length > 0) {
+        const isValid = await trigger('email');
+        if (isValid && !showPreferences) {
+          setShowPreferences(true);
+          fetchAvailableOptions();
+        } else if (!isValid && showPreferences) {
+          setShowPreferences(false);
+        }
+      } else if (showPreferences) {
+        setShowPreferences(false);
+      }
+    };
+
+    const timeoutId = setTimeout(validateAndShowPreferences, 300);
+    return () => clearTimeout(timeoutId);
+  }, [watchedEmail, trigger, showPreferences]);
+
+  // Fetch available preference options
+  const fetchAvailableOptions = async () => {
+    if (availableOptions.categories.length > 0) return; // Already loaded
+
+    setLoadingOptions(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/preferences-options`);
+      const data = response.data;
+
+      const orderedCategories = (data.categories || []).sort((a, b) => {
+        const indexA = CATEGORY_PREFERENCES_ORDER.indexOf(a);
+        const indexB = CATEGORY_PREFERENCES_ORDER.indexOf(b);
+        return (indexA === -1 ? Number.MAX_VALUE : indexA) - (indexB === -1 ? Number.MAX_VALUE : indexB);
+      });
+
+      setAvailableOptions({
+        categories: orderedCategories,
+        sources: data.sources || []
+      });
+
+      // Set default preferences (all categories, popular sources, default keywords)
+      setPreferences(prev => ({
+        ...prev,
+        enabled_categories: orderedCategories,
+        enabled_sources: [],
+        keywords: ['brasil', 'política', 'tecnologia'] // Default keywords
+      }));
+    } catch (error) {
+      console.error('Error fetching preference options:', error);
+      // Set fallback categories
+      setAvailableOptions({
+        categories: CATEGORY_PREFERENCES_ORDER,
+        sources: []
+      });
+      setPreferences(prev => ({
+        ...prev,
+        enabled_categories: CATEGORY_PREFERENCES_ORDER,
+        keywords: ['brasil', 'política', 'tecnologia'] // Default keywords
+      }));
+    } finally {
+      setLoadingOptions(false);
+    }
+  };
+
+  // Preference handlers
+  const handleCategoryToggle = (category) => {
+    setPreferences(prev => ({
+      ...prev,
+      enabled_categories: prev.enabled_categories.includes(category)
+        ? prev.enabled_categories.filter(cat => cat !== category)
+        : [...prev.enabled_categories, category]
+    }));
+  };
+
+  const handleSourceToggle = (sourceId) => {
+    setPreferences(prev => ({
+      ...prev,
+      enabled_sources: prev.enabled_sources.includes(sourceId)
+        ? prev.enabled_sources.filter(id => id !== sourceId)
+        : [...prev.enabled_sources, sourceId]
+    }));
+  };
+
+  const handleAddKeyword = () => {
+    const trimmedKeyword = newKeyword.trim().toLowerCase();
+    if (trimmedKeyword && !preferences.keywords.includes(trimmedKeyword)) {
+      setPreferences(prev => ({
+        ...prev,
+        keywords: [...prev.keywords, trimmedKeyword]
+      }));
+      setNewKeyword('');
+    }
+  };
+
+  const handleRemoveKeyword = (keyword) => {
+    setPreferences(prev => ({
+      ...prev,
+      keywords: prev.keywords.filter(k => k !== keyword)
+    }));
+  };
+
+  const handleKeywordKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddKeyword();
+    }
+  };
 
   const onSubmit = async (data) => {
     setSubmissionState({ isSubmitting: true, isSuccess: false, error: null });
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/subscribe`, {
-        email: data.email
-      }, {
+      // Prepare the subscription data with preferences
+      const subscriptionData = {
+        email: data.email,
+        preferences: showPreferences ? preferences : null
+      };
+
+      // Create subscription with preferences
+      const subscriptionResponse = await axios.post(`${API_BASE_URL}/subscribe`, subscriptionData, {
         headers: {
           'Content-Type': 'application/json'
         },
-        timeout: 10000 // 10 second timeout
+        timeout: 10000
       });
 
-      if (response.status === 200 || response.status === 201) {
+      if (subscriptionResponse.status === 200 || subscriptionResponse.status === 201) {
         setSubmissionState({
           isSubmitting: false,
           isSuccess: true,
@@ -53,10 +201,20 @@ const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) =>
         
         // Reset form after successful submission
         reset();
+        setShowPreferences(false);
+        setPreferences({
+          enabled_categories: [],
+          enabled_sources: [],
+          keywords: [],
+          max_news_per_category: 10
+        });
         
         // Call success callback if provided
         if (onSuccess) {
-          onSuccess(data.email, response.data);
+          onSuccess(data.email, { 
+            subscription: subscriptionResponse.data,
+            preferences: preferences
+          });
         }
       }
     } catch (error) {
@@ -180,17 +338,17 @@ const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) =>
     //   </div>
     // </div>
     <Paper 
-    elevation={2}
-    sx={{
-      p: 4,
-      borderRadius: 2,
-      borderColor: 'divider',
-      maxWidth: 600,
-      mx: 'auto'
-    }}
-    className={className}
-  >
-    <Container maxWidth="sm" disableGutters sx={{ px: 2 }}>
+      elevation={2}
+      sx={{
+        p: 4,
+        borderRadius: 2,
+        borderColor: 'divider',
+        maxWidth: showPreferences ? 800 : 600,
+        mx: 'auto'
+      }}
+      className={className}
+    >
+    <Container maxWidth="md" disableGutters sx={{ px: 2 }}>
       {/* Header Section */}
       <Box sx={{ textAlign: 'center', mb: 5, mt: 1 }}>
         <Typography 
@@ -225,7 +383,7 @@ const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) =>
             }} 
           /> */}
           <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=check_circle_unread" />         
-          <span class="material-symbols-outlined" style={{ fontSize: 48 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 48 }}>
           check_circle_unread
           </span>
           
@@ -234,7 +392,7 @@ const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) =>
           </Typography>
           
           <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 400, mx: 'auto' }}>
-            Foi enviado um link de verificação para o seu e-mail. Clique no link para confirmar sua inscrição.
+            Foi enviado um link de verificação para o seu e-mail. Clique no link para confirmar sua inscrição e suas preferências serão aplicadas automaticamente.
           </Typography>
         </Box>
       ) : (
@@ -281,9 +439,153 @@ const SubscriptionForm = ({ onSuccess, className = '', variant = 'default' }) =>
                   ) : null
                 }
               >
-                {submissionState.isSubmitting ? 'Subscribing...' : 'Subscribe'}
+                {submissionState.isSubmitting ? 'Enviando...' : 'Enviar'}
               </Button>
             </Box>
+
+            {/* Preferences Section */}
+            <Collapse in={showPreferences} timeout={300}>
+              <Box sx={{ mt: 4 }}>
+                <Divider sx={{ mb: 3 }} />
+                
+                <Typography variant="h5" component="h3" gutterBottom sx={{ textAlign: 'center', mb: 3 }}>
+                  Personalize suas notícias
+                </Typography>
+                
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mb: 4 }}>
+                  Configure suas preferências para receber notícias mais relevantes
+                </Typography>
+
+                {loadingOptions ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : (
+                  <Grid container spacing={3}>
+                    {/* Categories */}
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Paper elevation={1} sx={{ p: 3 }}>
+                        <Typography variant="h6" gutterBottom>
+                          Categorias de Interesse
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Selecione as categorias de notícias que mais interessam você
+                        </Typography>
+                        
+                        <Stack direction="row" flexWrap="wrap" gap={1}>
+                          {availableOptions.categories.map((category) => (
+                            <Chip
+                              key={category}
+                              label={CATEGORY_TRANSLATIONS[category] || category}
+                              variant={preferences.enabled_categories.includes(category) ? "filled" : "outlined"}
+                              color={preferences.enabled_categories.includes(category) ? "primary" : "default"}
+                              onClick={() => handleCategoryToggle(category)}
+                              sx={{ 
+                                cursor: 'pointer',
+                                '&:hover': {
+                                  bgcolor: preferences.enabled_categories.includes(category) 
+                                    ? 'primary.dark' 
+                                    : 'action.hover'
+                                }
+                              }}
+                            />
+                          ))}
+                        </Stack>
+                      </Paper>
+                    </Grid>
+
+                    {/* Keywords */}
+                    <Grid size={{ xs: 12, md: 6 }}>
+                      <Paper elevation={1} sx={{ p: 3 }}>
+                        <Typography variant="h6" gutterBottom>
+                          Palavras-chave
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Adicione palavras-chave para filtrar notícias específicas
+                        </Typography>
+                        
+                        <TextField
+                          fullWidth
+                          size="small"
+                          placeholder="Digite uma palavra-chave e pressione Enter"
+                          value={newKeyword}
+                          onChange={(e) => setNewKeyword(e.target.value)}
+                          onKeyPress={handleKeywordKeyPress}
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton
+                                  edge="end"
+                                  onClick={handleAddKeyword}
+                                  disabled={!newKeyword.trim()}
+                                  size="small"
+                                >
+                                  <span className="material-icons">add</span>
+                                </IconButton>
+                              </InputAdornment>
+                            ),
+                          }}
+                          sx={{ mb: 2 }}
+                        />
+                        
+                        <Stack direction="row" flexWrap="wrap" gap={1}>
+                          {preferences.keywords.map((keyword) => (
+                            <Chip
+                              key={keyword}
+                              label={keyword}
+                              onDelete={() => handleRemoveKeyword(keyword)}
+                              size="small"
+                              color="secondary"
+                            />
+                          ))}
+                        </Stack>
+                      </Paper>
+                    </Grid>
+
+                    {/* Sources */}
+                    {/* {availableOptions.sources.length > 0 && (
+                      <Grid size={12}>
+                        <Paper elevation={1} sx={{ p: 3 }}>
+                          <Typography variant="h6" gutterBottom>
+                            Fontes Preferenciais
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            Escolha suas fontes de notícias favoritas
+                          </Typography>
+                          
+                          <Grid container spacing={1}>
+                            {availableOptions.sources.slice(0, 10).map((source) => (
+                              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={source.id}>
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      checked={preferences.enabled_sources.includes(source.id)}
+                                      onChange={() => handleSourceToggle(source.id)}
+                                      size="small"
+                                    />
+                                  }
+                                  label={
+                                    <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+                                      {source.name}
+                                    </Typography>
+                                  }
+                                />
+                              </Grid>
+                            ))}
+                          </Grid>
+                          
+                          {availableOptions.sources.length > 10 && (
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                              Mostrando as 10 fontes principais. Você poderá personalizar todas as fontes após confirmar sua inscrição.
+                            </Typography>
+                          )}
+                        </Paper>
+                      </Grid>
+                    )} */}
+                  </Grid>
+                )}
+              </Box>
+            </Collapse>
 
             {/* Error Message */}
             {submissionState.error && (

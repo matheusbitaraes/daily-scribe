@@ -1076,7 +1076,7 @@ async def subscribe_to_newsletter(
     Create a new subscription request.
     
     Args:
-        subscription_request: Subscription request containing email address
+        subscription_request: Subscription request containing email address and optional preferences
         
     Returns:
         SubscriptionResponse: Result of subscription request
@@ -1086,7 +1086,16 @@ async def subscribe_to_newsletter(
     """
     try:
         service = get_subscription_service()
-        result = service.create_subscription_request(subscription_request.email)
+        
+        # Convert preferences to dictionary if provided
+        preferences_dict = None
+        if subscription_request.preferences:
+            preferences_dict = subscription_request.preferences.model_dump()
+        
+        result = service.create_subscription_request(
+            subscription_request.email, 
+            preferences=preferences_dict
+        )
         
         if not result['success']:
             error_code = result.get('error', 'unknown_error')

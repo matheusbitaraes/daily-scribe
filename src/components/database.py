@@ -1279,14 +1279,15 @@ class DatabaseService:
 
     # Subscription management methods
 
-    def create_pending_subscription(self, email: str, verification_token: str, expires_at: str) -> bool:
+    def create_pending_subscription(self, email: str, verification_token: str, expires_at: str, preferences: dict = None) -> bool:
         """
-        Create a new pending subscription.
+        Create a new pending subscription and optionally create user preferences.
         
         Args:
             email: User's email address
             verification_token: Unique verification token
             expires_at: Token expiration timestamp
+            preferences: Dictionary of user preferences (optional)
             
         Returns:
             True if successful, False otherwise
@@ -1294,19 +1295,65 @@ class DatabaseService:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
+                
+                # Start transaction
+                cursor.execute("BEGIN")
+                
+                # Create pending subscription
                 cursor.execute("""
                     INSERT INTO pending_subscriptions (email, verification_token, expires_at)
                     VALUES (?, ?, ?)
                 """, (email, verification_token, expires_at))
-                conn.commit()
+                
+                # If preferences are provided, create user preferences
+                if preferences:
+                    # Check if user preferences already exist
+                    cursor.execute("""
+                        SELECT id FROM user_preferences WHERE email_address = ?
+                    """, (email,))
+                    
+                    existing_prefs = cursor.fetchone()
+                    
+                    if not existing_prefs:
+                        # Convert preference data
+                        enabled_sources = preferences.get('enabled_sources', [])
+                        enabled_categories = preferences.get('enabled_categories', [])
+                        keywords = preferences.get('keywords', [])
+                        max_news_per_category = preferences.get('max_news_per_category', 10)
+                        
+                        sources_str = ','.join(map(str, enabled_sources)) if enabled_sources else ''
+                        categories_str = ','.join(enabled_categories) if enabled_categories else ''
+                        keywords_str = ','.join(keywords) if keywords else ''
+                        
+                        cursor.execute("""
+                            INSERT INTO user_preferences 
+                            (email_address, enabled_sources, enabled_categories, keywords, max_news_per_category)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (email, sources_str, categories_str, keywords_str, max_news_per_category))
+                        
+                        self.logger.info(f"Created user preferences for {email}")
+                    else:
+                        self.logger.info(f"User preferences already exist for {email}, skipping creation")
+                
+                # Commit transaction
+                cursor.execute("COMMIT")
                 self.logger.info(f"Created pending subscription for {email}")
                 return True
+                
         except sqlite3.IntegrityError as e:
             # Email or token already exists
             self.logger.warning(f"Pending subscription creation failed for {email}: {e}")
+            try:
+                cursor.execute("ROLLBACK")
+            except:
+                pass
             return False
         except sqlite3.Error as e:
             self.logger.error(f"Error creating pending subscription: {e}")
+            try:
+                cursor.execute("ROLLBACK")
+            except:
+                pass
             return False
 
     def is_email_subscribed(self, email: str) -> bool:
@@ -1403,17 +1450,29 @@ class DatabaseService:
                     cursor.execute("ROLLBACK")
                     return False
                 
-                # Add user to users table
+                # Add user to users table (or update if exists)
                 cursor.execute("""
                     INSERT INTO users (email, is_active)
                     VALUES (?, 1)
+                    ON CONFLICT(email) DO UPDATE SET is_active = 1
                 """, (email,))
                 
-                # Create default user preferences
+                # Check if user preferences already exist
                 cursor.execute("""
-                    INSERT INTO user_preferences (email_address, max_news_per_category)
-                    VALUES (?, 5)
+                    SELECT id FROM user_preferences WHERE email_address = ?
                 """, (email,))
+                
+                existing_prefs = cursor.fetchone()
+                
+                # Only create default preferences if they don't exist
+                if not existing_prefs:
+                    cursor.execute("""
+                        INSERT INTO user_preferences (email_address, max_news_per_category)
+                        VALUES (?, 5)
+                    """, (email,))
+                    self.logger.info(f"Created default user preferences for {email}")
+                else:
+                    self.logger.info(f"User preferences already exist for {email}, skipping creation")
                 
                 # Remove from pending subscriptions
                 cursor.execute("""
@@ -1427,8 +1486,8 @@ class DatabaseService:
                 return True
                 
         except sqlite3.IntegrityError as e:
-            # User might already exist
-            self.logger.warning(f"Subscription activation failed for {email}: {e}")
+            # Handle any conflicts
+            self.logger.warning(f"Subscription activation conflict for {email}: {e}")
             try:
                 cursor.execute("ROLLBACK")
             except:
