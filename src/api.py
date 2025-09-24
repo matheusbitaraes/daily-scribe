@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 
 from components.database import DatabaseService
 from components.digest_service import DigestService
+from components.search_service import SearchService
 from components.security.token_manager import TokenValidationResult
 from middleware.auth import require_valid_path_token, get_auth_middleware, security
 from models.preferences import (
@@ -87,6 +88,7 @@ app.add_middleware(
 )
 
 db_service = DatabaseService()
+search_service = SearchService()
 
 # Initialize global news cache with 30-minute TTL
 news_cache = SimpleCache(ttl_seconds=1800)  # 30 minutes
@@ -432,6 +434,65 @@ def get_sources():
     articles = db_service.get_articles()
     sources = sorted(set(str(a.get('source_id')) for a in articles if a.get('source_id') is not None))
     return sources
+
+
+@api_router.get("/search")
+def search_articles(
+    query: Optional[str] = Query(None, description="Search query (optional)"),
+    category: Optional[str] = Query(None, description="Category filter"),
+    date_from: Optional[str] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    date_to: Optional[str] = Query(None, description="End date filter (YYYY-MM-DD)"),
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of results"),
+    page: int = Query(1, ge=1, description="Page number"),
+):
+    """
+    Comprehensive search endpoint with filters, results with scores, and facets.
+    """
+    try:
+        if not search_service.is_available():
+            raise HTTPException(
+                status_code=503,
+                detail="Search service is not available. Please ensure Elasticsearch is running."
+            )
+        
+        # Build filters
+        filters = {}
+        if category:
+            filters["categories"] = [category]
+        if date_from:
+            filters["date_from"] = date_from
+        if date_to:
+            filters["date_to"] = date_to
+        
+        # Perform search with facets
+        search_result = search_service.search_articles(
+            query_text=query if query else None,
+            filters=filters if filters else None,
+            sort_by="date" if not query else "relevance",  # Sort by date if no query
+            sort_order="desc",
+            page=page,
+            page_size=limit,
+            include_aggregations=True
+        )
+        
+        # Also get general facets for the query
+        facets = search_service.get_search_facets(query_text=query if query else None)
+        
+        return {
+            "results": search_result.get("hits", []),
+            "total": search_result.get("total", 0),
+            "page": search_result.get("page", 1),
+            "total_pages": search_result.get("total_pages", 1),
+            "facets": facets,
+            "aggregations": search_result.get("aggregations", {}),
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in search: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Search error: {str(e)}"
+        )
 
 
 @api_router.get("/user/preferences")

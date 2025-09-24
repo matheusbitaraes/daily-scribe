@@ -51,6 +51,8 @@ This project is currently implementing **Epic 1: Core Digest Engine & Delivery**
    pip install -r requirements.txt
    ```
 
+   **Note**: The project now includes Elasticsearch dependencies (`elasticsearch>=8.11.0` and `elasticsearch-dsl>=8.11.0`) for advanced search and analytics capabilities.
+
 4. Create your configuration file:
    ```bash
    cp config.json.example config.json

@@ -1,0 +1,111 @@
+{
+  "daily_scribe_articles": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "analysis": {
+        "analyzer": {
+          "content_analyzer": {
+            "type": "standard",
+            "stopwords": "_english_"
+          },
+          "keyword_analyzer": {
+            "type": "keyword",
+            "normalizer": "lowercase_normalizer"
+          }
+        },
+        "normalizer": {
+          "lowercase_normalizer": {
+            "type": "custom",
+            "filter": ["lowercase"]
+          }
+        }
+      }
+    },
+    "mappings": {
+      "properties": {
+        "id": {
+          "type": "long"
+        },
+        "url": {
+          "type": "keyword"
+        },
+        "title": {
+          "type": "text",
+          "analyzer": "content_analyzer",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "normalizer": "lowercase_normalizer"
+            }
+          }
+        },
+        "summary": {
+          "type": "text",
+          "analyzer": "content_analyzer"
+        },
+        "summary_pt": {
+          "type": "text",
+          "analyzer": "content_analyzer"
+        },
+        "raw_content": {
+          "type": "text",
+          "analyzer": "content_analyzer"
+        },
+        "sentiment": {
+          "type": "keyword"
+        },
+        "keywords": {
+          "type": "text",
+          "analyzer": "content_analyzer",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "normalizer": "lowercase_normalizer"
+            }
+          }
+        },
+        "category": {
+          "type": "keyword",
+          "normalizer": "lowercase_normalizer"
+        },
+        "region": {
+          "type": "keyword"
+        },
+        "published_at": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        },
+        "processed_at": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        },
+        "source_id": {
+          "type": "long"
+        },
+        "source_name": {
+          "type": "keyword"
+        },
+        "urgency_score": {
+          "type": "float"
+        },
+        "impact_score": {
+          "type": "float"
+        },
+        "embedding": {
+          "type": "dense_vector",
+          "dims": 1536,
+          "index": true,
+          "similarity": "cosine"
+        },
+        "has_embedding": {
+          "type": "boolean"
+        },
+        "embedding_created_at": {
+          "type": "date",
+          "format": "strict_date_optional_time||epoch_millis"
+        }
+      }
+    }
+  }
+}
