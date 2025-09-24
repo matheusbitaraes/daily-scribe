@@ -342,7 +342,7 @@ After successful migration, update application code:
 
 ```python
 # Example: Search service integration
-from components.elasticsearch_service import ElasticsearchService
+from components.search.elasticsearch_service import ElasticsearchService
 
 es_service = ElasticsearchService()
 

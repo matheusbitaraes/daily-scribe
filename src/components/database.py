@@ -12,6 +12,7 @@ import uuid
 from pathlib import Path
 from typing import List, Optional
 from utils.migrations import migrate_database
+from components.search.elasticsearch_service import ElasticsearchService
 
 
 class DatabaseService:
@@ -28,6 +29,7 @@ class DatabaseService:
                     variable or defaults to 30 seconds.
         """
         self.db_path = db_path or os.getenv('DB_PATH', 'data/digest_history.db')
+        self.es_service = ElasticsearchService()
         self.timeout = timeout if timeout is not None else float(os.getenv('DB_TIMEOUT', '30'))
         self.logger = logging.getLogger(__name__)
         self._initialize_database()
@@ -205,6 +207,15 @@ class DatabaseService:
         except sqlite3.Error as e:
             self.logger.error(f"Error creating database tables: {e}")
             raise
+    
+    def _index_article_in_search(self, article_id: int) -> None:
+        """
+        Index an article in the search service by its ID.
+        """
+        try:
+            self.es_service.index_article_by_id(article_id)
+        except Exception as es_error:
+            self.logger.warning(f"Failed to index article {article_id} to Elasticsearch: {es_error}")
 
     def add_article_content(self, article_id: int, raw_content: str) -> None:
         """
@@ -218,6 +229,11 @@ class DatabaseService:
                     (raw_content, article_id)
                 )
                 conn.commit()
+
+                # Index to search db after successful database update
+                self._index_article_in_search(article_id)   
+                
+                    
         except sqlite3.Error as e:
             self.logger.error(f"Error adding article content to database: {e}")
 
@@ -338,6 +354,10 @@ class DatabaseService:
                     )
                 )
                 conn.commit()
+                
+                # Index to search db after successful database update
+                self._index_article_in_search(article_id)
+                    
         except sqlite3.IntegrityError:
             self.logger.warning(f"Article with URL {url} has already been processed.")
         except sqlite3.Error as e:
@@ -615,6 +635,10 @@ class DatabaseService:
                     VALUES (?, ?)
                 ''', (article_id, embedding_bytes))
                 conn.commit()
+                
+                # Index to search db after successful database update
+                self._index_article_in_search(article_id)
+                    
         except Exception as e:
             self.logger.error(f"Error storing article embedding: {e}")
 
@@ -864,6 +888,10 @@ class DatabaseService:
                         )
                     )
                 conn.commit()
+                
+                # Index to search db after successful database update
+                self._index_article_in_search(article_id)
+                    
         except sqlite3.Error as e:
             self.logger.error(f"Error updating article summary in database: {e}")
 

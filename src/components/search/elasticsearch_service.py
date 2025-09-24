@@ -12,6 +12,9 @@ from pathlib import Path
 from datetime import datetime
 import numpy as np
 
+# Import DatabaseService to fetch article data
+from components.database import DatabaseService
+
 from elasticsearch import Elasticsearch, NotFoundError
 from elasticsearch.helpers import bulk
 
@@ -57,6 +60,8 @@ class ElasticsearchService:
         # Initialize client
         self.client: Optional[Elasticsearch] = None
         self._connection_healthy = False
+
+        self.db_service = DatabaseService()
         
         if self.enabled:
             self._initialize_client()
@@ -908,3 +913,44 @@ class ElasticsearchService:
         except Exception as e:
             self.logger.warning(f"Error formatting date {date_value}: {e}")
             return None
+
+    def index_article_by_id(self, article_id: int) -> bool:
+        """
+        Index a single article to Elasticsearch by its ID.
+        
+        Args:
+            article_id: The ID of the article to index.
+            
+        Returns:
+            True if article indexed successfully, False otherwise.
+        """
+        if not self._ensure_connection():
+            self.logger.error("No Elasticsearch connection available")
+            return False
+            
+        try:
+            # Fetch article from database
+            article = self.db_service.get_article_by_id(article_id)
+            if not article:
+                self.logger.error(f"Article with ID {article_id} not found in database")
+                return False
+                
+            # Prepare document for Elasticsearch
+            document = self.prepare_article_document(article)
+            if not document:
+                self.logger.error(f"Failed to prepare document for article {article_id}")
+                return False
+                
+            # Index the document
+            success = self.index_document('articles', str(article_id), document)
+            
+            if success:
+                self.logger.info(f"Successfully indexed article {article_id} to Elasticsearch")
+            else:
+                self.logger.error(f"Failed to index article {article_id} to Elasticsearch")
+                
+            return success
+            
+        except Exception as e:
+            self.logger.error(f"Error indexing article {article_id}: {e}")
+            return False
