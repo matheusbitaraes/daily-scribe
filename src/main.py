@@ -7,11 +7,10 @@ This module handles the scheduling and execution of the daily digest generation.
 import os
 import sys
 import logging
-import time
+import json
 from pathlib import Path
 from typing import Optional
 
-import schedule
 import typer
 
 # Add the src directory to the Python path
@@ -39,6 +38,11 @@ def setup_logging() -> None:
             logging.FileHandler('digest.log')
         ]
     )
+
+
+def print_json(data: dict) -> None:
+    """Print data as formatted JSON."""
+    print(json.dumps(data, indent=2, default=str))
 
 
 def fetch_news() -> None:
@@ -155,6 +159,127 @@ def send_digest(
                 
     except Exception as e:
         logger.error(f"An error occurred during digest sending: {e}")
+
+
+@app.command(name="sync-search-db")
+def sync_search_db_command(
+    mode: str = typer.Option("partial", "--mode", "-m", help="Migration mode: 'full' or 'partial'"),
+    batch_size: int = typer.Option(100, "--batch-size", "-b", help="Batch size for migration"),
+    validate: bool = typer.Option(False, "--validate", help="Run validation after migration"),
+    rollback: bool = typer.Option(False, "--rollback", help="Rollback migration (clear Elasticsearch data)"),
+    status: bool = typer.Option(False, "--status", help="Show migration status only"),
+    sqlite_path: str = typer.Option("data/digest_history.db", "--sqlite-path", help="Path to SQLite database"),
+):
+    """
+    Synchronize SQLite data with Elasticsearch search database.
+    
+    Modes:
+    - partial: Only sync new articles that haven't been migrated yet (default)
+    - full: Reindex all articles from SQLite (clears existing ES data)
+    
+    Use --status to check migration progress without running migration.
+    Use --rollback to clear all Elasticsearch data.
+    Use --validate to verify data integrity after migration.
+    """
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from migrations.elasticsearch_migration import ElasticsearchMigration
+        
+        # Initialize migration service
+        migration = ElasticsearchMigration(
+            sqlite_db_path=sqlite_path,
+            batch_size=batch_size
+        )
+        
+        # Handle status request
+        if status:
+            logger.info("Checking migration status...")
+            status_info = migration.get_migration_status()
+            
+            print("📊 Migration Status:")
+            print_json(status_info)
+            
+            if status_info.get("elasticsearch_enabled"):
+                if status_info.get("elasticsearch_healthy"):
+                    print("✅ Elasticsearch: Enabled and healthy")
+                else:
+                    print("⚠️  Elasticsearch: Enabled but not healthy")
+            else:
+                print("❌ Elasticsearch: Disabled")
+            
+            progress = status_info.get("progress_percentage", 0)
+            sqlite_count = status_info.get("sqlite_article_count", 0)
+            es_count = status_info.get("elasticsearch_article_count", 0)
+            
+            print(f"📈 Progress: {progress}% ({es_count}/{sqlite_count} articles)")
+            return
+        
+        # Handle rollback request
+        if rollback:
+            logger.info("Rolling back migration...")
+            print("⚠️  This will delete all migrated data from Elasticsearch!")
+            response = input("Are you sure you want to continue? (yes/no): ")
+            if response.lower() != 'yes':
+                print("Rollback cancelled.")
+                return
+            
+            success = migration.rollback_migration()
+            if success:
+                print("✅ Migration rollback completed successfully!")
+            else:
+                print("❌ Migration rollback failed!")
+                raise typer.Exit(1)
+            return
+        
+        # Perform migration based on mode
+        if mode == "full":
+            logger.info("Starting FULL migration...")
+            print("🚀 Starting full migration (this will reindex all articles)...")
+            success = migration.migrate_articles_full()
+        elif mode == "partial":
+            logger.info("Starting PARTIAL migration...")
+            print("🔄 Starting partial migration (only new articles)...")
+            success = migration.migrate_articles_partial()
+        else:
+            print(f"❌ Invalid mode: {mode}. Use 'full' or 'partial'.")
+            raise typer.Exit(1)
+        
+        # Report results
+        if success:
+            print("✅ Migration completed successfully!")
+            
+            # Show performance metrics
+            metrics = migration.get_performance_metrics()
+            if metrics:
+                print("\n📊 Performance Metrics:")
+                print_json(metrics)
+            
+            # Run validation if requested
+            if validate:
+                print("\n🔍 Running validation...")
+                validation_results = migration.validate_migration()
+                print_json(validation_results)
+                
+                if validation_results.get('overall_valid'):
+                    print("✅ Validation passed!")
+                else:
+                    print("❌ Validation failed!")
+                    raise typer.Exit(1)
+        else:
+            print("❌ Migration failed!")
+            raise typer.Exit(1)
+            
+    except ImportError as e:
+        logger.error(f"Migration module not available: {e}")
+        print("❌ Elasticsearch migration dependencies not available.")
+        print("Please ensure Elasticsearch is properly configured.")
+        raise typer.Exit(1)
+    except Exception as e:
+        logger.error(f"Migration error: {e}")
+        print(f"❌ Migration failed: {e}")
+        raise typer.Exit(1)
 
 
 @app.command(name="fetch-news")

@@ -1,0 +1,77 @@
+version: '3.8'
+
+# Elasticsearch-specific Docker Compose configuration
+# This file extends the main docker-compose.yml with Elasticsearch services
+# Use: docker-compose -f docker-compose.yml -f docker-compose.elasticsearch.yml up
+
+services:
+  # Override main app service to include Elasticsearch dependencies
+  app:
+    depends_on:
+      - elasticsearch
+    environment:
+      - ELASTICSEARCH_ENABLED=true
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - ELASTICSEARCH_INDEX_PREFIX=daily_scribe
+
+  # Elasticsearch Search Engine
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: daily-scribe-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - cluster.name=daily-scribe-cluster
+      - node.name=daily-scribe-node
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - daily_scribe_internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+    
+  # Kibana for Elasticsearch management (optional)
+  kibana:
+    image: kibana:8.11.0
+    container_name: daily-scribe-kibana
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_NAME=daily-scribe-kibana
+      - SERVER_HOST=0.0.0.0
+    ports:
+      - "5601:5601"
+    networks:
+      - daily_scribe_internal
+    depends_on:
+      - elasticsearch
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+networks:
+  daily_scribe_internal:
+    external: true
+
+volumes:
+  elasticsearch_data:
+    driver: local

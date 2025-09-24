@@ -269,7 +269,7 @@ start_services() {
     log_info "Starting Daily Scribe services..."
     
     # Determine which profiles to use
-    local compose_files="-f docker-compose.yml"
+    local compose_files="-f docker-compose.yml -f docker-compose.elasticsearch.yml"
     local compose_profiles=""
 
     compose_profiles="--profile admin"
@@ -384,6 +384,8 @@ show_summary() {
     echo "   - Frontend: http://$SERVER_HOST/ (via Caddy proxy)"
     echo "   - Application: http://$SERVER_HOST:8000 (direct API access)"
     echo "   - CloudBeaver: http://$SERVER_HOST:8080 (cbadmin)"
+    echo "   - Kibana: http://$SERVER_HOST:5601 (admin/admin)"
+    echo "   - Elasticsearch: http://$SERVER_HOST:9200"
     if [[ "$MONITORING_ENABLED" == true ]]; then
         echo "   - Grafana: http://$SERVER_HOST:3000 (admin/admin)"
         echo "   - Prometheus: http://$SERVER_HOST:9092"
