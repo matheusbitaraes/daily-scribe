@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 import json
 from pathlib import Path
+from datetime import datetime
+import numpy as np
 
 from elasticsearch import Elasticsearch, NotFoundError
 from elasticsearch.helpers import bulk
@@ -712,3 +714,197 @@ class ElasticsearchService:
         except Exception as e:
             self.logger.error(f"Error in setup_all_indices: {e}")
             return {}
+
+    # Migration and Bulk Operations
+
+    def clear_index(self, index_type: str) -> bool:
+        """
+        Clear all documents from an Elasticsearch index.
+        
+        Args:
+            index_type: Type of index to clear.
+            
+        Returns:
+            True if clearing successful, False otherwise.
+        """
+        if not self._ensure_connection():
+            return False
+            
+        index_name = self._get_index_name(index_type)
+        
+        try:
+            # Delete all documents
+            delete_query = {"query": {"match_all": {}}}
+            result = self.client.delete_by_query(
+                index=index_name,
+                body=delete_query,
+                wait_for_completion=True,
+                refresh=True
+            )
+            
+            deleted = result.get('deleted', 0)
+            self.logger.info(f"Cleared {deleted} documents from index {index_name}")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to clear index {index_name}: {e}")
+            return False
+
+    def bulk_index_articles(self, articles: List[Dict[str, Any]], batch_size: int = 100) -> bool:
+        """
+        Process a batch of articles and index them in Elasticsearch.
+        
+        Args:
+            articles: List of article dictionaries to process.
+            batch_size: Size of batches for bulk operations.
+            
+        Returns:
+            True if batch processing successful, False otherwise.
+        """
+        if not self._ensure_connection():
+            return False
+            
+        try:
+            if not articles:
+                return True
+            
+            # Prepare documents for bulk indexing
+            documents = []
+            for article in articles:
+                doc = self.prepare_article_document(article)
+                if doc:
+                    documents.append(doc)
+            
+            if not documents:
+                self.logger.warning("No valid documents to index in this batch")
+                return False
+            
+            # Perform bulk indexing
+            index_name = self._get_index_name('articles')
+            
+            success, failed = bulk(
+                self.client,
+                documents,
+                index=index_name,
+                chunk_size=batch_size,
+                timeout='60s',
+                max_retries=3,
+                initial_backoff=2,
+                max_backoff=600
+            )
+            
+            if failed:
+                self.logger.error(f"Failed to index {len(failed)} documents in batch")
+                for failure in failed:
+                    self.logger.error(f"Failed document: {failure}")
+                return False
+            
+            self.logger.debug(f"Successfully indexed {success} documents")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to process article batch: {e}, {e.errors if hasattr(e, 'errors') else 'No additional error info'}")
+            return False
+
+    def prepare_article_document(self, article: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Prepare an article document for Elasticsearch indexing.
+        
+        Args:
+            article: Article data from SQLite.
+            
+        Returns:
+            Document ready for Elasticsearch indexing or None if preparation failed.
+        """
+        try:
+            # Prepare the base document
+            doc = {
+                '_id': article['id'],
+                'id': article['id'],
+                'url': article['url'],
+                'title': article['title'] or '',
+                'summary': article['summary'] or '',
+                'summary_pt': article['summary_pt'] or '',
+                'raw_content': article['raw_content'] or '',
+                'sentiment': article['sentiment'] or '',
+                'keywords': article['keywords'] or '',
+                'category': article['category'] or '',
+                'region': article['region'] or '',
+                'published_at': self.format_date_for_elasticsearch(article['published_at']),
+                'processed_at': self.format_date_for_elasticsearch(article['processed_at']),
+                'source_id': article['source_id'],
+                'source_name': article['source_name'] or '',
+                'urgency_score': article['urgency_score'],
+                'impact_score': article['impact_score'],
+                'has_embedding': bool(article['embedding']),
+                'embedding_created_at': self.format_date_for_elasticsearch(article['embedding_created_at'])
+            }
+            
+            # Process embedding if available
+            if article['embedding']:
+                try:
+                    # Convert BLOB to numpy array
+                    embedding_blob = article['embedding']
+                    embedding_array = np.frombuffer(embedding_blob, dtype=np.float32)
+                    
+                    # Validate embedding dimensions
+                    if len(embedding_array) == 1536:
+                        doc['embedding'] = embedding_array.tolist()
+                    else:
+                        self.logger.warning(f"Invalid embedding dimensions for article {article['id']}: {len(embedding_array)}")
+                        doc['has_embedding'] = False
+                        
+                except Exception as e:
+                    self.logger.warning(f"Failed to process embedding for article {article['id']}: {e}")
+                    doc['has_embedding'] = False
+            
+            return doc
+            
+        except Exception as e:
+            self.logger.error(f"Failed to prepare document for article {article.get('id', 'unknown')}: {e}")
+            return None
+
+    def format_date_for_elasticsearch(self, date_value: Any) -> Optional[str]:
+        """
+        Format date value for Elasticsearch indexing.
+        
+        Args:
+            date_value: Date value from SQLite (could be string, None, or datetime).
+            
+        Returns:
+            ISO formatted date string or None if invalid.
+        """
+        if not date_value:
+            return None
+            
+        try:
+            # If it's already a string in SQLite format, parse and convert to ISO
+            if isinstance(date_value, str):
+                # Handle SQLite datetime format: 'YYYY-MM-DD HH:MM:SS'
+                if ' ' in date_value and len(date_value) == 19:
+                    dt = datetime.strptime(date_value, '%Y-%m-%d %H:%M:%S')
+                    return dt.isoformat() + 'Z'  # Add Z for UTC timezone
+                # Handle SQLite date format: 'YYYY-MM-DD'
+                elif len(date_value) == 10:
+                    dt = datetime.strptime(date_value, '%Y-%m-%d')
+                    return dt.isoformat() + 'Z'
+                else:
+                    # Try to parse other formats
+                    for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%d %H:%M:%S.%f']:
+                        try:
+                            dt = datetime.strptime(date_value, fmt)
+                            return dt.isoformat() + 'Z'
+                        except ValueError:
+                            continue
+                    
+            # If it's a datetime object
+            elif isinstance(date_value, datetime):
+                return date_value.isoformat() + 'Z'
+            
+            # If none of the above work, return None
+            self.logger.warning(f"Could not parse date value: {date_value}")
+            return None
+            
+        except Exception as e:
+            self.logger.warning(f"Error formatting date {date_value}: {e}")
+            return None

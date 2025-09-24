@@ -13,7 +13,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from components.search_service import SearchService
-from components.elasticsearch_service import ElasticsearchService
+from components.search.elasticsearch_service import ElasticsearchService
 
 
 class TestSearchService(unittest.TestCase):

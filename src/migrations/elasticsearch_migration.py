@@ -13,12 +13,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import numpy as np
 from elasticsearch import Elasticsearch
 from elasticsearch.helpers import bulk, scan
 
 from components.database import DatabaseService
-from components.elasticsearch_service import ElasticsearchService
+from components.search.elasticsearch_service import ElasticsearchService
 
 
 class ElasticsearchMigration:
@@ -166,7 +165,7 @@ class ElasticsearchMigration:
             
             # Clear existing data in Elasticsearch for full migration
             self.logger.info("Clearing existing Elasticsearch data for full migration...")
-            if not self._clear_elasticsearch_index():
+            if not self.es_service.clear_index('articles'):
                 self.logger.warning("Failed to clear Elasticsearch index, continuing anyway...")
             
             # Get all articles from SQLite
@@ -185,7 +184,7 @@ class ElasticsearchMigration:
                 
                 self.logger.info(f"Processing batch {batch_number}/{(total_articles + self.batch_size - 1) // self.batch_size}")
                 
-                if not self._process_article_batch(batch):
+                if not self.es_service.bulk_index_articles(batch, self.batch_size):
                     self.logger.error(f"Failed to process batch {batch_number}")
                     self.error_count += len(batch)
                 else:
@@ -247,7 +246,7 @@ class ElasticsearchMigration:
                 
                 self.logger.info(f"Processing batch {batch_number}/{(total_articles + self.batch_size - 1) // self.batch_size}")
                 
-                if not self._process_article_batch(batch):
+                if not self.es_service.bulk_index_articles(batch, self.batch_size):
                     self.logger.error(f"Failed to process batch {batch_number}")
                     self.error_count += len(batch)
                 else:
@@ -292,32 +291,7 @@ class ElasticsearchMigration:
         
         return True
 
-    def _clear_elasticsearch_index(self) -> bool:
-        """
-        Clear all documents from the Elasticsearch index.
-        
-        Returns:
-            True if clearing successful, False otherwise.
-        """
-        try:
-            index_name = self.es_service._get_index_name('articles')
-            
-            # Delete all documents
-            delete_query = {"query": {"match_all": {}}}
-            result = self.es_service.client.delete_by_query(
-                index=index_name,
-                body=delete_query,
-                wait_for_completion=True,
-                refresh=True
-            )
-            
-            deleted = result.get('deleted', 0)
-            self.logger.info(f"Cleared {deleted} documents from Elasticsearch index")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to clear Elasticsearch index: {e}")
-            return False
+
 
     def _get_all_articles_from_sqlite(self) -> List[Dict[str, Any]]:
         """
@@ -440,160 +414,11 @@ class ElasticsearchMigration:
             self.logger.error(f"Failed to get new articles from SQLite: {e}")
             return []
 
-    def _process_article_batch(self, articles: List[Dict[str, Any]]) -> bool:
-        """
-        Process a batch of articles and index them in Elasticsearch.
-        
-        Args:
-            articles: List of article dictionaries to process.
-            
-        Returns:
-            True if batch processing successful, False otherwise.
-        """
-        try:
-            if not articles:
-                return True
-            
-            # Prepare documents for bulk indexing
-            documents = []
-            for article in articles:
-                doc = self._prepare_article_document(article)
-                if doc:
-                    documents.append(doc)
-            
-            if not documents:
-                self.logger.warning("No valid documents to index in this batch")
-                return False
-            
-            # Perform bulk indexing
-            index_name = self.es_service._get_index_name('articles')
-            
-            success, failed = bulk(
-                self.es_service.client,
-                documents,
-                index=index_name,
-                chunk_size=self.batch_size,
-                timeout='60s',
-                max_retries=3,
-                initial_backoff=2,
-                max_backoff=600
-            )
-            
-            if failed:
-                self.logger.error(f"Failed to index {len(failed)} documents in batch")
-                for failure in failed:
-                    self.logger.error(f"Failed document: {failure}")
-                return False
-            
-            self.logger.debug(f"Successfully indexed {success} documents")
-            return True
-            
-        except Exception as e:
-            self.logger.error(f"Failed to process article batch: {e}, {e.errors if hasattr(e, 'errors') else 'No additional error info'}")
-            return False
 
-    def _prepare_article_document(self, article: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Prepare an article document for Elasticsearch indexing.
-        
-        Args:
-            article: Article data from SQLite.
-            
-        Returns:
-            Document ready for Elasticsearch indexing or None if preparation failed.
-        """
-        try:
-            # Prepare the base document
-            doc = {
-                '_id': article['id'],
-                'id': article['id'],
-                'url': article['url'],
-                'title': article['title'] or '',
-                'summary': article['summary'] or '',
-                'summary_pt': article['summary_pt'] or '',
-                'raw_content': article['raw_content'] or '',
-                'sentiment': article['sentiment'] or '',
-                'keywords': article['keywords'] or '',
-                'category': article['category'] or '',
-                'region': article['region'] or '',
-                'published_at': self._format_date_for_elasticsearch(article['published_at']),
-                'processed_at': self._format_date_for_elasticsearch(article['processed_at']),
-                'source_id': article['source_id'],
-                'source_name': article['source_name'] or '',
-                'urgency_score': article['urgency_score'],
-                'impact_score': article['impact_score'],
-                'has_embedding': bool(article['embedding']),
-                'embedding_created_at': self._format_date_for_elasticsearch(article['embedding_created_at'])
-            }
-            
-            # Process embedding if available
-            if article['embedding']:
-                try:
-                    # Convert BLOB to numpy array
-                    embedding_blob = article['embedding']
-                    embedding_array = np.frombuffer(embedding_blob, dtype=np.float32)
-                    
-                    # Validate embedding dimensions
-                    if len(embedding_array) == 1536:
-                        doc['embedding'] = embedding_array.tolist()
-                    else:
-                        self.logger.warning(f"Invalid embedding dimensions for article {article['id']}: {len(embedding_array)}")
-                        doc['has_embedding'] = False
-                        
-                except Exception as e:
-                    self.logger.warning(f"Failed to process embedding for article {article['id']}: {e}")
-                    doc['has_embedding'] = False
-            
-            return doc
-            
-        except Exception as e:
-            self.logger.error(f"Failed to prepare document for article {article.get('id', 'unknown')}: {e}")
-            return None
 
-    def _format_date_for_elasticsearch(self, date_value: Any) -> Optional[str]:
-        """
-        Format date value for Elasticsearch indexing.
-        
-        Args:
-            date_value: Date value from SQLite (could be string, None, or datetime).
-            
-        Returns:
-            ISO formatted date string or None if invalid.
-        """
-        if not date_value:
-            return None
-            
-        try:
-            # If it's already a string in SQLite format, parse and convert to ISO
-            if isinstance(date_value, str):
-                # Handle SQLite datetime format: 'YYYY-MM-DD HH:MM:SS'
-                if ' ' in date_value and len(date_value) == 19:
-                    dt = datetime.strptime(date_value, '%Y-%m-%d %H:%M:%S')
-                    return dt.isoformat() + 'Z'  # Add Z for UTC timezone
-                # Handle SQLite date format: 'YYYY-MM-DD'
-                elif len(date_value) == 10:
-                    dt = datetime.strptime(date_value, '%Y-%m-%d')
-                    return dt.isoformat() + 'Z'
-                else:
-                    # Try to parse other formats
-                    for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%d %H:%M:%S.%f']:
-                        try:
-                            dt = datetime.strptime(date_value, fmt)
-                            return dt.isoformat() + 'Z'
-                        except ValueError:
-                            continue
-                    
-            # If it's a datetime object
-            elif isinstance(date_value, datetime):
-                return date_value.isoformat() + 'Z'
-            
-            # If none of the above work, return None
-            self.logger.warning(f"Could not parse date value: {date_value}")
-            return None
-            
-        except Exception as e:
-            self.logger.warning(f"Error formatting date {date_value}: {e}")
-            return None
+
+
+
 
     def _update_migration_state(self, last_article_id: int) -> None:
         """
@@ -705,7 +530,7 @@ class ElasticsearchMigration:
         
         try:
             # Clear the Elasticsearch index
-            if not self._clear_elasticsearch_index():
+            if not self.es_service.clear_index('articles'):
                 return False
             
             # Reset migration state

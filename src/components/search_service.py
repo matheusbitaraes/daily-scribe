@@ -8,7 +8,7 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, date
 
-from components.elasticsearch_service import ElasticsearchService
+from src.components.search.elasticsearch_service import ElasticsearchService
 
 
 class SearchService:
