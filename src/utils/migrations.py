@@ -374,6 +374,73 @@ class DatabaseMigrator:
             self.logger.error(f"Error applying migration {migration_name}: {e}")
             return False
 
+    def convert_scoring_fields_to_100_scale(self) -> bool:
+        """
+        Migration to convert urgency_score and impact_score from 1-5 scale to 0-100 scale.
+        
+        Conversion logic:
+        - 1 -> 10 (0-20 range, middle value)
+        - 2 -> 30 (21-40 range, middle value)
+        - 3 -> 50 (41-60 range, middle value)
+        - 4 -> 70 (61-80 range, middle value)
+        - 5 -> 90 (81-100 range, middle value)
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        migration_name = "008_convert_scoring_fields_to_100_scale"
+        
+        if self.migration_applied(migration_name):
+            self.logger.info(f"Migration {migration_name} already applied, skipping")
+            return True
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Update urgency_score: convert 1-5 scale to 0-100 scale
+                cursor.execute("""
+                    UPDATE articles 
+                    SET urgency_score = CASE 
+                        WHEN urgency_score = 1 THEN 10
+                        WHEN urgency_score = 2 THEN 30
+                        WHEN urgency_score = 3 THEN 50
+                        WHEN urgency_score = 4 THEN 70
+                        WHEN urgency_score = 5 THEN 90
+                        ELSE urgency_score
+                    END
+                    WHERE urgency_score IS NOT NULL AND urgency_score BETWEEN 1 AND 5;
+                """)
+                
+                # Update impact_score: convert 1-5 scale to 0-100 scale
+                cursor.execute("""
+                    UPDATE articles 
+                    SET impact_score = CASE 
+                        WHEN impact_score = 1 THEN 10
+                        WHEN impact_score = 2 THEN 30
+                        WHEN impact_score = 3 THEN 50
+                        WHEN impact_score = 4 THEN 70
+                        WHEN impact_score = 5 THEN 90
+                        ELSE impact_score
+                    END
+                    WHERE impact_score IS NOT NULL AND impact_score BETWEEN 1 AND 5;
+                """)
+                
+                conn.commit()
+                
+                # Record the migration
+                self.record_migration(
+                    migration_name, 
+                    "Convert urgency_score and impact_score from 1-5 scale to 0-100 scale"
+                )
+                
+                self.logger.info(f"Successfully applied migration: {migration_name}")
+                return True
+                
+        except sqlite3.Error as e:
+            self.logger.error(f"Error applying migration {migration_name}: {e}")
+            return False
+
     def run_all_migrations(self) -> bool:
         """
         Run all pending migrations.
@@ -390,6 +457,7 @@ class DatabaseMigrator:
                 self.migrate_user_preferences_to_users,
                 self.add_news_scoring_fields,
                 self.add_title_pt_column,
+                self.convert_scoring_fields_to_100_scale,
             ]
             
             for migration in migrations:
