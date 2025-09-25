@@ -110,16 +110,12 @@ class NewsCurator:
 
         # Return the complete _script sort structure
         return {
-            "type": "number",
-            "script": {
-                "source": score_script,
-                "params": {
-                    "current_time": current_time,
-                    "decay_time": decay_time
+                    "source": score_script,
+                    "params": {
+                        "current_time": current_time,
+                        "decay_time": decay_time
+                    }
                 }
-            },
-            "order": "desc"
-        }
 
     def _curate_articles_elasticsearch(self, categories=None, limit=10, start_date=None, end_date=None, offset=0):
         """
@@ -147,24 +143,27 @@ class NewsCurator:
             self.logger.error(f"Failed to initialize Elasticsearch service: {e}")
             return self._curate_articles_legacy(categories, limit, start_date, end_date, offset)
 
-        # Build Elasticsearch query
-        query = {
+        function_score_query = {
             "query": {
-                "bool": {
-                    "must": [{"match_all": {}}],
-                    "filter": []
+                "script_score": {
+                    "query": {
+                        "bool": {
+                            "must": [{"match_all": {}}],
+                            "filter": []
+                        }
+                    },
+                    "script": self._build_score_script()
                 }
             },
             "sort": [
-                {
-                    "_script": self._build_score_script()  # This now returns the complete structure
-                },
                 {"_score": {"order": "desc"}}
             ]
         }
 
+        query = function_score_query["query"]["script_score"]["query"]
+
         # Add date range filter
-        query["query"]["bool"]["filter"].append({
+        query["bool"]["filter"].append({
             "range": {
                 "published_at": {
                     "gte": start_date.isoformat(),
@@ -179,14 +178,14 @@ class NewsCurator:
                 categories = [cat.strip() for cat in categories.split(',')]
             # Normalize categories to lowercase for case-insensitive matching
             normalized_categories = [cat.lower() for cat in categories]
-            query["query"]["bool"]["filter"].append({
+            query["bool"]["filter"].append({
                 "terms": {
                     "category": normalized_categories
                 }
             })
 
         # Filter for articles that have embeddings (needed for clustering)
-        query["query"]["bool"]["filter"].append({
+        query["bool"]["filter"].append({
             "term": {
                 "has_embedding": True
             }
@@ -196,7 +195,7 @@ class NewsCurator:
             # Get articles from Elasticsearch
             response = es_service.search(
                 index_type="articles",
-                query=query,
+                query=function_score_query,
                 size=limit * 10,  # Get more articles to allow for clustering
                 from_=0
             )
@@ -209,7 +208,7 @@ class NewsCurator:
                 urgency = source.get("urgency_score", 0)
                 impact = source.get("impact_score", 0)
                 published_at = source.get("published_at", "N/A")
-                title_first_20_chars = source.get("title", "N/A")[:20]
+                title_first_20_chars = source.get("title_pt", "N/A")[:20]
                 print(f"ID: {source.get('id')}, Score: {score}, Urgency: {urgency}, Impact: {impact}, Published At: {published_at}, Title Start: {title_first_20_chars}")
 
             if not response or 'hits' not in response:

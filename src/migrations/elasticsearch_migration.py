@@ -312,7 +312,8 @@ class ElasticsearchMigration:
                     a.published_at, a.processed_at, a.source_id,
                     s.name as source_name,
                     a.urgency_score, a.impact_score,
-                    ae.embedding, ae.created_at as embedding_created_at
+                    ae.embedding, ae.created_at as embedding_created_at,
+                    a.title_pt
                 FROM articles a
                 LEFT JOIN sources s ON a.source_id = s.id
                 LEFT JOIN article_embeddings ae ON a.id = ae.article_id
@@ -342,7 +343,8 @@ class ElasticsearchMigration:
                         'urgency_score': row[14],
                         'impact_score': row[15],
                         'embedding': row[16],
-                        'embedding_created_at': row[17]
+                        'embedding_created_at': row[17],
+                        'title_pt': row[18],
                     }
                     articles.append(article)
                 

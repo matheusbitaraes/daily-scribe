@@ -823,6 +823,7 @@ class ElasticsearchService:
                 'id': article['id'],
                 'url': article['url'],
                 'title': article['title'] or '',
+                'title_pt': article['title_pt'] or '',
                 'summary': article['summary'] or '',
                 'summary_pt': article['summary_pt'] or '',
                 'raw_content': article['raw_content'] or '',
@@ -992,8 +993,8 @@ class ElasticsearchService:
                 knn_query["knn"]["filter"]["bool"]["filter"].append({
                     "range": {
                         "published_at": {
-                            "gte": extended_start.isoformat() + "T00:00:00Z",
-                            "lte": end_date.isoformat() + "T23:59:59Z"
+                            "gte": extended_start.isoformat(),
+                            "lte": end_date.isoformat()
                         }
                     }
                 })
