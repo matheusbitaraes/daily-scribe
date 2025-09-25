@@ -20,4 +20,4 @@
 0 3 * * 0 find /var/log/cron -name "*.log" -mtime +7 -delete >> /var/log/cron/cleanup.log 2>&1
 
 # full index of elasticsearch - todo: improve this - every hour for now
-0 * * * * cd /app && python -m src.main sync-search-db --mode full >> /var/log/cron/full-index.log 2>&1
+# 0 * * * * cd /app && python -m src.main sync-search-db --mode full >> /var/log/cron/full-index.log 2>&1

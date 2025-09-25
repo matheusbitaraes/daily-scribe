@@ -20,11 +20,11 @@ from components.database import DatabaseService
 from components.feed_processor import RSSFeedProcessor
 from components.scraper import ArticleScraper
 from components.summarizer import Summarizer
-from components.notifier import EmailNotifier
 from components.content_extractor import ContentExtractor
-from components.digest_builder import DigestBuilder
-from components.news_curator import NewsCurator
 from components.digest_service import DigestService
+from components.article_clusterer import ArticleClusterer
+from migrations.elasticsearch_migration import ElasticsearchMigration
+
 
 app = typer.Typer()
 
@@ -185,8 +185,6 @@ def sync_search_db_command(
     logger = logging.getLogger(__name__)
     
     try:
-        from migrations.elasticsearch_migration import ElasticsearchMigration
-        
         # Initialize migration service
         migration = ElasticsearchMigration(
             sqlite_db_path=sqlite_path,
@@ -341,7 +339,6 @@ def generate_article_embeddings_command(
     Generate OpenAI embeddings for all articles in the database that do not have embeddings yet.
     """
     setup_logging()
-    from components.article_clusterer import ArticleClusterer
     logger = logging.getLogger(__name__)
     logger.info("Starting article embedding generation process...")
     try:
@@ -355,27 +352,37 @@ def generate_article_embeddings_command(
 
 @app.command(name="full-run")
 def full_run_command(
-    openai_api_key: str = typer.Option(None, "--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key (or set OPENAI_API_KEY env var)")
 ):
     """
     Run the full pipeline: fetch articles, generate embeddings, and send the digest.
     """
     setup_logging()
     logger = logging.getLogger(__name__)
-    logger.info("[1/3] Fetching articles...")
+    logger.info("[1/4] Fetching articles...")
     fetch_news()
-    logger.info("[2/3] Summarizing articles...")
+
+    logger.info("[2/4] Summarizing articles...")
     summarize_articles()
-    logger.info("[3/3] Generating embeddings...")
-    if not openai_api_key:
-        import os
-        openai_api_key = os.environ.get("OPENAI_API_KEY")
-    if not openai_api_key:
-        logger.error("OPENAI_API_KEY must be set in environment or passed as argument.")
-        raise typer.Exit(1)
-    from components.article_clusterer import ArticleClusterer
-    clusterer = ArticleClusterer(openai_api_key=openai_api_key)
+
+    logger.info("[3/4] Generating embeddings...")
+    clusterer = ArticleClusterer()
     clusterer.generate_embeddings()
+
+    logger.info("[4/4] running full search db index...")
+    migration = ElasticsearchMigration()
+    success = migration.migrate_articles_full()
+    if not success:
+        logger.error("Elasticsearch full migration failed!")
+        return
+    logger.info("✅ Migration completed successfully!")
+            
+    # Show performance metrics
+    metrics = migration.get_performance_metrics()
+    if metrics:
+        logger.info("\n📊 Performance Metrics:")
+        print_json(metrics)
+    
+
     logger.info("Full pipeline complete.")
 
 

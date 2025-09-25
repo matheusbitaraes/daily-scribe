@@ -69,11 +69,13 @@
       - [x] Get x headline articles. Create rules to define how to define those.
 - [x] news page for mobile
 - [x] add preferences during user onboarding
-- [ ] add elasticsearch db 
+- [x] add elasticsearch db 
       - do a simple search term [x]
       - how to index? which frequency? [x]
       - script to read from all backups - no need for now
 - [ ] Improve ranking
+      - [ ] home page
+      - [ ] email digest
 - [ ] cleanup code: 
       Improve copilot agent rules and documentation
       remove unused cripts
