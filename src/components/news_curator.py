@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict
 from components.database import DatabaseService
 from datetime import datetime, timedelta, timezone, date
@@ -15,14 +16,13 @@ class NewsCurator:
         self.db_service = DatabaseService()
         self.logger = logging.getLogger(__name__)
 
-    def curate_for_homepage(self, categories=None, limit=10, start_date=None, end_date=None, offset=0):
+    def _curate_articles_legacy(self, categories=None, limit=10, start_date=None, end_date=None, offset=0):
         # Set date range - default to last 2 days if not specified
         if not start_date:
             start_date = date.today() - timedelta(days=2)
         if not end_date:
             end_date = date.today()
 
-            
         # Get articles for the specified criteria
         articles = self.db_service.get_articles(
             start_date=start_date.isoformat() if start_date else None,
@@ -85,6 +85,218 @@ class NewsCurator:
                 used_article_ids.update(current_cluster_ids)
                 for cat in categories:
                     category_counts[cat] += 1
+        return clustered_curated_articles
+
+    def _build_score_script(self):
+        """
+        Builds the score script for Elasticsearch queries.
+        """
+        # Calculate current time in milliseconds (Elasticsearch timestamp format)
+        current_time = int(time.time() * 1000)
+
+        # Define decay time
+        decay_time = 3 * 24 * 60 * 60 * 1000  # after 3 days in milliseconds, urgency decays to 0
+
+        # The score script consider the following: urgency_score and impact_score
+        # also, it considers the decay of urgency_score over time (more recent articles with a 5 urgency will be better rated than older articles with a 5 urgency)
+        score_script = """
+            double impact = doc.containsKey('impact_score') && !doc['impact_score'].empty ? doc['impact_score'].value : 0;
+            double urgency = doc.containsKey('urgency_score') && !doc['urgency_score'].empty ? doc['urgency_score'].value : 0;
+            long publishedAt = doc.containsKey('published_at') && !doc['published_at'].empty ? doc['published_at'].value.millis : 0;
+            double timeDiff = (params.current_time - publishedAt) / (double)params.decay_time;
+            double decay = Math.max(0.0, 1.0 - timeDiff);
+            return impact + (urgency * decay);
+        """
+
+        # Return the complete _script sort structure
+        return {
+            "type": "number",
+            "script": {
+                "source": score_script,
+                "params": {
+                    "current_time": current_time,
+                    "decay_time": decay_time
+                }
+            },
+            "order": "desc"
+        }
+
+    def _curate_articles_elasticsearch(self, categories=None, limit=10, start_date=None, end_date=None, offset=0):
+        """
+        Curates articles using Elasticsearch with the same logic as legacy method.
+        """
+        try:
+            from components.search.elasticsearch_service import ElasticsearchService
+        except ImportError:
+            self.logger.error("ElasticsearchService not available, falling back to legacy method")
+            return self._curate_articles_legacy(categories, limit, start_date, end_date, offset)
+        
+        # Set date range - default to last 2 days if not specified
+        if not start_date:
+            start_date = date.today() - timedelta(days=2)
+        if not end_date:
+            end_date = date.today()
+
+        # Initialize Elasticsearch service
+        try:
+            es_service = ElasticsearchService()
+            if not es_service.is_healthy():
+                self.logger.warning("Elasticsearch not healthy, falling back to legacy method")
+                return self._curate_articles_legacy(categories, limit, start_date, end_date, offset)
+        except Exception as e:
+            self.logger.error(f"Failed to initialize Elasticsearch service: {e}")
+            return self._curate_articles_legacy(categories, limit, start_date, end_date, offset)
+
+        # Build Elasticsearch query
+        query = {
+            "query": {
+                "bool": {
+                    "must": [{"match_all": {}}],
+                    "filter": []
+                }
+            },
+            "sort": [
+                {
+                    "_script": self._build_score_script()  # This now returns the complete structure
+                },
+                {"_score": {"order": "desc"}}
+            ]
+        }
+
+        # Add date range filter
+        query["query"]["bool"]["filter"].append({
+            "range": {
+                "published_at": {
+                    "gte": start_date.isoformat(),
+                    "lte": end_date.isoformat()
+                }
+            }
+        })
+
+        # Add category filter if specified
+        if categories:
+            if isinstance(categories, str):
+                categories = [cat.strip() for cat in categories.split(',')]
+            # Normalize categories to lowercase for case-insensitive matching
+            normalized_categories = [cat.lower() for cat in categories]
+            query["query"]["bool"]["filter"].append({
+                "terms": {
+                    "category": normalized_categories
+                }
+            })
+
+        # Filter for articles that have embeddings (needed for clustering)
+        query["query"]["bool"]["filter"].append({
+            "term": {
+                "has_embedding": True
+            }
+        })
+
+        try:
+            # Get articles from Elasticsearch
+            response = es_service.search(
+                index_type="articles",
+                query=query,
+                size=limit * 10,  # Get more articles to allow for clustering
+                from_=0
+            )
+
+            # prints the top 20 results with their scores, urgency_score, impact_score, and published_at
+            print("Top 20 Elasticsearch results:")
+            for hit in response["hits"]["hits"][:20]:
+                source = hit["_source"]
+                score = hit["_score"]
+                urgency = source.get("urgency_score", 0)
+                impact = source.get("impact_score", 0)
+                published_at = source.get("published_at", "N/A")
+                title_first_20_chars = source.get("title", "N/A")[:20]
+                print(f"ID: {source.get('id')}, Score: {score}, Urgency: {urgency}, Impact: {impact}, Published At: {published_at}, Title Start: {title_first_20_chars}")
+
+            if not response or 'hits' not in response:
+                self.logger.warning("No response from Elasticsearch, falling back to legacy method")
+                return self._curate_articles_legacy(categories, limit, start_date, end_date, offset)
+
+            # Convert ES response to article format
+            articles = []
+            for hit in response["hits"]["hits"]:
+                article = hit["_source"]
+                articles.append(article)
+
+        except Exception as e:
+            self.logger.error(f"Elasticsearch query failed: {e}, falling back to legacy method")
+            return self._curate_articles_legacy(categories, limit, start_date, end_date, offset)
+
+        # Rest of the clustering logic remains the same...
+        clustered_curated_articles = []
+        category_counts = defaultdict(int)
+        used_article_ids = set()
+        max_news_per_category = limit
+
+        for article in articles:
+            if article['id'] in used_article_ids:
+                continue
+
+            # Determine the categories for the current article
+            article_categories = article.get('category')
+            if not article_categories:
+                article_categories = ['uncategorized']
+            elif isinstance(article_categories, str):
+                article_categories = [cat.strip() for cat in article_categories.split(',')]
+
+            # Check if any category for this article is under the limit
+            can_add_cluster = any(category_counts[cat] < max_news_per_category for cat in article_categories)
+
+            if can_add_cluster:
+                # Form a cluster around the current article
+                cluster = [article]
+                current_cluster_ids = {article['id']}
+                
+                # Use Elasticsearch vector similarity search for clustering
+                try:
+                    similar_articles = es_service.get_similar_articles(
+                        article,
+                        top_k=int(os.getenv("CLUSTERIZATION_TOP_K", 20)),
+                        similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD", 0.75)),
+                        start_date=start_date,
+                        end_date=end_date
+                    )
+                    
+                    self.logger.debug(f"Found {len(similar_articles)} similar articles for article {article['id']} using Elasticsearch")
+                    
+                    for sim_article in similar_articles:
+                        if sim_article['id'] not in used_article_ids:
+                            cluster.append(sim_article)
+                            current_cluster_ids.add(sim_article['id'])
+                            
+                except Exception as e:
+                    self.logger.warning(f"Could not get similar articles for {article['id']} using Elasticsearch: {e}")
+
+                # Add cluster and update counts
+                clustered_curated_articles.append(cluster)
+                used_article_ids.update(current_cluster_ids)
+                for cat in article_categories:
+                    category_counts[cat] += 1
+
+        return clustered_curated_articles
+
+    def curate_for_homepage(self, categories=None, limit=10, start_date=None, end_date=None, offset=0, use_search=False):
+
+        if use_search:
+            clustered_curated_articles = self._curate_articles_elasticsearch(
+                categories=categories,
+                limit=limit,
+                start_date=start_date,
+                end_date=end_date,
+                offset=offset
+            )
+        else:
+            clustered_curated_articles = self._curate_articles_legacy(
+                categories=categories,
+                limit=limit,
+                start_date=start_date,
+                end_date=end_date,
+                offset=offset
+            )
             
         return clustered_curated_articles
 

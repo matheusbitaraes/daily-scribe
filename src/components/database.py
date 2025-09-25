@@ -213,7 +213,8 @@ class DatabaseService:
         Index an article in the search service by its ID.
         """
         try:
-            self.es_service.index_article_by_id(article_id)
+            article = self.get_article_by_id(article_id)
+            self.es_service.index_article(article)
         except Exception as es_error:
             self.logger.warning(f"Failed to index article {article_id} to Elasticsearch: {es_error}")
 

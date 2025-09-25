@@ -210,6 +210,16 @@ const NewsPage = () => {
                 params.append('category', categoryValue);
             }
 
+            // read this variable from the page route. if /news?use_search=true, then its passed
+
+            // read the query parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const use_search = urlParams.get('use_search') || 'false';
+
+            if (use_search === 'true') {
+                params.append('use_search', 'true');
+            }
+
             const response = await fetch(`${API_BASE_URL}/news/clustered?${params}`);
             const data = await response.json();
 

@@ -9,11 +9,8 @@ from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlparse
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
-
-# Import DatabaseService to fetch article data
-from components.database import DatabaseService
 
 from elasticsearch import Elasticsearch, NotFoundError
 from elasticsearch.helpers import bulk
@@ -60,8 +57,6 @@ class ElasticsearchService:
         # Initialize client
         self.client: Optional[Elasticsearch] = None
         self._connection_healthy = False
-
-        self.db_service = DatabaseService()
         
         if self.enabled:
             self._initialize_client()
@@ -555,7 +550,7 @@ class ElasticsearchService:
         
         try:
             # Get the mappings file path relative to this file
-            current_dir = Path(__file__).parent
+            current_dir = Path(__file__).parent.parent
             config_path = current_dir.parent / "config" / "elasticsearch_mappings.json"
             
             if not config_path.exists():
@@ -914,7 +909,7 @@ class ElasticsearchService:
             self.logger.warning(f"Error formatting date {date_value}: {e}")
             return None
 
-    def index_article_by_id(self, article_id: int) -> bool:
+    def index_article(self, article: int) -> bool:
         """
         Index a single article to Elasticsearch by its ID.
         
@@ -928,29 +923,108 @@ class ElasticsearchService:
             self.logger.error("No Elasticsearch connection available")
             return False
             
-        try:
-            # Fetch article from database
-            article = self.db_service.get_article_by_id(article_id)
-            if not article:
-                self.logger.error(f"Article with ID {article_id} not found in database")
-                return False
-                
+        try:    
             # Prepare document for Elasticsearch
             document = self.prepare_article_document(article)
             if not document:
-                self.logger.error(f"Failed to prepare document for article {article_id}")
+                self.logger.error(f"Failed to prepare document for article {article.id}")
                 return False
                 
             # Index the document
-            success = self.index_document('articles', str(article_id), document)
+            success = self.index_document('articles', str(article.id), document)
             
             if success:
-                self.logger.info(f"Successfully indexed article {article_id} to Elasticsearch")
+                self.logger.info(f"Successfully indexed article {article.id} to Elasticsearch")
             else:
-                self.logger.error(f"Failed to index article {article_id} to Elasticsearch")
+                self.logger.error(f"Failed to index article {article.id} to Elasticsearch")
                 
             return success
             
         except Exception as e:
-            self.logger.error(f"Error indexing article {article_id}: {e}")
+            self.logger.error(f"Error indexing article {article.id}: {e}")
             return False
+
+    def get_similar_articles(self, article: Dict[str, Any], top_k: int = 20, similarity_threshold: float = 0.75, start_date=None, end_date=None) -> List[Dict[str, Any]]:
+        """
+        Find similar articles using Elasticsearch vector similarity search.
+        
+        Args:
+            article: The article to find similar articles for
+            top_k: Maximum number of similar articles to return
+            similarity_threshold: Minimum similarity score threshold
+            start_date: Optional start date filter for similar articles
+            end_date: Optional end date filter for similar articles
+            
+        Returns:
+            List of similar articles
+        """
+        if not self._ensure_connection():
+            return []
+            
+        # Check if the article has an embedding
+        if not article.get('has_embedding') or not article.get('embedding'):
+            self.logger.debug(f"Article {article.get('id', 'unknown')} has no embedding available")
+            return []
+        
+        try:
+            # Build k-NN query for vector similarity search
+            knn_query = {
+                "knn": {
+                    "field": "embedding",
+                    "query_vector": article['embedding'],
+                    "k": top_k,
+                    "num_candidates": top_k * 2,  # Search more candidates for better results
+                    "filter": {
+                        "bool": {
+                            "must_not": [
+                                {"term": {"id": article['id']}}  # Exclude the source article itself
+                            ],
+                            "filter": []
+                        }
+                    }
+                }
+            }
+            
+            # Add date range filter if specified
+            if start_date and end_date:
+                # Extend date range for clustering to allow finding older similar articles
+                extended_start = start_date - timedelta(days=1)
+                knn_query["knn"]["filter"]["bool"]["filter"].append({
+                    "range": {
+                        "published_at": {
+                            "gte": extended_start.isoformat() + "T00:00:00Z",
+                            "lte": end_date.isoformat() + "T23:59:59Z"
+                        }
+                    }
+                })
+            
+            # Ensure articles have embeddings
+            knn_query["knn"]["filter"]["bool"]["filter"].append({
+                "term": {"has_embedding": True}
+            })
+            
+            # Execute k-NN search
+            response = self.search(
+                index_type="articles",
+                query=knn_query,
+                size=top_k,
+                from_=0
+            )
+            
+            if not response or 'hits' not in response:
+                self.logger.debug(f"No k-NN search results for article {article['id']}")
+                return []
+            
+            similar_articles = []
+            for hit in response["hits"]["hits"]:
+                # Check similarity threshold (Elasticsearch returns similarity scores)
+                if hit.get("_score", 0) >= similarity_threshold:
+                    similar_article = hit["_source"]
+                    similar_articles.append(similar_article)
+            
+            self.logger.debug(f"Found {len(similar_articles)} similar articles for article {article['id']} (threshold: {similarity_threshold})")
+            return similar_articles
+            
+        except Exception as e:
+            self.logger.error(f"Elasticsearch k-NN search failed for article {article['id']}: {e}")
+            return []

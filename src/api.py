@@ -341,6 +341,7 @@ def get_clustered_news(
     end_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
     limit: int = Query(10, ge=1, le=200, description="Maximum number of clusters to return"),
     offset: int = Query(0, ge=0, description="Number of clusters to skip for pagination"),
+    use_search: bool = Query(False, description="Whether to use Elasticsearch for searching")
 ):
     """
     Get articles organized into clusters, similar to email digest format.
@@ -348,7 +349,7 @@ def get_clustered_news(
     """
     try:
         # Create cache key based on request parameters
-        cache_key = f"clustered_news:{category}:{start_date}:{end_date}:{limit}:{offset}"
+        cache_key = f"clustered_news:{category}:{start_date}:{end_date}:{limit}:{offset}:{use_search}"
         
         # Try to get from cache first
         cached_result = news_cache.get(cache_key)
@@ -366,7 +367,8 @@ def get_clustered_news(
             limit=limit,
             start_date=start_date,
             end_date=end_date,
-            offset=offset
+            offset=offset,
+            use_search=use_search
         )
         
         # Format clusters for response

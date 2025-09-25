@@ -70,9 +70,9 @@
 - [x] news page for mobile
 - [x] add preferences during user onboarding
 - [ ] add elasticsearch db 
-      - do a simple search term
-      - how to index? which frequency?
-      - script to read from all backups
+      - do a simple search term [x]
+      - how to index? which frequency? [x]
+      - script to read from all backups - no need for now
 - [ ] Improve ranking
 - [ ] cleanup code: 
       Improve copilot agent rules and documentation
