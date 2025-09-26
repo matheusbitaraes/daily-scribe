@@ -15,6 +15,13 @@ services:
       - ELASTICSEARCH_PORT=9200
       - ELASTICSEARCH_INDEX_PREFIX=daily_scribe
 
+  cron:
+    environment:
+      - ELASTICSEARCH_ENABLED=true
+      - ELASTICSEARCH_HOST=elasticsearch
+      - ELASTICSEARCH_PORT=9200
+      - ELASTICSEARCH_INDEX_PREFIX=daily_scribe
+
   # Elasticsearch Search Engine
   elasticsearch:
     image: elasticsearch:8.11.0

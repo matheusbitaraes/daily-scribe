@@ -3,6 +3,7 @@ from collections import defaultdict
 from components.database import DatabaseService
 from datetime import datetime, timedelta, timezone, date
 from components.article_clusterer import ArticleClusterer
+from components.search.elasticsearch_service import ElasticsearchService
 import os
 import logging
 from dotenv import load_dotenv
@@ -14,6 +15,7 @@ class NewsCurator:
     """
     def __init__(self,):
         self.db_service = DatabaseService()
+        self.es_service = ElasticsearchService()
         self.logger = logging.getLogger(__name__)
 
     def _curate_articles_legacy(self, categories=None, limit=10, start_date=None, end_date=None, offset=0):
@@ -71,7 +73,7 @@ class NewsCurator:
                         article['id'],
                         enabled_source_ids=None,
                         top_k=int(os.getenv("CLUSTERIZATION_TOP_K", 20)),
-                        similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD", 0.75)),
+                        similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD_LEGACY", 0.75)),
                     )
                     for sim_article in similar:
                         if sim_article['id'] not in used_article_ids:
@@ -121,12 +123,6 @@ class NewsCurator:
         """
         Curates articles using Elasticsearch with the same logic as legacy method.
         """
-        try:
-            from components.search.elasticsearch_service import ElasticsearchService
-        except ImportError:
-            self.logger.error("ElasticsearchService not available, falling back to legacy method")
-            return self._curate_articles_legacy(categories, limit, start_date, end_date, offset)
-        
         # Set date range - default to last 2 days if not specified
         if not start_date:
             start_date = date.today() - timedelta(days=2)
@@ -135,8 +131,7 @@ class NewsCurator:
 
         # Initialize Elasticsearch service
         try:
-            es_service = ElasticsearchService()
-            if not es_service.is_healthy():
+            if not self.es_service.is_healthy():
                 self.logger.warning("Elasticsearch not healthy, falling back to legacy method")
                 return self._curate_articles_legacy(categories, limit, start_date, end_date, offset)
         except Exception as e:
@@ -193,7 +188,7 @@ class NewsCurator:
 
         try:
             # Get articles from Elasticsearch
-            response = es_service.search(
+            response = self.es_service.search(
                 index_type="articles",
                 query=function_score_query,
                 size=limit * 10,  # Get more articles to allow for clustering
@@ -252,7 +247,7 @@ class NewsCurator:
                 
                 # Use Elasticsearch vector similarity search for clustering
                 try:
-                    similar_articles = es_service.get_similar_articles(
+                    similar_articles = self.es_service.get_similar_articles(
                         article,
                         top_k=int(os.getenv("CLUSTERIZATION_TOP_K", 20)),
                         similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD", 0.75)),
@@ -391,7 +386,7 @@ class NewsCurator:
                         article['id'],
                         enabled_source_ids,
                         top_k=int(os.getenv("CLUSTERIZATION_TOP_K", 20)),
-                        similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD", 0.75)),
+                        similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD_LEGACY", 0.75)),
                         date_threshold=date_threshold
                     )
                     for sim_article in similar:

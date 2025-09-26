@@ -315,7 +315,7 @@ def get_article(article_id: int, include_related: bool = Query(True, description
                 article_id, 
                 enabled_source_ids=None, 
                 top_k=int(os.getenv("CLUSTERIZATION_TOP_K", "20")),
-                similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD", "0.75")),
+                similarity_threshold=float(os.getenv("CLUSTERIZATION_SIMILARITY_THRESHOLD_LEGACY", "0.75")),
             )
             result["related_articles"] = related_articles
         except Exception as e:
@@ -341,7 +341,8 @@ def get_clustered_news(
     end_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
     limit: int = Query(10, ge=1, le=200, description="Maximum number of clusters to return"),
     offset: int = Query(0, ge=0, description="Number of clusters to skip for pagination"),
-    use_search: bool = Query(False, description="Whether to use Elasticsearch for searching")
+    use_search: bool = Query(False, description="Whether to use Elasticsearch for searching"),
+    no_cache: bool = Query(False, description="Bypass cache and fetch fresh data")
 ):
     """
     Get articles organized into clusters, similar to email digest format.
@@ -350,9 +351,14 @@ def get_clustered_news(
     try:
         # Create cache key based on request parameters
         cache_key = f"clustered_news:{category}:{start_date}:{end_date}:{limit}:{offset}:{use_search}"
+
         
         # Try to get from cache first
         cached_result = news_cache.get(cache_key)
+
+        if no_cache:
+            cached_result = None  # Bypass cache if no_cache is True
+        
         if cached_result:
             logger.info(f"Returning cached result for key: {cache_key}")
             # Add cache indicator to metadata

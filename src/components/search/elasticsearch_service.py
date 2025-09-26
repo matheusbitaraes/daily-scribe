@@ -989,7 +989,7 @@ class ElasticsearchService:
             # Add date range filter if specified
             if start_date and end_date:
                 # Extend date range for clustering to allow finding older similar articles
-                extended_start = start_date - timedelta(days=1)
+                extended_start = start_date - timedelta(days=0) # for now, no extension
                 knn_query["knn"]["filter"]["bool"]["filter"].append({
                     "range": {
                         "published_at": {

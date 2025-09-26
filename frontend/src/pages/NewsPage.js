@@ -215,6 +215,11 @@ const NewsPage = () => {
             // read the query parameter
             const urlParams = new URLSearchParams(window.location.search);
             const use_search = urlParams.get('use_search') || 'false';
+            const no_cache = urlParams.get('no_cache') || 'false';
+
+            if (no_cache === 'true') {
+                params.append('no_cache', 'true');
+            }
 
             if (use_search === 'true') {
                 params.append('use_search', 'true');

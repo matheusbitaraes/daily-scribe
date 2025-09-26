@@ -76,6 +76,11 @@
 - [ ] Improve ranking
       - [ ] home page
       - [ ] email digest
+- [ ] digerir feedbacks:
+      - melhorar UI de cadastro para ficar mais untiuica - ele escolheu errado as categorias
+      - ferramenta forte de busca por assuntos - busca vetorial
+      - botao de hope news?
+      
 - [ ] cleanup code: 
       Improve copilot agent rules and documentation
       remove unused cripts
