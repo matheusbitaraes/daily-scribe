@@ -36,8 +36,17 @@ class NewsCurator:
 
         # Sort articles by sum of urgency_score + impact_score (descending), then by user similarity if available
         def get_sort_key(article):
-            urgency = article.get('urgency_score', 0) or 0
-            impact = article.get('impact_score', 0) or 0
+            # get impact and urgency score, but convert to 1-5 (int) scale. Now its 0-100. so, 0-20 = 1, 21-40=2, 41-60=3, 61-80=4, 81-100=5
+            urgency_raw = article.get('urgency_score', 0) or 0
+            impact_raw = article.get('impact_score', 0) or 0
+
+            # convert impact score to 1-5 scale
+            def convert_score(score):
+                return max(1, min(5, int(round(score/20))))  # convert 0-100 to 1-5 scale
+                    
+            urgency = convert_score(urgency_raw)
+            impact = convert_score(impact_raw)
+
             # Primary sort: sum of urgency + impact (desc)
             return (-(urgency + impact),)
 
@@ -347,8 +356,19 @@ class NewsCurator:
         
         # Sort articles by sum of urgency_score + impact_score (descending), then by user similarity if available
         def get_sort_key(article):
-            urgency = article.get('urgency_score', 0) or 0
-            impact = article.get('impact_score', 0) or 0
+            # get impact and urgency score, but convert to 1-5 (int) scale. Now its 0-100. so, 0-20 = 1, 21-40=2, 41-60=3, 61-80=4, 81-100=5
+            urgency_raw = article.get('urgency_score', 0) or 0
+            impact_raw = article.get('impact_score', 0) or 0
+
+            # convert impact score to 1-5 scale
+            def convert_score(score):
+                return max(1, min(5, int(round(score/20))))  # convert 0-100 to 1-5 scale
+                    
+            urgency = convert_score(urgency_raw)
+            impact = convert_score(impact_raw)
+
+            print(f"Article ID: {article['id']}, Urgency: {urgency}, Impact: {impact}")
+
             similarity = article.get('user_similarity', 0)
             # Primary sort: sum of urgency + impact (desc), then similarity (desc)
             return (-(urgency + impact), -similarity)

@@ -108,8 +108,16 @@ class DigestBuilder:
         if not cluster:
             return (0, 0, 0)
         main_article = cluster[0]
-        urgency = main_article.get('urgency_score', 0) or 0
-        impact = main_article.get('impact_score', 0) or 0
+        urgency_raw = main_article.get('urgency_score', 0) or 0
+        impact_raw = main_article.get('impact_score', 0) or 0
+
+        # convert impact score to 1-5 scale
+        def convert_score(score):
+            return max(1, min(5, int(round(score/20))))  # convert 0-100 to 1-5 scale
+            
+        urgency = convert_score(urgency_raw)
+        impact = convert_score(impact_raw)
+
         cluster_size = len(cluster) - 1 
         # return a weighted comparisson where urgency + impact is primary and size is secondary
         CLUSTERIZATION_TOP_K = int(os.getenv("CLUSTERIZATION_TOP_K", 20))
