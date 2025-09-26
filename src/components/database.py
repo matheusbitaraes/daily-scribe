@@ -232,7 +232,7 @@ class DatabaseService:
                 conn.commit()
 
                 # Index to search db after successful database update
-                self._index_article_in_search(article_id)   
+                # self._index_article_in_search(article_id)   
                 
                     
         except sqlite3.Error as e:
@@ -357,7 +357,7 @@ class DatabaseService:
                 conn.commit()
                 
                 # Index to search db after successful database update
-                self._index_article_in_search(article_id)
+                # self._index_article_in_search(article_id)
                     
         except sqlite3.IntegrityError:
             self.logger.warning(f"Article with URL {url} has already been processed.")
@@ -638,7 +638,7 @@ class DatabaseService:
                 conn.commit()
                 
                 # Index to search db after successful database update
-                self._index_article_in_search(article_id)
+                # self._index_article_in_search(article_id)
                     
         except Exception as e:
             self.logger.error(f"Error storing article embedding: {e}")
@@ -891,7 +891,7 @@ class DatabaseService:
                 conn.commit()
                 
                 # Index to search db after successful database update
-                self._index_article_in_search(article_id)
+                # self._index_article_in_search(article_id)
                     
         except sqlite3.Error as e:
             self.logger.error(f"Error updating article summary in database: {e}")
