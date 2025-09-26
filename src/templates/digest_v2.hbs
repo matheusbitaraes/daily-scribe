@@ -182,11 +182,22 @@
                 line-height: 1.3;
             }
         }
+
+        .header-title {
+            margin-bottom: 20px;
+        }
+
+        .header-logo {
+            margin: 0 auto;
+            display: block;
+        }
     </style>
 </head>
 
 <body>
-
+    <div class="header-title">
+        <img class="header-logo" src="https://dailyscribe.news/daily-scribe-title-no-bg.png" alt="Daily Scribe Logo" width="200">
+    </div>
     <div class="content">
         {{#if main_news}}
         <div class="main-news-section">
