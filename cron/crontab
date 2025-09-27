@@ -21,3 +21,6 @@
 
 # full index of elasticsearch - todo: improve this - every hour for now
 # 0 * * * * cd /app && python -m src.main sync-search-db --mode full >> /var/log/cron/full-index.log 2>&1
+
+# Sanity check - twice daily at 1 AM and 1 PM UTC
+0 1,13 * * * cd /app && python -m src.main sanity-check >> /var/log/cron/sanity-check.log 2>&1

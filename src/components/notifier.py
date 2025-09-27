@@ -31,6 +31,32 @@ class EmailNotifier:
         "html": html_content
         })
         return r
+
+    def send_email(self, subject: str, html_content: str, recipient_email: str, sender_email: str = None) -> bool:
+        """
+        Send an email with the specified subject and HTML content.
+
+        Args:
+            subject: The subject of the email.
+            html_content: The HTML content of the email.
+            sender_email: The email address of the sender.
+            recipient_email: The email address of the recipient.
+
+        Returns:
+            True if the email was sent successfully, False otherwise.
+        """
+        max_retries = 3
+        sender_email = sender_email or os.getenv('EMAIL_FROM_ADMIN', 'admin@dailyscribe.news')
+        for attempt in range(1, max_retries + 1):
+            try:
+                if self._send_email(subject, html_content, sender_email, recipient_email):
+                    return True
+            except Exception as e:
+                self.logger.error(f"Attempt {attempt} failed to send email to {recipient_email}: {str(e)}")
+                if attempt == max_retries:
+                    self.logger.error(f"All {max_retries} attempts failed to send email to {recipient_email}")
+                    return False
+        return False
     
     def send_digest(self, digest_content: str, recipient_email: str, sender_email: str, subject: str) -> None:
         """

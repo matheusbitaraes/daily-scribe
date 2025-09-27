@@ -23,6 +23,7 @@ from components.summarizer import Summarizer
 from components.content_extractor import ContentExtractor
 from components.digest_service import DigestService
 from components.article_clusterer import ArticleClusterer
+from components.sanity import DatabaseSanityChecker, SanityCheckEmailNotifier
 from migrations.elasticsearch_migration import ElasticsearchMigration
 
 
@@ -38,11 +39,6 @@ def setup_logging() -> None:
             logging.FileHandler('digest.log')
         ]
     )
-
-
-def print_json(data: dict) -> None:
-    """Print data as formatted JSON."""
-    print(json.dumps(data, indent=2, default=str))
 
 
 def fetch_news() -> None:
@@ -183,6 +179,10 @@ def sync_search_db_command(
     """
     setup_logging()
     logger = logging.getLogger(__name__)
+
+    def print_json(data: dict) -> None:
+        """Print data as formatted JSON."""
+        print(json.dumps(data, indent=2, default=str))
     
     try:
         # Initialize migration service
@@ -380,10 +380,116 @@ def full_run_command(
     metrics = migration.get_performance_metrics()
     if metrics:
         logger.info("\n📊 Performance Metrics:")
-        print_json(metrics)
+        logger.info(json.dumps(metrics, indent=2, default=str))
     
 
     logger.info("Full pipeline complete.")
+
+
+@app.command(name="sanity-check")
+def sanity_check_command(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show detailed output for all checks"),
+    json_output: bool = typer.Option(False, "--json", help="Output results in JSON format"),
+    check_list: Optional[str] = typer.Option(None, "--check", "-c", help="Run only specific checks (comma-separated numbers, e.g., '1,2,3')"),
+    send_email: bool = typer.Option(True, "--email/--no-email", help="Send email alert on failures (default: true)"),
+    email_recipient: Optional[str] = typer.Option(None, "--email-to", help="Email recipient for alerts (uses ADMIN_EMAIL env var if not specified)"),
+    test_email: bool = typer.Option(False, "--test-email", help="Send a test email alert"),
+):
+    """
+    Run database sanity checks to monitor system health.
+    
+    This command performs comprehensive database health checks including:
+    - Pipeline monitoring (RSS processing, summarization)
+    - Data quality validation
+    - System performance analysis
+    - Database integrity verification
+    
+    By default, sends email alerts to admin on critical issues or failures.
+    """
+    setup_logging()
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Initialize sanity checker
+        checker = DatabaseSanityChecker(verbose=verbose)
+        notifier = SanityCheckEmailNotifier() if send_email else None
+        
+        # Handle test email request
+        if test_email:
+            if notifier:
+                logger.info("Sending test email alert...")
+                success = notifier.test_alert_system(email_recipient)
+                if success:
+                    print("✅ Test email sent successfully!")
+                else:
+                    print("❌ Failed to send test email!")
+                    raise typer.Exit(1)
+            else:
+                print("❌ Email notifications are disabled (--no-email)")
+                raise typer.Exit(1)
+            return
+        
+        # Parse specific checks if provided
+        specific_checks = None
+        if check_list:
+            try:
+                specific_checks = [int(x.strip()) for x in check_list.split(',')]
+            except ValueError:
+                logger.error("Invalid check list format. Use comma-separated integers (e.g., '1,2,3')")
+                raise typer.Exit(1)
+        
+        # Run sanity checks
+        logger.info("Starting database sanity checks...")
+        results = checker.run_checks(specific_checks)
+        
+        # Print results to stdout
+        checker.print_results(results, json_output)
+        
+        # Send email notification if enabled and needed
+        if notifier and not json_output:  # Skip email for JSON output (usually for automation)
+            try:
+                email_sent = notifier.send_alert(results, email_recipient)
+                if email_sent and notifier.should_send_alert(results):
+                    logger.info("Email alert sent to administrator")
+            except Exception as e:
+                logger.warning(f"Failed to send email alert: {e}")
+        
+        # Exit with appropriate code
+        exit_code = checker.get_exit_code(results)
+        
+        if not json_output:
+            if exit_code == 0:
+                logger.info("All sanity checks passed")
+            elif exit_code == 1:
+                logger.warning("Some checks returned warnings")
+            elif exit_code == 2:
+                logger.error("Critical issues detected")
+        
+        raise typer.Exit(exit_code)
+        
+    except typer.Exit:
+        raise
+    except Exception as e:
+        logger.error(f"Sanity check failed with error: {e}")
+        
+        # Try to send error notification
+        if send_email and not json_output:
+            try:
+                notifier = SanityCheckEmailNotifier()
+                from datetime import datetime
+                error_results = {
+                    'success': False,
+                    'error': str(e),
+                    'timestamp': datetime.utcnow().isoformat() + 'Z',
+                    'database_path': checker.db_path,
+                    'checks': [],
+                    'summary': {}
+                }
+                notifier.send_alert(error_results, email_recipient)
+            except Exception as email_error:
+                logger.error(f"Failed to send error notification email: {email_error}")
+        
+        raise typer.Exit(2)
 
 
 if __name__ == "__main__":

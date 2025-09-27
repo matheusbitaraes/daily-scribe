@@ -73,6 +73,14 @@
       - do a simple search term [x]
       - how to index? which frequency? [x]
       - script to read from all backups - no need for now
+- [ ] cleanup code: 
+      Improve copilot agent rules and documentation
+      remove unused cripts
+      alerts and dashboards
+      cleanup:
+            full-run
+            send-digest
+            es index
 - [ ] Improve ranking
       - [ ] home page
       - [ ] email digest
@@ -81,9 +89,7 @@
       - ferramenta forte de busca por assuntos - busca vetorial
       - botao de hope news?
       
-- [ ] cleanup code: 
-      Improve copilot agent rules and documentation
-      remove unused cripts
+
 - [ ] make digest builder admin only
 
 
