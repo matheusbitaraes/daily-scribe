@@ -73,6 +73,7 @@
       - do a simple search term [x]
       - how to index? which frequency? [x]
       - script to read from all backups - no need for now
+- [ ] create a digest tester - select categories, sources, keywords
 - [ ] cleanup code: 
       Improve copilot agent rules and documentation
       remove unused cripts

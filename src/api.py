@@ -25,8 +25,12 @@ from models.preferences import (
 from components.news_curator import NewsCurator
 from utils.categories import STANDARD_CATEGORY_ORDER
 from utils.cache import SimpleCache
+from utils.logging_config import setup_api_logging
 from dotenv import load_dotenv
 load_dotenv()
+
+# Setup logging configuration
+setup_api_logging()
 
 logger = logging.getLogger(__name__)
 

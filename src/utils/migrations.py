@@ -10,6 +10,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
+from .logging_config import setup_migration_logging
 
 
 class DatabaseMigrator:
@@ -493,7 +494,7 @@ def migrate_database(db_path: Optional[str] = None) -> bool:
 
 if __name__ == "__main__":
     # Run migrations when called directly
-    logging.basicConfig(level=logging.INFO)
+    setup_migration_logging()
     success = migrate_database()
     if success:
         print("Migrations completed successfully")

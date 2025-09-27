@@ -25,20 +25,10 @@ from components.digest_service import DigestService
 from components.article_clusterer import ArticleClusterer
 from components.sanity import DatabaseSanityChecker, SanityCheckEmailNotifier
 from migrations.elasticsearch_migration import ElasticsearchMigration
+from utils.logging_config import setup_cli_logging
 
 
 app = typer.Typer()
-
-def setup_logging() -> None:
-    """Set up logging configuration."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler('digest.log')
-        ]
-    )
 
 
 def fetch_news() -> None:
@@ -177,7 +167,7 @@ def sync_search_db_command(
     Use --rollback to clear all Elasticsearch data.
     Use --validate to verify data integrity after migration.
     """
-    setup_logging()
+    setup_cli_logging()
     logger = logging.getLogger(__name__)
 
     def print_json(data: dict) -> None:
@@ -285,7 +275,7 @@ def fetch_news_command(config_path: Optional[str] = typer.Option(None, "--config
     """
     Fetch and process news articles, saving them to the database (no email).
     """
-    setup_logging()
+    setup_cli_logging()
     fetch_news(config_path)
 
 
@@ -294,7 +284,7 @@ def summarize_articles_command(config_path: Optional[str] = typer.Option(None, "
     """
     Summarize articles that have been fetched and stored.
     """
-    setup_logging()
+    setup_cli_logging()
     summarize_articles(config_path)
 
 
@@ -306,7 +296,7 @@ def send_digest_command(
     """
     Generate and send the digest email for articles in a date range and category list.
     """
-    setup_logging()
+    setup_cli_logging()
 
     if dry_run:
         email_address = os.getenv("TEST_EMAIL_ADDRESS")
@@ -329,7 +319,7 @@ def run_digest(config_path: Optional[str] = typer.Option(None, "--config", "-c",
     """
     Runs the daily digest generation process.
     """
-    setup_logging()
+    setup_cli_logging()
     fetch_news(config_path)
 
 @app.command(name="generate-article-embeddings")
@@ -338,7 +328,7 @@ def generate_article_embeddings_command(
     """
     Generate OpenAI embeddings for all articles in the database that do not have embeddings yet.
     """
-    setup_logging()
+    setup_cli_logging()
     logger = logging.getLogger(__name__)
     logger.info("Starting article embedding generation process...")
     try:
@@ -356,7 +346,7 @@ def full_run_command(
     """
     Run the full pipeline: fetch articles, generate embeddings, and send the digest.
     """
-    setup_logging()
+    setup_cli_logging()
     logger = logging.getLogger(__name__)
     logger.info("[1/4] Fetching articles...")
     fetch_news()
@@ -406,7 +396,7 @@ def sanity_check_command(
     
     By default, sends email alerts to admin on critical issues or failures.
     """
-    setup_logging()
+    setup_cli_logging()
     logger = logging.getLogger(__name__)
     
     try:

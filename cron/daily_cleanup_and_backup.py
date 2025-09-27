@@ -22,11 +22,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 
+# Add the src directory to the Python path to import utilities
+sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+
+from utils.logging_config import setup_cron_logging
+
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+setup_cron_logging()
 logger = logging.getLogger(__name__)
 
 # Configuration constants from environment variables with defaults
