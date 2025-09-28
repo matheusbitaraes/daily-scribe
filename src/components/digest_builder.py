@@ -9,6 +9,7 @@ from typing import List, Dict
 from collections import defaultdict
 from urllib.parse import quote
 from pybars import Compiler
+import logging
 from utils.categories import STANDARD_CATEGORY_ORDER, CATEGORY_TRANSLATIONS
 
 class DigestBuilder:
@@ -29,6 +30,7 @@ class DigestBuilder:
         self.template_dir = template_dir
         self.compiler = Compiler()
         self._templates = {}
+        self.logger = logging.getLogger(__name__)
     
     def _load_template(self, template_name: str):
         """Load and compile a Handlebars template."""
@@ -103,6 +105,7 @@ class DigestBuilder:
         template = self._load_template(template_name)
         return template(template_data)
     
+    # todo: remove this method - this should exist only in news_curator!
     def get_cluster_sort_key(self, cluster):
         # Sort all clusters by urgency + impact scores (highest first), then by size (largest first)
         if not cluster:
@@ -130,20 +133,21 @@ class DigestBuilder:
         score = urgency_impact_weighted + cluster_size_weighted if cluster_size > 0 else 0
         return -score
 
+    # todo: remove this method - this should exist only in news_curator!
     def sort_clusters(self, clusters, limit=None):
         sorted_clusters = sorted(clusters, key=self.get_cluster_sort_key)
         if limit is not None:
             sorted_clusters = sorted_clusters[:limit]
 
 
-        # print status for first 10 clusters, showing urgency + impact and size
+        # log status for first 10 clusters, showing urgency + impact and size
         for i, cluster in enumerate(sorted_clusters[:10]):
             main_article = cluster[0]
             urgency = main_article.get('urgency_score', 0) or 0
             impact = main_article.get('impact_score', 0) or 0
             cluster_size = len(cluster)
             sort_key = self.get_cluster_sort_key(cluster)
-            print(f"Cluster {i+1}: Urgency + Impact = {urgency + impact}, Size = {cluster_size}, Sort Key = {sort_key}, Title = {main_article.get('title', '')[:20]}...")
+            self.logger.debug(f"Cluster {i+1}: Urgency + Impact = {urgency + impact}, Size = {cluster_size}, Sort Key = {sort_key}, Title = {main_article.get('title', '')[:20]}...")
 
         return sorted_clusters
 
@@ -255,24 +259,18 @@ class DigestBuilder:
 
     def _prepare_template_data_v2(self, clustered_summaries: List[List[Dict[str, str]]], preference_token: str, unsubscribe_link_html: str, max_clusters: int, base_url: str) -> Dict:
         """Prepare data structure for v2 Handlebars templates with main_news and category_links sections."""
-        # Group clusters by category
-        categories_dict = defaultdict(list)
+        # Keep the original order from clustered_summaries
+        # Add category information to each cluster while preserving order
+        all_clusters = []
         for cluster in clustered_summaries:
             if cluster:
                 # Use the first article's category for the entire cluster
                 category = cluster[0].get('category', 'Other') or 'Other'
                 category_pt = CATEGORY_TRANSLATIONS.get(category, category)
-                categories_dict[category_pt].append(cluster)
-
-        # Flatten all clusters and sort them globally
-        all_clusters = []
-        for category_pt, clusters in categories_dict.items():
-            for cluster in clusters:
                 all_clusters.append((cluster, category_pt))
-        
-        all_clusters.sort(key=lambda x: self.get_cluster_sort_key(x[0]))
 
         # Split into main_news (top clusters with full content) and category_links (remaining as links)
+        # Preserve the original order from clustered_summaries
         MAIN_ARTICLES_NUMBER_FOR_BODY = int(os.getenv("MAIN_ARTICLES_NUMBER_FOR_BODY", 4))
         main_news_count = min(MAIN_ARTICLES_NUMBER_FOR_BODY, len(all_clusters))  # Show top news regardless of total
         main_news_clusters = all_clusters[:main_news_count]
@@ -343,6 +341,7 @@ class DigestBuilder:
             })
 
         # Prepare category_links section
+        # Group remaining clusters by category while preserving relative order within categories
         category_links_dict = defaultdict(list)
         for cluster, category_pt in remaining_clusters:
             main_article = cluster[0]
@@ -358,7 +357,8 @@ class DigestBuilder:
                 'similar_news_count': similar_news_count
             })
 
-        # Convert to list format ordered by category
+        # Convert to list format ordered by STANDARD_CATEGORY_ORDER
+        # This preserves the relative order within each category from the original clustered_summaries
         category_links = []
         for category_en in STANDARD_CATEGORY_ORDER:
             category_pt = CATEGORY_TRANSLATIONS.get(category_en, category_en)

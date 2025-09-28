@@ -18,6 +18,48 @@ class NewsCurator:
         self.es_service = ElasticsearchService()
         self.logger = logging.getLogger(__name__)
 
+    def _parse_published_at_to_milliseconds(self, published_at):
+        """
+        Parse published_at field to milliseconds since epoch.
+        Handles various formats: datetime objects, ISO strings, timestamps, and Elasticsearch objects.
+        
+        Args:
+            published_at: The published_at value from an article
+            
+        Returns:
+            int: Milliseconds since epoch, or 0 if parsing fails
+        """
+        if not published_at:
+            return 0
+            
+        try:
+            # Handle Elasticsearch datetime object
+            if hasattr(published_at, 'value') and hasattr(published_at.value, 'millis'):
+                return int(published_at.value.millis)
+            
+            # Handle Python datetime object
+            elif isinstance(published_at, datetime):
+                return int(published_at.timestamp() * 1000)
+            
+            # Handle ISO string format
+            elif isinstance(published_at, str):
+                # Handle both 'Z' and timezone formats
+                dt_str = published_at.replace('Z', '+00:00')
+                dt = datetime.fromisoformat(dt_str)
+                return int(dt.timestamp() * 1000)
+            
+            # Handle numeric timestamp (assume seconds, convert to milliseconds)
+            elif isinstance(published_at, (int, float)):
+                return int(published_at * 1000)
+            
+            else:
+                self.logger.warning(f"Unknown published_at format: {type(published_at)} - {published_at}")
+                return 0
+                
+        except Exception as e:
+            self.logger.warning(f"Failed to parse published_at '{published_at}': {e}")
+            return 0
+
     def _curate_articles_legacy(self, categories=None, limit=10, start_date=None, end_date=None, offset=0):
         # Set date range - default to last 2 days if not specified
         if not start_date:
@@ -303,6 +345,64 @@ class NewsCurator:
             
         return clustered_curated_articles
 
+    def get_cluster_sort_key(self, cluster, verbose=False):
+        # Sort all clusters by urgency + impact scores (highest first), then by size (largest first)
+        if not cluster:
+            return (0, 0, 0)
+        main_article = cluster[0]
+        urgency_raw = main_article.get('urgency_score', 0) or 0
+        impact_raw = main_article.get('impact_score', 0) or 0
+
+        # urgency score is affected by the time decay, so we need to consider that as well
+        current_time = int(time.time() * 1000)
+        decay_days = 4
+        decay_time = decay_days * 24 * 60 * 60 * 1000  # after {{decay_days}} days in milliseconds, urgency decays to 0
+        published_at_ms = self._parse_published_at_to_milliseconds(main_article.get('published_at'))
+        time_diff = current_time - published_at_ms
+        decay = max(0.0, 1.0 - time_diff / decay_time)
+        urgency = urgency_raw * decay
+
+        impact = impact_raw
+
+        cluster_size = len(cluster) - 1 
+        # return a weighted comparisson where urgency + impact is primary and size is secondary
+        CLUSTERIZATION_MAX_VALUE = 10 # 10 or more clusters should be considered full size
+       
+        normalized_cluster_size = min(cluster_size / CLUSTERIZATION_MAX_VALUE if CLUSTERIZATION_MAX_VALUE > 0 else 0, 1.0) # normalize to 0-1 scale and cap at 1.0
+
+        # normalize sum of urgency + impact to 0-1 scale
+        normalized_urgency_impact_score = (urgency + impact) / 200.0  # max is 100 + 100 = 200
+
+        
+        # user similarity bonus (if available in main article)
+        user_similarity = main_article.get('user_similarity', 0.0) # this value is between -1 and 1
+        if user_similarity > 0:
+            normalized_urgency_impact_score += user_similarity * 0.2  # add up to 0.2 bonus for positive similarity
+            normalized_urgency_impact_score = min(normalized_urgency_impact_score, 1.0)  # cap at 1.0
+
+        
+        urgency_impact_weighted = normalized_urgency_impact_score * 0.7
+        cluster_size_weighted = normalized_cluster_size * 0.3 if cluster_size > 0 else 0
+        score = urgency_impact_weighted + cluster_size_weighted 
+
+
+        # print all relevant information regarding all calculations above, using line breaks for clarity
+        if verbose:
+            self.logger.debug(f"Cluster main article ID: {main_article['id']} - Score: {score:.4f}")
+            self.logger.debug(f" Urgency raw: {urgency_raw}, published At: {main_article.get('published_at')}, Decay: {decay:.4f}, Decayed Urgency: {urgency:.4f}")
+            self.logger.debug(f" Impact raw: {impact_raw}")
+            self.logger.debug(f" User Similarity: {user_similarity:.4f}, adding to Urgency+Impact: {user_similarity * 0.2:.4f}")
+            self.logger.debug(f" Normalized Urgency+Impact+similarity Score: {normalized_urgency_impact_score:.4f}, Weighted: {urgency_impact_weighted:.4f}")
+            self.logger.debug(f" Cluster size: {cluster_size}, Normalized Size: {normalized_cluster_size:.4f}, Weighted Size: {cluster_size_weighted:.4f}")
+            self.logger.debug(f" {urgency_impact_weighted:.4f} + {cluster_size_weighted:.4f} = Total Score: {score:.4f}")
+        return -score
+
+    def sort_clusters(self, clusters, limit=None):
+        sorted_clusters = sorted(clusters, key=self.get_cluster_sort_key)
+        if limit is not None:
+            sorted_clusters = sorted_clusters[:limit]
+        return sorted_clusters
+   
     def curate_and_cluster(self, email_address: str):
         """
         Select up to max_per_category articles per category, filtered by user preferences and from the last 24 hours.
@@ -314,6 +414,8 @@ class NewsCurator:
         enabled_sources = prefs['enabled_sources'] if prefs and prefs.get('enabled_sources') else None
         enabled_categories = prefs['enabled_categories'] if prefs and prefs.get('enabled_categories') else None
         max_news_per_category = prefs['max_news_per_category'] if prefs and prefs.get('max_news_per_category') is not None else 10
+
+        self.logger.debug(f"User {email_address} preferences: sources={enabled_sources}, categories={enabled_categories}, max_news_per_category={max_news_per_category}")
 
         # Date range: last 24 hours
         end_date = datetime.now(timezone.utc)
@@ -330,6 +432,8 @@ class NewsCurator:
             source_ids=enabled_source_ids,
             categories=enabled_categories
         )
+
+        self.logger.debug(f"Found {len(articles)} unsent articles for user {email_address} from {start_date_str} to {end_date_str}")
 
         # Try to get user embedding
         user_embedding = None
@@ -353,27 +457,6 @@ class NewsCurator:
                     a['user_similarity'] = sim
                 else:
                     a['user_similarity'] = 0.0
-        
-        # Sort articles by sum of urgency_score + impact_score (descending), then by user similarity if available
-        def get_sort_key(article):
-            # get impact and urgency score, but convert to 1-5 (int) scale. Now its 0-100. so, 0-20 = 1, 21-40=2, 41-60=3, 61-80=4, 81-100=5
-            urgency_raw = article.get('urgency_score', 0) or 0
-            impact_raw = article.get('impact_score', 0) or 0
-
-            # convert impact score to 1-5 scale
-            def convert_score(score):
-                return max(1, min(5, int(round(score/20))))  # convert 0-100 to 1-5 scale
-                    
-            urgency = convert_score(urgency_raw)
-            impact = convert_score(impact_raw)
-
-            print(f"Article ID: {article['id']}, Urgency: {urgency}, Impact: {impact}")
-
-            similarity = article.get('user_similarity', 0)
-            # Primary sort: sum of urgency + impact (desc), then similarity (desc)
-            return (-(urgency + impact), -similarity)
-        
-        articles = sorted(articles, key=get_sort_key)
         
         clustered_curated_articles = []
         category_counts = defaultdict(int)
@@ -422,4 +505,14 @@ class NewsCurator:
                 for cat in categories:
                     category_counts[cat] += 1
         
+        clustered_curated_articles = self.sort_clusters(clustered_curated_articles)
+
+        self.logger.debug(f"Curated {len(clustered_curated_articles)} clusters for user {email_address}")
+        if self.logger.isEnabledFor(logging.DEBUG):
+            for cluster in clustered_curated_articles:
+                self.logger.debug(f"Cluster: {[article['id'] for article in cluster]} - score: {self.get_cluster_sort_key(cluster, verbose=True):.4f}")
+                for article in cluster:
+                    self.logger.debug(f" - Article {article['id']}: Urgency {article.get('urgency_score', 0)}, Impact {article.get('impact_score', 0)}, Similarity {article.get('user_similarity', 0):.4f}, Category: {article.get('category', 'N/A')}, Title: {article.get('title_pt', '')[:20]}...")
+                self.logger.debug("\n")
+
         return clustered_curated_articles
