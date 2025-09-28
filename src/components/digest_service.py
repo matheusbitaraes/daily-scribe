@@ -12,7 +12,6 @@ import os
 from typing import Optional, Dict, List
 
 from components.database import DatabaseService
-from components.digest_builder import DigestBuilder
 from components.article_clusterer import ArticleClusterer
 from components.news_curator import NewsCurator
 from components.notifier import EmailNotifier
@@ -27,7 +26,7 @@ class DigestService:
     def __init__(self):
         self.db_service = DatabaseService()
         self.email_service = EmailService()
-        self.digest_builder = DigestBuilder()
+        self.news_curator = NewsCurator()
     
     def generate_digest_for_user(
         self,
@@ -49,9 +48,8 @@ class DigestService:
         clusterer.update_user_embedding(email_address)
         
         # Use curator to get articles based on user preferences
-        curator = NewsCurator()
-        clustered_articles = curator.curate_and_cluster(email_address)
-        
+        clustered_articles = self.news_curator.curate_and_cluster(email_address)
+
         if not clustered_articles:
             return {
                 "success": False,
@@ -189,12 +187,10 @@ class DigestService:
         """
         print("Generating email subject...")
 
-        sorted_clusters = self.digest_builder.sort_clusters(clustered_articles, limit=3)
-
         # Get top 3 clusters with subject_pt from their main article
         top_subjects = []
         MAIN_ARTICLES_NUMBER_FOR_SUBJECT = int(os.getenv("MAIN_ARTICLES_NUMBER_FOR_SUBJECT", 3))
-        for cluster in sorted_clusters[:MAIN_ARTICLES_NUMBER_FOR_SUBJECT]:
+        for cluster in clustered_articles[:MAIN_ARTICLES_NUMBER_FOR_SUBJECT]:
             if cluster:
                 main_article = cluster[0]
                 subject_pt = main_article.get('subject_pt')
