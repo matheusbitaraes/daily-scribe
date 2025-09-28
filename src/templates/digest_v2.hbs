@@ -191,44 +191,12 @@
             margin: 0 auto;
             display: block;
         }
-
-        /* Dark mode support for SVG */
-        @media (prefers-color-scheme: dark) {
-            .header-logo {
-                filter: invert(1) brightness(0.8);
-            }
-        }
-        
-        /* Outlook dark mode support */
-        [data-ogsc] .header-logo {
-            filter: invert(1) brightness(0.8);
-        }
-        
-        /* Gmail dark mode support */
-        [data-darkmode] .header-logo {
-            filter: invert(1) brightness(0.8);
-        }
-        
-        /* Yahoo dark mode support */
-        [data-ogsb] .header-logo {
-            filter: invert(1) brightness(0.8);
-        }
-        
-        /* Apple Mail dark mode support */
-        .dark .header-logo {
-            filter: invert(1) brightness(0.8);
-        }
     </style>
 </head>
 
 <body>
     <div class="header-title">
-        <!--[if !mso]><!-->
-        <img class="header-logo" src="https://dailyscribe.news/daily-scribe-title-no-bg.svg" alt="Daily Scribe Logo" width="200" />
-        <!--<![endif]-->
-        <!--[if mso]>
-        <img class="header-logo" src="https://dailyscribe.news/daily-scribe-title-no-bg.png" alt="Daily Scribe Logo" width="200" />
-        <![endif]-->
+        <img class="header-logo" src="https://dailyscribe.news/daily-scribe-title-no-bg.png" alt="Daily Scribe Logo" width="200">
     </div>
     <div class="content">
         {{#if main_news}}
