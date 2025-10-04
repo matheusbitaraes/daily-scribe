@@ -5,7 +5,7 @@ This module handles building the HTML digest from article summaries.
 """
 
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
 from collections import defaultdict
 from urllib.parse import quote
 from pybars import Compiler
@@ -68,7 +68,17 @@ class DigestBuilder:
         # Return the redirect URL
         return f"{base_url}/redirect?url={encoded_url}"
     
-    def build_html_digest(self, clustered_summaries: List[List[Dict[str, str]]], preference_token: str = "", unsubscribe_link_html: str = "", max_clusters: int = 20, base_url: str = "http://localhost:3000", template_name: str = "digest_v2.hbs") -> str:
+    def build_html_digest(
+        self,
+        clustered_summaries: List[List[Dict[str, str]]],
+        preference_token: str = "",
+        unsubscribe_link_html: str = "",
+    max_clusters: int = 20,
+    base_url: Optional[str] = None,
+        template_name: str = "digest_v3.hbs",
+        feedback_api_base_url: str = "",
+        digest_id: str = ""
+    ) -> str:
         """
         Build HTML digest using Handlebars template.
         
@@ -84,19 +94,33 @@ class DigestBuilder:
             Rendered HTML digest
         """
 
+        resolved_base_url = base_url or os.getenv("FRONTEND_URL") or "http://localhost:3000"
+        resolved_base_url = resolved_base_url.rstrip('/')
+
         template_data = self._prepare_template_data(
-            clustered_summaries, 
-            preference_token, 
-            unsubscribe_link_html, 
-            max_clusters, 
-            base_url
+            clustered_summaries,
+            preference_token,
+            unsubscribe_link_html,
+            max_clusters,
+            resolved_base_url,
+            feedback_api_base_url,
+            digest_id
         )
         
         # Load and render template
         template = self._load_template(template_name)
         return template(template_data)
 
-    def _prepare_template_data(self, clustered_summaries: List[List[Dict[str, str]]], preference_token: str, unsubscribe_link_html: str, max_clusters: int, base_url: str) -> Dict:
+    def _prepare_template_data(
+        self,
+        clustered_summaries: List[List[Dict[str, str]]],
+        preference_token: str,
+        unsubscribe_link_html: str,
+        max_clusters: int,
+        base_url: str,
+        feedback_api_base_url: str,
+        digest_id: str
+    ) -> Dict:
         """Prepare data structure for Handlebars templates with main_news and category_links sections."""
         # Keep the original order from clustered_summaries
         # Add category information to each cluster while preserving order
@@ -116,6 +140,35 @@ class DigestBuilder:
         remaining_clusters = all_clusters[main_news_count:]
 
         # Prepare main_news section
+        feedback_base = feedback_api_base_url or os.getenv("DIGEST_FEEDBACK_API_BASE_URL") or base_url
+        feedback_base = feedback_base.rstrip('/')
+        if feedback_base.endswith('/api'):
+            feedback_base = feedback_base[:-4]
+        else:
+            host_fragment = feedback_base.split('://', 1)[-1]
+            if host_fragment.startswith('api.'):
+                feedback_base = (base_url or feedback_base).rstrip('/')
+
+        def build_feedback_payload(article_id: Optional[int]) -> Optional[Dict[str, str]]:
+            if not (preference_token and article_id):
+                return None
+
+            query_params = [f"article_id={article_id}"]
+            if digest_id:
+                query_params.append(f"digest_id={quote(digest_id)}")
+
+            positive_params = "&".join(query_params + ["signal=1"])
+            negative_params = "&".join(query_params + ["signal=-1"])
+            feedback_page_base = f"{feedback_base}/feedback/{preference_token}"
+
+            return {
+                'positive_url': f"{feedback_page_base}?{positive_params}",
+                'negative_url': f"{feedback_page_base}?{negative_params}",
+                'tooltip_positive': 'Gostei — mostre mais matérias como esta',
+                'tooltip_negative': 'Não me interessa — mostre menos matérias assim',
+                'hint': 'Melhore o conteúdo que você recebe com seu feedback.'
+            }
+
         main_news = []
         for cluster, category_pt in main_news_clusters:
             main_article = cluster[0]
@@ -165,6 +218,8 @@ class DigestBuilder:
                         'display_title': display_title
                     })
             
+            feedback_payload = build_feedback_payload(main_article.get('id'))
+
             main_news.append({
                 'category': category_pt,
                 'main_article': {
@@ -176,7 +231,8 @@ class DigestBuilder:
                 },
                 'related_articles': related_articles if related_articles else None,
                 'has_more_related': has_more_related,
-                'additional_related_count': additional_related_count
+                'additional_related_count': additional_related_count,
+                'feedback': feedback_payload
             })
 
         # Prepare category_links section
@@ -193,7 +249,8 @@ class DigestBuilder:
                 'article_id': main_article.get('id'),
                 'preferred_title': preferred_title,
                 'category': category_pt,
-                'similar_news_count': similar_news_count
+                'similar_news_count': similar_news_count,
+                'feedback': build_feedback_payload(main_article.get('id'))
             })
 
         # Convert to list format ordered by STANDARD_CATEGORY_ORDER

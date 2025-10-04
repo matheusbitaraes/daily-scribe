@@ -8,6 +8,7 @@ import DigestSimulator from './components/DigestSimulator';
 import PreferencePage from './components/preferences/PreferencePage';
 import EmailVerificationPage from './pages/EmailVerificationPage';
 import UnsubscribePage from './pages/UnsubscribePage';
+import FeedbackPage from './pages/FeedbackPage';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 
 const theme = createTheme({
@@ -37,6 +38,7 @@ function App() {
               <Route path="/preferences/:token" element={<PreferencePage />} />
               <Route path="/verify-email" element={<EmailVerificationPage />} />
               <Route path="/unsubscribe/:token" element={<UnsubscribePage />} />
+              <Route path="/feedback/:token" element={<FeedbackPage />} />
             </Routes>
           </main>
         </div>

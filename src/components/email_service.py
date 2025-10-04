@@ -196,6 +196,7 @@ class EmailService:
             
             # Build the main digest HTML with preference button and unsubscribe link included
             digest_builder = DigestBuilder()
+
             digest_html = digest_builder.build_html_digest(
                 clustered_summaries=clustered_summaries,
                 preference_token=preference_token if preference_token else "",

@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 import logging
 import time
@@ -22,7 +22,14 @@ from models.preferences import (
     ErrorResponse,
     AvailableOptionsResponse
 )
+from models.ranking import (
+    ArticleFeedbackRequest,
+    ArticleFeedbackResponse,
+    ArticleFeedbackPageResponse
+)
 from components.news_curator import NewsCurator
+from components.ranking.feature_engineer import build_feature_vector
+from components.ranking.user_ranker import UserRanker
 from utils.categories import STANDARD_CATEGORY_ORDER
 from utils.cache import SimpleCache
 from utils.logging_config import setup_api_logging
@@ -96,6 +103,246 @@ search_service = SearchService()
 
 # Initialize global news cache with 30-minute TTL
 news_cache = SimpleCache(ttl_seconds=1800)  # 30 minutes
+
+
+def _process_article_feedback(
+    *,
+    email_address: str,
+    article_id: int,
+    signal: int,
+    digest_id: Optional[str] = None
+) -> bool:
+    if signal not in (-1, 1):
+        raise ValueError("Signal must be 1 or -1")
+
+    article = db_service.get_article_by_id(article_id)
+    if not article:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorResponse(
+                error="ARTICLE_NOT_FOUND",
+                message="Article not found"
+            ).dict()
+        )
+
+    article_embedding = db_service.get_article_embedding(article_id)
+    user_embedding = db_service.get_user_embedding(email_address)
+    feature_vector = build_feature_vector(
+        article=article,
+        user_embedding=user_embedding,
+        article_embedding=article_embedding,
+        reference_time=datetime.now(timezone.utc)
+    )
+
+    db_service.append_article_feedback(
+        email_address=email_address,
+        article_id=article_id,
+        signal=signal,
+        feature_vector=feature_vector,
+        digest_id=digest_id
+    )
+
+    embedding_updated = db_service.update_user_embedding_with_feedback(
+        email_address=email_address,
+        article_embedding=article_embedding,
+        signal=signal
+    )
+
+    user_ranker = UserRanker(db_service)
+    user_ranker.update(email_address, feature_vector, signal)
+
+    return embedding_updated
+
+
+@api_router.post(
+    "/news/{token}/feedback",
+    response_model=ArticleFeedbackResponse,
+    responses={
+        200: {"description": "Feedback captured successfully"},
+        400: {"model": ErrorResponse, "description": "Validation error"},
+        401: {"model": ErrorResponse, "description": "Invalid or missing token"},
+        403: {"model": ErrorResponse, "description": "Token expired or exhausted"},
+        404: {"model": ErrorResponse, "description": "Article not found"},
+        500: {"model": ErrorResponse, "description": "Internal server error"}
+    },
+    summary="Capture article feedback",
+    description="Record positive or negative feedback for an article from email clicks and update personalization models."
+)
+async def submit_article_feedback(
+    payload: ArticleFeedbackRequest,
+    token: str = Path(..., description="Secure preference access token"),
+    request: Request = None,
+    token_validation: TokenValidationResult = Depends(require_valid_path_token)
+) -> ArticleFeedbackResponse:
+    try:
+        email_address = token_validation.user_email
+        embedding_updated = _process_article_feedback(
+            email_address=email_address,
+            article_id=payload.article_id,
+            signal=payload.signal,
+            digest_id=payload.digest_id
+        )
+
+        positive = payload.signal > 0
+        message = (
+            "Notícias com este perfil serão priorizadas." if positive
+            else "Vamos reduzir esse tipo de conteúdo para você."
+        )
+        if embedding_updated:
+            message += " Seu perfil foi atualizado imediatamente."
+
+        return ArticleFeedbackResponse(
+            status="success",
+            message=message,
+            updated_embedding=embedding_updated
+        )
+    except HTTPException:
+        raise
+    except ValueError as ve:
+        logger.warning(f"Invalid feedback payload: {ve}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ErrorResponse(
+                error="INVALID_SIGNAL",
+                message=str(ve)
+            ).dict()
+        )
+    except Exception as e:
+        logger.error(f"Error recording article feedback: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ErrorResponse(
+                error="FEEDBACK_ERROR",
+                message="Unable to record feedback"
+            ).dict()
+        )
+
+
+@api_router.get(
+    "/news/{token}/feedback",
+    response_model=ArticleFeedbackPageResponse,
+    responses={
+        200: {"description": "Feedback payload returned"},
+        400: {"description": "Validation error"},
+        401: {"description": "Invalid or missing token"},
+        403: {"description": "Token expired or exhausted"},
+        404: {"description": "Article not found"},
+        500: {"description": "Internal server error"}
+    },
+    summary="Capture article feedback (link)",
+    description="Record article feedback triggered from email clicks and return HTML payload for frontend rendering."
+)
+async def submit_article_feedback_via_link(
+    token: str = Path(..., description="Secure preference access token"),
+    article_id: int = Query(..., ge=1, description="Article identifier"),
+    signal: int = Query(..., description="1 for positive feedback, -1 for negative feedback"),
+    digest_id: Optional[str] = Query(None, description="Digest identifier for analytics"),
+    token_validation: TokenValidationResult = Depends(require_valid_path_token)
+):
+    def _build_feedback_payload(title: str, message: str, positive: bool = True) -> ArticleFeedbackPageResponse:
+        accent = "#0a97f5" if positive else "#6b7280"
+        subtle = "#6b7280"
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang=\"pt-BR\">
+        <head>
+            <meta charset=\"utf-8\">
+            <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+            <title>{title}</title>
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                    background-color: #f8fafc;
+                    color: #111827;
+                    margin: 0;
+                    padding: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 100vh;
+                }}
+                .card {{
+                    background-color: #ffffff;
+                    border-radius: 16px;
+                    padding: 32px 28px;
+                    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+                    max-width: 360px;
+                    text-align: center;
+                }}
+                .title {{
+                    font-size: 20px;
+                    font-weight: 700;
+                    margin-bottom: 8px;
+                    color: {accent};
+                }}
+                .message {{
+                    font-size: 15px;
+                    color: {subtle};
+                    margin-bottom: 18px;
+                    line-height: 1.5;
+                }}
+                .footnote {{
+                    font-size: 12px;
+                    color: #9ca3af;
+                }}
+            </style>
+            <script>
+                setTimeout(function() {{ window.close(); }}, 2000);
+            </script>
+        </head>
+        <body>
+            <div class=\"card\">
+                <div class=\"title\">{title}</div>
+                <div class=\"message\">{message}</div>
+                <div class=\"footnote\">Esta aba se fechará automaticamente após 2 segundos.</div>
+            </div>
+        </body>
+        </html>
+        """
+        return ArticleFeedbackPageResponse(
+            title=title,
+            message=message,
+            positive=positive,
+            html=html_content
+        )
+
+    def _build_response(payload: ArticleFeedbackPageResponse, status_code: int) -> JSONResponse:
+        response = JSONResponse(content=payload.dict(), status_code=status_code)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    try:
+        email_address = token_validation.user_email
+        embedding_updated = _process_article_feedback(
+            email_address=email_address,
+            article_id=article_id,
+            signal=signal,
+            digest_id=digest_id
+        )
+
+        positive = signal > 0
+        title = "Obrigado pelo feedback!" if positive else "Preferência registrada"
+        message = (
+            "Vamos priorizar notícias com este perfil." if positive
+            else "Vamos reduzir esse tipo de conteúdo no seu briefing."
+        )
+        if embedding_updated:
+            message += " Seu perfil foi atualizado imediatamente."
+
+        payload = _build_feedback_payload(title, message, positive)
+        return _build_response(payload, status.HTTP_200_OK)
+    except HTTPException as exc:
+        error_msg = exc.detail if isinstance(exc.detail, str) else exc.detail.get("message", "Erro ao registrar feedback.")
+        payload = _build_feedback_payload("Não foi possível registrar", error_msg, False)
+        return _build_response(payload, exc.status_code)
+    except ValueError as ve:
+        payload = _build_feedback_payload("Sinal inválido", str(ve), False)
+        return _build_response(payload, status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        logger.error(f"Error recording article feedback via link: {e}")
+        payload = _build_feedback_payload("Erro inesperado", "Tente novamente em instantes.", False)
+        return _build_response(payload, status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 @app.get("/healthz")
@@ -579,6 +826,7 @@ def simulate_digest(
                     "article_count": 0,
                     "clusters": 0
                 },
+                "ranking_details": [],
                 "message": result["message"]
             }
         
@@ -586,6 +834,7 @@ def simulate_digest(
             "success": True,
             "html_content": result["html_content"],
             "metadata": result["metadata"],
+            "ranking_details": result.get("ranking_details", []),
             "message": result["message"]
         }
         

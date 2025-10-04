@@ -1,26 +1,36 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
   Box,
-  Container,
-  Typography,
-  TextField,
   Button,
   Card,
   CardContent,
   CardHeader,
-  Alert,
-  CircularProgress,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Grid,
-  Paper,
-  Divider,
   Chip,
-  IconButton
+  CircularProgress,
+  Container,
+  Divider,
+  FormControl,
+  Grid,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
 const DigestSimulator = () => {
   // State management for the simulator
@@ -41,6 +51,7 @@ const DigestSimulator = () => {
     // Generated content
     digestContent: null,
     digestMetadata: null,
+  rankingDetails: [],
     
     // UI states
     isLoadingDates: false,
@@ -169,7 +180,12 @@ const DigestSimulator = () => {
       return;
     }
 
-    updateState({ isLoadingDigest: true, digestError: null, digestContent: null });
+    updateState({
+      isLoadingDigest: true,
+      digestError: null,
+      digestContent: null,
+      rankingDetails: []
+    });
     
     try {
       const response = await axios.get(`${API_BASE_URL}/digest/simulate`, {
@@ -182,6 +198,7 @@ const DigestSimulator = () => {
         updateState({
           digestContent: data.html_content,
           digestMetadata: data.metadata,
+          rankingDetails: data.ranking_details || [],
           isLoadingDigest: false
         });
         
@@ -196,7 +213,8 @@ const DigestSimulator = () => {
       console.error('Error generating digest:', error);
       updateState({
         digestError: error.response?.data?.detail || error.message || 'Failed to generate digest',
-        isLoadingDigest: false
+        isLoadingDigest: false,
+        rankingDetails: []
       });
     }
   };
@@ -255,6 +273,50 @@ const DigestSimulator = () => {
   const clearErrors = () => {
     updateState({ error: null, dateError: null, digestError: null });
   };
+
+  const formatNumber = (value, digits = 3) => {
+    if (value === null || value === undefined) {
+      return '—';
+    }
+    const numeric = Number(value);
+    if (Number.isNaN(numeric)) {
+      return '—';
+    }
+    return numeric.toFixed(digits);
+  };
+
+  const formatDateTime = (value) => {
+    if (!value) {
+      return '—';
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+    return parsed.toLocaleString();
+  };
+
+  const getFeatureValue = (features, key) => {
+    if (!features) {
+      return null;
+    }
+    if (Array.isArray(features)) {
+      const indexMap = {
+        semantic: 0,
+        recency: 1,
+        urgency: 2,
+        impact: 3
+      };
+      const index = indexMap[key];
+      if (typeof index === 'number') {
+        return features[index];
+      }
+      return null;
+    }
+    return features[key];
+  };
+
+  const hasRankingDetails = Array.isArray(state.rankingDetails) && state.rankingDetails.length > 0;
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -458,6 +520,197 @@ const DigestSimulator = () => {
                   </Typography>
                   <Typography variant="body2">
                     Enter an email address and click "Generate Preview" to see the digest
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Ranking Insights */}
+        <Grid item size={12}>
+          <Card>
+            <CardHeader
+              title="Ranking Insights"
+              subheader="Detailed breakdown of how each cluster and article contributed to the final ranking"
+            />
+            <CardContent>
+              {state.isLoadingDigest && (
+                <Box display="flex" justifyContent="center" py={2}>
+                  <CircularProgress size={24} />
+                </Box>
+              )}
+
+              {hasRankingDetails ? (
+                state.rankingDetails.map((cluster, index) => {
+                  const components = cluster.score_components || {};
+                  const weights = components.weights || {};
+                  const chipLabel = `Score ${formatNumber(components.final_score, 4)}`;
+                  const articles = cluster.articles || [];
+
+                  return (
+                    <Accordion
+                      key={cluster.cluster_index ?? index}
+                      defaultExpanded={index === 0}
+                      disableGutters
+                      sx={{ mb: 2, '&:last-of-type': { mb: 0 } }}
+                    >
+                      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                        <Stack
+                          direction={{ xs: 'column', sm: 'row' }}
+                          spacing={1}
+                          alignItems={{ xs: 'flex-start', sm: 'center' }}
+                          sx={{ width: '100%' }}
+                        >
+                          <Typography variant="subtitle1" sx={{ flexGrow: 1 }}>
+                            {`Cluster ${index + 1}: ${cluster.main_article_title || 'Untitled article'}`}
+                          </Typography>
+                          <Stack direction="row" spacing={1}>
+                            <Chip label={chipLabel} color="primary" size="small" />
+                            <Chip
+                              label={`Articles ${cluster.cluster_size}`}
+                              variant="outlined"
+                              size="small"
+                            />
+                          </Stack>
+                        </Stack>
+                      </AccordionSummary>
+                      <AccordionDetails>
+                        <Grid container spacing={2}>
+                          <Grid item size={12} md={6}>
+                            <Typography variant="subtitle2" gutterBottom>
+                              Score breakdown
+                            </Typography>
+                            <Table size="small" sx={{ mb: 2 }}>
+                              <TableBody>
+                                {[
+                                  ['Final score', components.final_score, 4],
+                                  ['Decayed urgency', components.decayed_urgency, 4],
+                                  ['Impact', components.impact_raw, 4],
+                                  ['User similarity', components.user_similarity, 4],
+                                  ['Similarity bonus', components.user_similarity_bonus, 4],
+                                  ['Rank score', components.rank_score, 4],
+                                  ['Rank component (scaled)', components.rank_component_scaled, 4],
+                                  ['Normalized base', components.normalized_base, 4],
+                                  ['Normalized with similarity', components.normalized_with_similarity, 4],
+                                  ['Normalized with rank', components.normalized_with_rank, 4],
+                                  ['Urgency & impact weighted', components.urgency_impact_weighted, 4],
+                                  ['Cluster size', components.cluster_size, 0],
+                                  ['Cluster size weighted', components.cluster_size_weighted, 4]
+                                ].map(([label, value, digits]) => (
+                                  <TableRow key={label}>
+                                    <TableCell component="th" scope="row" sx={{ width: '60%' }}>
+                                      {label}
+                                    </TableCell>
+                                    <TableCell>{formatNumber(value, digits)}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </Grid>
+                          <Grid item size={12} md={6}>
+                            <Typography variant="subtitle2" gutterBottom>
+                              Weights & parameters
+                            </Typography>
+                            <Table size="small" sx={{ mb: 2 }}>
+                              <TableBody>
+                                {Object.entries(weights).map(([label, value]) => (
+                                  <TableRow key={label}>
+                                    <TableCell component="th" scope="row" sx={{ textTransform: 'capitalize' }}>
+                                      {label.replace(/_/g, ' ')}
+                                    </TableCell>
+                                    <TableCell>
+                                      {typeof value === 'number'
+                                        ? formatNumber(value, Number.isInteger(value) ? 0 : 4)
+                                        : String(value)}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                                {Object.keys(weights).length === 0 && (
+                                  <TableRow>
+                                    <TableCell colSpan={2}>
+                                      <Typography variant="body2" color="text.secondary">
+                                        No weight configuration captured for this cluster.
+                                      </Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </TableBody>
+                            </Table>
+                          </Grid>
+                        </Grid>
+
+                        <Divider sx={{ my: 2 }} />
+                        <Typography variant="subtitle2" gutterBottom>
+                          Articles in cluster
+                        </Typography>
+                        <Box sx={{ overflowX: 'auto' }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>#</TableCell>
+                                <TableCell>Article</TableCell>
+                                <TableCell>User similarity</TableCell>
+                                <TableCell>Rank score</TableCell>
+                                <TableCell>Urgency</TableCell>
+                                <TableCell>Impact</TableCell>
+                                <TableCell>Semantic</TableCell>
+                                <TableCell>Recency</TableCell>
+                                <TableCell>LTR urgency</TableCell>
+                                <TableCell>LTR impact</TableCell>
+                                <TableCell>Published</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {articles.map((article) => (
+                                <TableRow
+                                  key={`${cluster.cluster_index}-${article.id || article.url || article.position}`}
+                                >
+                                  <TableCell>{(article.position ?? 0) + 1}</TableCell>
+                                  <TableCell sx={{ minWidth: 220 }}>
+                                    <Typography
+                                      variant="body2"
+                                      fontWeight={article.position === 0 ? 600 : 400}
+                                      gutterBottom
+                                    >
+                                      {article.title || 'Untitled article'}
+                                    </Typography>
+                                    <Typography variant="caption" color="text.secondary" display="block">
+                                      {article.source || 'Unknown source'}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>{formatNumber(article.user_similarity, 4)}</TableCell>
+                                  <TableCell>{formatNumber(article.rank_score, 4)}</TableCell>
+                                  <TableCell>{formatNumber(article.urgency_score, 1)}</TableCell>
+                                  <TableCell>{formatNumber(article.impact_score, 1)}</TableCell>
+                                  <TableCell>{formatNumber(getFeatureValue(article.ltr_features, 'semantic'), 4)}</TableCell>
+                                  <TableCell>{formatNumber(getFeatureValue(article.ltr_features, 'recency'), 4)}</TableCell>
+                                  <TableCell>{formatNumber(getFeatureValue(article.ltr_features, 'urgency'), 4)}</TableCell>
+                                  <TableCell>{formatNumber(getFeatureValue(article.ltr_features, 'impact'), 4)}</TableCell>
+                                  <TableCell>{formatDateTime(article.published_at)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </Box>
+                      </AccordionDetails>
+                    </Accordion>
+                  );
+                })
+              ) : (
+                <Box
+                  display="flex"
+                  flexDirection="column"
+                  alignItems="center"
+                  justifyContent="center"
+                  py={4}
+                  color="text.secondary"
+                >
+                  <Typography variant="body1" gutterBottom>
+                    Generate a digest preview to inspect ranking insights.
+                  </Typography>
+                  <Typography variant="body2">
+                    You will see user similarity, learning-to-rank features, and weighting details here.
                   </Typography>
                 </Box>
               )}

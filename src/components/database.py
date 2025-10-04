@@ -192,8 +192,8 @@ class DatabaseService:
                     FOREIGN KEY (article_id) REFERENCES articles(id)
                 )
             ''')
-            
-                # Create user_preferences_embeddings table
+
+            # Create user_preferences_embeddings table
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS user_preferences_embeddings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -203,6 +203,38 @@ class DatabaseService:
                     FOREIGN KEY (user_preferences_id) REFERENCES user_preferences(id)
                 )
             ''')
+            cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_user_preferences_embeddings_user ON user_preferences_embeddings(user_preferences_id);')
+
+            # Create article_feedback table for explicit signals
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS article_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_preferences_id INTEGER NOT NULL,
+                    article_id INTEGER NOT NULL,
+                    signal INTEGER NOT NULL CHECK(signal IN (-1, 1)),
+                    feature_vector BLOB,
+                    digest_id TEXT,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_preferences_id) REFERENCES user_preferences(id),
+                    FOREIGN KEY (article_id) REFERENCES articles(id)
+                )
+            ''')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_article_feedback_user ON article_feedback(user_preferences_id);')
+            cursor.execute('CREATE INDEX IF NOT EXISTS idx_article_feedback_article ON article_feedback(article_id);')
+
+            # Create user_ranker_models table to persist personalized LTR weights
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS user_ranker_models (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_preferences_id INTEGER NOT NULL,
+                    weights BLOB NOT NULL,
+                    bias REAL NOT NULL,
+                    feature_version TEXT NOT NULL,
+                    trained_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_preferences_id) REFERENCES user_preferences(id)
+                )
+            ''')
+            cursor.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_user_ranker_models_user ON user_ranker_models(user_preferences_id);')
             conn.commit()
         except sqlite3.Error as e:
             self.logger.error(f"Error creating database tables: {e}")
@@ -581,6 +613,21 @@ class DatabaseService:
             self.logger.error(f"Error getting user preferences: {e}")
             return None
 
+    def get_user_preferences_id(self, email_address: str) -> Optional[int]:
+        """Return the most recent user_preferences.id for a given user."""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT id FROM user_preferences WHERE email_address = ? ORDER BY updated_at DESC LIMIT 1",
+                    (email_address,)
+                )
+                row = cursor.fetchone()
+                return row[0] if row else None
+        except sqlite3.Error as e:
+            self.logger.error(f"Error fetching user_preferences id for {email_address}: {e}")
+            return None
+
     def set_user_preferences(self, email_address: str, enabled_sources: Optional[list] = None, enabled_categories: Optional[list] = None, max_news_per_category: Optional[int] = 10) -> None:
         """
         Set or update user preferences for a given email address.
@@ -676,6 +723,24 @@ class DatabaseService:
         except Exception as e:
             self.logger.error(f"Error fetching all article embeddings: {e}")
             return (np.array([]), [])
+
+    def get_article_embedding(self, article_id: int):
+        """Return embedding vector for a specific article_id, or None."""
+        import numpy as np
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT embedding FROM article_embeddings WHERE article_id = ?",
+                    (article_id,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                return np.frombuffer(row[0], dtype=np.float32)
+        except Exception as e:
+            self.logger.error(f"Error fetching embedding for article {article_id}: {e}")
+            return None
 
     def store_article_clusters(self, article_ids, cluster_labels, similarity_scores, run_id):
         """
@@ -778,12 +843,135 @@ class DatabaseService:
                 user_preferences_id = row[0]
                 # Insert or replace embedding for this user_preferences_id
                 cursor.execute(
-                    '''INSERT OR REPLACE INTO user_preferences_embeddings (user_preferences_id, embedding) VALUES (?, ?)''',
+                    '''
+                    INSERT INTO user_preferences_embeddings (user_preferences_id, embedding)
+                    VALUES (?, ?)
+                    ON CONFLICT(user_preferences_id) DO UPDATE SET embedding = excluded.embedding, created_at = CURRENT_TIMESTAMP
+                    ''',
                     (user_preferences_id, embedding_bytes)
                 )
                 conn.commit()
         except Exception as e:
             self.logger.error(f"Error storing user embedding: {e}")
+
+    def append_article_feedback(self, email_address: str, article_id: int, signal: int, feature_vector, digest_id: Optional[str] = None) -> None:
+        """Persist explicit feedback for an article along with the feature vector used for LTR."""
+        import numpy as np
+        if signal not in (-1, 1):
+            raise ValueError("signal must be -1 or 1")
+
+        user_preferences_id = self.get_user_preferences_id(email_address)
+        if user_preferences_id is None:
+            raise ValueError(f"No user preferences found for {email_address}")
+
+        feature_bytes = None
+        if feature_vector is not None:
+            feature_array = np.array(feature_vector, dtype=np.float32)
+            feature_bytes = feature_array.tobytes()
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''INSERT INTO article_feedback (user_preferences_id, article_id, signal, feature_vector, digest_id)
+                       VALUES (?, ?, ?, ?, ?)''',
+                    (user_preferences_id, article_id, signal, feature_bytes, digest_id)
+                )
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error saving feedback for article {article_id}: {e}")
+
+    def get_feedback_for_user(self, email_address: str):
+        """Return list of (signal, feature_vector) feedback entries for a user."""
+        import numpy as np
+        user_preferences_id = self.get_user_preferences_id(email_address)
+        if user_preferences_id is None:
+            return []
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''SELECT signal, feature_vector FROM article_feedback
+                       WHERE user_preferences_id = ? ORDER BY created_at ASC''',
+                    (user_preferences_id,)
+                )
+                rows = cursor.fetchall()
+                results = []
+                for signal, feature_bytes in rows:
+                    if feature_bytes is None:
+                        results.append((signal, None))
+                    else:
+                        features = np.frombuffer(feature_bytes, dtype=np.float32)
+                        results.append((signal, features))
+                return results
+        except Exception as e:
+            self.logger.error(f"Error loading feedback for {email_address}: {e}")
+            return []
+
+    def store_user_ranker_model(self, email_address: str, weights, bias: float, feature_version: str) -> None:
+        """Persist serialized weights for a user's ranking model."""
+        import numpy as np
+        user_preferences_id = self.get_user_preferences_id(email_address)
+        if user_preferences_id is None:
+            raise ValueError(f"No user preferences found for {email_address}")
+
+        weight_array = np.array(weights, dtype=np.float32)
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''INSERT INTO user_ranker_models (user_preferences_id, weights, bias, feature_version, trained_at)
+                       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                       ON CONFLICT(user_preferences_id) DO UPDATE SET
+                           weights = excluded.weights,
+                           bias = excluded.bias,
+                           feature_version = excluded.feature_version,
+                           trained_at = excluded.trained_at''',
+                    (user_preferences_id, weight_array.tobytes(), float(bias), feature_version)
+                )
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error storing ranking model for {email_address}: {e}")
+
+    def get_user_ranker_model(self, email_address: str):
+        """Retrieve stored weights and bias for user's ranking model, or None."""
+        import numpy as np
+        user_preferences_id = self.get_user_preferences_id(email_address)
+        if user_preferences_id is None:
+            return None
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    '''SELECT weights, bias, feature_version FROM user_ranker_models WHERE user_preferences_id = ?''',
+                    (user_preferences_id,)
+                )
+                row = cursor.fetchone()
+                if not row:
+                    return None
+                weights = np.frombuffer(row[0], dtype=np.float32)
+                bias = float(row[1])
+                feature_version = row[2]
+                return weights, bias, feature_version
+        except Exception as e:
+            self.logger.error(f"Error loading ranking model for {email_address}: {e}")
+            return None
+
+    def clear_user_ranker_model(self, email_address: str) -> None:
+        """Remove stored model for the user (useful when feature version changes)."""
+        user_preferences_id = self.get_user_preferences_id(email_address)
+        if user_preferences_id is None:
+            return
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'DELETE FROM user_ranker_models WHERE user_preferences_id = ?',
+                    (user_preferences_id,)
+                )
+                conn.commit()
+        except Exception as e:
+            self.logger.error(f"Error clearing ranking model for {email_address}: {e}")
 
     def get_user_embedding(self, email_address: str):
         """
@@ -819,6 +1007,43 @@ class DatabaseService:
         except Exception as e:
             self.logger.error(f"Error retrieving user embedding: {e}")
             return None
+
+    def update_user_embedding_with_feedback(
+        self,
+        email_address: str,
+        article_embedding,
+        signal: int,
+        alpha_positive: float = 0.3,
+        alpha_negative: float = 0.15
+    ) -> bool:
+        """Update a user's embedding using EMA-style blending based on feedback."""
+        import numpy as np
+        if signal not in (-1, 1):
+            raise ValueError("signal must be -1 or 1")
+
+        if article_embedding is None:
+            self.logger.warning("Cannot update user embedding without article embedding")
+            return False
+
+        if not isinstance(article_embedding, np.ndarray):
+            article_embedding = np.array(article_embedding, dtype=np.float32)
+
+        user_embedding = self.get_user_embedding(email_address)
+        if user_embedding is None:
+            if signal > 0:
+                norm = np.linalg.norm(article_embedding) + 1e-8
+                unit_vector = article_embedding / norm
+                self.store_user_embedding(email_address, unit_vector.tolist())
+                return True
+            return False
+
+        alpha = alpha_positive if signal > 0 else alpha_negative
+        direction = 1.0 if signal > 0 else -1.0
+        updated = (1 - alpha) * user_embedding + alpha * direction * article_embedding
+        norm = np.linalg.norm(updated) + 1e-8
+        updated_normalized = updated / norm
+        self.store_user_embedding(email_address, updated_normalized.tolist())
+        return True
 
     def get_articles_to_summarize(self) -> list:
         """

@@ -9,7 +9,7 @@ import logging
 import time
 import uuid
 import os
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 
 from components.database import DatabaseService
 from components.article_clusterer import ArticleClusterer
@@ -43,9 +43,9 @@ class DigestService:
         """
         logger.info(f"Generating digest for user {email_address}")
         
-        # Update user embedding before curation
-        clusterer = ArticleClusterer()
-        clusterer.update_user_embedding(email_address)
+        # Update user embedding before curation if there isnt one
+        # clusterer = ArticleClusterer()
+        # clusterer.update_user_embedding(email_address)
         
         # Use curator to get articles based on user preferences
         clustered_articles = self.news_curator.curate_and_cluster(email_address)
@@ -61,6 +61,7 @@ class DigestService:
                     "method": "standard"
                 },
                 "clustered_articles": [],
+                "ranking_details": [],
                 "message": "No curated articles found for user after applying preferences."
             }
         
@@ -92,13 +93,71 @@ class DigestService:
             "preference_url": preference_metadata.get("preference_url")
         }
         
+        ranking_details = self._build_ranking_details(clustered_articles)
+
         return {
             "success": True,
             "html_content": html_content,
             "metadata": metadata,
             "clustered_articles": clustered_articles,
+            "ranking_details": ranking_details,
             "message": f"Successfully generated user digest with {len(clustered_articles)} clusters from {total_articles} articles."
         }
+
+    def _build_ranking_details(self, clustered_articles: List[List[Dict]]) -> List[Dict[str, Any]]:
+        """Build structured ranking breakdown for each cluster."""
+        ranking_details: List[Dict[str, Any]] = []
+
+        feature_labels = ["semantic", "recency", "urgency", "impact"]
+
+        for cluster_index, cluster in enumerate(clustered_articles):
+            if not cluster:
+                continue
+
+            score_components = self.news_curator.calculate_cluster_score_components(cluster)
+            if score_components is None:
+                continue
+
+            main_article = cluster[0]
+
+            articles_details: List[Dict[str, Any]] = []
+            for position, article in enumerate(cluster):
+                ltr_features = article.get("ltr_features")
+                if isinstance(ltr_features, list) and len(ltr_features) == len(feature_labels):
+                    ltr_features_serialized = {
+                        label: float(value) if value is not None else None
+                        for label, value in zip(feature_labels, ltr_features)
+                    }
+                else:
+                    ltr_features_serialized = ltr_features
+
+                articles_details.append({
+                    "position": position,
+                    "id": article.get("id"),
+                    "title": article.get("title_pt") or article.get("title"),
+                    "source": article.get("source_name") or article.get("source"),
+                    "category": article.get("category"),
+                    "published_at": article.get("published_at"),
+                    "urgency_score": float(article.get("urgency_score") or 0.0),
+                    "impact_score": float(article.get("impact_score") or 0.0),
+                    "user_similarity": float(article.get("user_similarity") or 0.0),
+                    "rank_score": float(article.get("rank_score") or 0.0),
+                    "ltr_features": ltr_features_serialized,
+                    "summary": article.get("summary_pt") or article.get("summary"),
+                    "subject": article.get("subject_pt") or article.get("subject"),
+                    "url": article.get("url"),
+                })
+
+            ranking_details.append({
+                "cluster_index": cluster_index,
+                "cluster_size": len(cluster),
+                "main_article_id": main_article.get("id"),
+                "main_article_title": main_article.get("title_pt") or main_article.get("title"),
+                "score_components": score_components,
+                "articles": articles_details,
+            })
+
+        return ranking_details
     
     def send_digest_to_user(
         self,
@@ -163,7 +222,8 @@ class DigestService:
                 "message": f"Digest sent successfully to {email_address}",
                 "metadata": result["metadata"],
                 "digest_id": str(digest_id),
-                "articles_sent": len(all_sent_articles)
+                "articles_sent": len(all_sent_articles),
+                "ranking_details": result.get("ranking_details", [])
             }
             
         except Exception as e:

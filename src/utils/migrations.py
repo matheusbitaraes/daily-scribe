@@ -442,6 +442,150 @@ class DatabaseMigrator:
             self.logger.error(f"Error applying migration {migration_name}: {e}")
             return False
 
+    def add_article_feedback_table(self) -> bool:
+        """Create article_feedback table for explicit LTR signals."""
+        migration_name = "009_create_article_feedback_table"
+
+        if self.migration_applied(migration_name):
+            self.logger.info(f"Migration {migration_name} already applied, skipping")
+            return True
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS article_feedback (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_preferences_id INTEGER NOT NULL,
+                        article_id INTEGER NOT NULL,
+                        signal INTEGER NOT NULL CHECK(signal IN (-1, 1)),
+                        feature_vector BLOB,
+                        digest_id TEXT,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_preferences_id) REFERENCES user_preferences(id),
+                        FOREIGN KEY (article_id) REFERENCES articles(id)
+                    );
+                    """
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_article_feedback_user ON article_feedback(user_preferences_id);"
+                )
+                cursor.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_article_feedback_article ON article_feedback(article_id);"
+                )
+                conn.commit()
+                self.record_migration(
+                    migration_name,
+                    "Create article_feedback table for explicit user ranking signals"
+                )
+                self.logger.info(f"Successfully applied migration: {migration_name}")
+                return True
+        except sqlite3.Error as e:
+            self.logger.error(f"Error applying migration {migration_name}: {e}")
+            return False
+
+    def add_user_ranker_models_table(self) -> bool:
+        """Create user_ranker_models table to persist per-user model weights."""
+        migration_name = "010_create_user_ranker_models_table"
+
+        if self.migration_applied(migration_name):
+            self.logger.info(f"Migration {migration_name} already applied, skipping")
+            return True
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_ranker_models (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_preferences_id INTEGER NOT NULL,
+                        weights BLOB NOT NULL,
+                        bias REAL NOT NULL,
+                        feature_version TEXT NOT NULL,
+                        trained_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_preferences_id) REFERENCES user_preferences(id)
+                    );
+                    """
+                )
+                cursor.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_ranker_models_user ON user_ranker_models(user_preferences_id);"
+                )
+                conn.commit()
+                self.record_migration(
+                    migration_name,
+                    "Create user_ranker_models table for personalized LTR weights"
+                )
+                self.logger.info(f"Successfully applied migration: {migration_name}")
+                return True
+        except sqlite3.Error as e:
+            self.logger.error(f"Error applying migration {migration_name}: {e}")
+            return False
+
+    def cleanup_user_preferences_embeddings(self) -> bool:
+        """Deduplicate user preference embeddings and enforce uniqueness."""
+        migration_name = "011_cleanup_user_preferences_embeddings"
+
+        if self.migration_applied(migration_name):
+            self.logger.info(f"Migration {migration_name} already applied, skipping")
+            return True
+
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # Ensure table exists before attempting cleanup
+                cursor.execute(
+                    """
+                    SELECT name FROM sqlite_master
+                    WHERE type = 'table' AND name = 'user_preferences_embeddings';
+                    """
+                )
+                if cursor.fetchone() is None:
+                    self.logger.info(
+                        "user_preferences_embeddings table not found; skipping duplication cleanup"
+                    )
+                    conn.commit()
+                    self.record_migration(
+                        migration_name,
+                        "user_preferences_embeddings table missing; no cleanup performed"
+                    )
+                    return True
+
+                cursor.execute(
+                    """
+                    DELETE FROM user_preferences_embeddings
+                    WHERE id NOT IN (
+                        SELECT id FROM (
+                            SELECT MAX(id) AS id
+                            FROM user_preferences_embeddings
+                            GROUP BY user_preferences_id
+                        )
+                    );
+                    """
+                )
+                removed_duplicates = cursor.rowcount if cursor.rowcount != -1 else 0
+
+                cursor.execute(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_user_preferences_embeddings_user
+                    ON user_preferences_embeddings(user_preferences_id);
+                    """
+                )
+
+                conn.commit()
+
+                self.record_migration(
+                    migration_name,
+                    f"Removed {removed_duplicates} duplicate embeddings and enforced uniqueness"
+                )
+                self.logger.info(f"Successfully applied migration: {migration_name}")
+                return True
+        except sqlite3.Error as e:
+            self.logger.error(f"Error applying migration {migration_name}: {e}")
+            return False
+
     def run_all_migrations(self) -> bool:
         """
         Run all pending migrations.
@@ -459,6 +603,9 @@ class DatabaseMigrator:
                 self.add_news_scoring_fields,
                 self.add_title_pt_column,
                 self.convert_scoring_fields_to_100_scale,
+                self.add_article_feedback_table,
+                self.add_user_ranker_models_table,
+                self.cleanup_user_preferences_embeddings,
             ]
             
             for migration in migrations:

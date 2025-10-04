@@ -83,14 +83,17 @@
             send-digest
             es index
 - [ ] Improve ranking
-      - [ ] home page
-      - [ ] email digest
+      - [x] home page
+      - [x] email digest
 - [ ] digerir feedbacks:
       - melhorar UI de cadastro para ficar mais untiuica - ele escolheu errado as categorias
       - ferramenta forte de busca por assuntos - busca vetorial
       - botao de hope news?
-      
-
 - [ ] make digest builder admin only
+- [ ] market research and monetization strategy
+- [ ] redesign on main page 
+- [ ] explore google news: https://news.google.com/rss (ver [aqui](https://www.reddit.com/r/rss/comments/yjxb7u/comment/lt5dule/?tl=pt-br&utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button))
+- [x] clicar em + ou - (quero mais noticias desse tipo, menos noticias desse tipo) - pensar na melhor UI (premium)
+- [ ] Gamificação sobre streak de email abertos/noticias clicadas?
 
 

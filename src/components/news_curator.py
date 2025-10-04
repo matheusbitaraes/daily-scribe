@@ -1,11 +1,15 @@
+import math
 import time
 from collections import defaultdict
 from components.database import DatabaseService
 from datetime import datetime, timedelta, timezone, date
 from components.article_clusterer import ArticleClusterer
 from components.search.elasticsearch_service import ElasticsearchService
+from components.ranking.feature_engineer import build_feature_vector
+from components.ranking.user_ranker import UserRanker
 import os
 import logging
+import numpy as np
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -16,6 +20,7 @@ class NewsCurator:
     def __init__(self,):
         self.db_service = DatabaseService()
         self.es_service = ElasticsearchService()
+        self.clusterer = ArticleClusterer()
         self.logger = logging.getLogger(__name__)
 
     def _parse_published_at_to_milliseconds(self, published_at):
@@ -97,7 +102,6 @@ class NewsCurator:
         clustered_curated_articles = []
         category_counts = defaultdict(int)
         used_article_ids = set()
-        clusterer = ArticleClusterer()
         max_news_per_category = limit
 
         for article in articles:
@@ -120,7 +124,7 @@ class NewsCurator:
                 current_cluster_ids = {article['id']}
                 
                 try:
-                    similar = clusterer.get_similar_articles(
+                    similar = self.clusterer.get_similar_articles(
                         article['id'],
                         enabled_source_ids=None,
                         top_k=int(os.getenv("CLUSTERIZATION_TOP_K", 20)),
@@ -345,57 +349,155 @@ class NewsCurator:
             
         return clustered_curated_articles
 
-    def get_cluster_sort_key(self, cluster, verbose=False):
-        # Sort all clusters by urgency + impact scores (highest first), then by size (largest first)
+    def calculate_cluster_score_components(self, cluster):
+        """Return detailed scoring information for a cluster."""
         if not cluster:
-            return (0, 0, 0)
-        main_article = cluster[0]
-        urgency_raw = main_article.get('urgency_score', 0) or 0
-        impact_raw = main_article.get('impact_score', 0) or 0
+            return None
 
-        # urgency score is affected by the time decay, so we need to consider that as well
+        main_article = cluster[0]
+        urgency_raw = float(main_article.get('urgency_score') or 0.0)
+        impact_raw = float(main_article.get('impact_score') or 0.0)
+
         current_time = int(time.time() * 1000)
         decay_days = 4
-        decay_time = decay_days * 24 * 60 * 60 * 1000  # after {{decay_days}} days in milliseconds, urgency decays to 0
+        decay_time = decay_days * 24 * 60 * 60 * 1000
         published_at_ms = self._parse_published_at_to_milliseconds(main_article.get('published_at'))
-        time_diff = current_time - published_at_ms
-        decay = max(0.0, 1.0 - time_diff / decay_time)
-        urgency = urgency_raw * decay
+        time_diff = max(0, current_time - published_at_ms)
+        decay = max(0.0, 1.0 - time_diff / decay_time) if decay_time > 0 else 1.0
+        decayed_urgency = urgency_raw * decay
 
-        impact = impact_raw
+        cluster_size = max(len(cluster) - 1, 0)
+        CLUSTERIZATION_MAX_VALUE = 10
+        normalized_cluster_size = 0.0
+        if CLUSTERIZATION_MAX_VALUE > 0:
+            normalized_cluster_size = min(cluster_size / CLUSTERIZATION_MAX_VALUE, 1.0)
 
-        cluster_size = len(cluster) - 1 
-        # return a weighted comparisson where urgency + impact is primary and size is secondary
-        CLUSTERIZATION_MAX_VALUE = 10 # 10 or more clusters should be considered full size
-       
-        normalized_cluster_size = min(cluster_size / CLUSTERIZATION_MAX_VALUE if CLUSTERIZATION_MAX_VALUE > 0 else 0, 1.0) # normalize to 0-1 scale and cap at 1.0
+        normalized_base = (decayed_urgency + impact_raw) / 200.0
+        normalized_base = max(0.0, min(normalized_base, 1.0))
 
-        # normalize sum of urgency + impact to 0-1 scale
-        normalized_urgency_impact_score = (urgency + impact) / 200.0  # max is 100 + 100 = 200
+        user_similarity = float(main_article.get('user_similarity') or 0.0)
+        user_similarity_bonus = user_similarity * 0.4
+        normalized_with_similarity = max(0.0, min(normalized_base + user_similarity_bonus, 1.0))
 
-        
-        # user similarity bonus (if available in main article)
-        user_similarity = main_article.get('user_similarity', 0.0) # this value is between -1 and 1
-        if user_similarity > 0:
-            normalized_urgency_impact_score += user_similarity * 0.2  # add up to 0.2 bonus for positive similarity
-            normalized_urgency_impact_score = min(normalized_urgency_impact_score, 1.0)  # cap at 1.0
+        # TODO: reivew and integrate rank_score properly
+        # rank_score = main_article.get('rank_score')
+        # rank_component_raw = 0.0
+        # rank_component_scaled = 0.0
+        # if rank_score is not None:
+        #     try:
+        #         rank_component_raw = (math.tanh(float(rank_score)) + 1.0) / 2.0
+        #     except (TypeError, ValueError):
+        #         rank_component_raw = 0.0
+        #     rank_component_scaled = rank_component_raw * 0.2
+        # normalized_with_rank = max(0.0, min(normalized_with_similarity + rank_component_scaled, 1.0))
+        normalized_with_rank = normalized_with_similarity
 
-        
-        urgency_impact_weighted = normalized_urgency_impact_score * 0.7
-        cluster_size_weighted = normalized_cluster_size * 0.3 if cluster_size > 0 else 0
-        score = urgency_impact_weighted + cluster_size_weighted 
+        urgency_impact_weight = 0.7
+        cluster_size_weight = 0.3
+        urgency_impact_weighted = normalized_with_rank * urgency_impact_weight
+        cluster_size_weighted = normalized_cluster_size * cluster_size_weight if cluster_size > 0 else 0.0
+        final_score = urgency_impact_weighted + cluster_size_weighted
 
+        return {
+            "main_article_id": main_article.get('id'),
+            "published_at": main_article.get('published_at'),
+            "urgency_raw": urgency_raw,
+            "impact_raw": impact_raw,
+            "decayed_urgency": decayed_urgency,
+            "decay": decay,
+            "user_similarity": user_similarity,
+            "user_similarity_bonus": user_similarity_bonus,
+            "rank_score": 0, #float(rank_score) if rank_score is not None else None,
+            "rank_component_raw": 0, #rank_component_raw,
+            "rank_component_scaled": 0, #rank_component_scaled,
+            "normalized_base": normalized_base,
+            "normalized_with_similarity": normalized_with_similarity,
+            "normalized_with_rank": normalized_with_rank,
+            "urgency_impact_weighted": urgency_impact_weighted,
+            "cluster_size": cluster_size,
+            "normalized_cluster_size": normalized_cluster_size,
+            "cluster_size_weighted": cluster_size_weighted,
+            "final_score": final_score,
+            "weights": {
+                "urgency_impact_weight": urgency_impact_weight,
+                "cluster_size_weight": cluster_size_weight,
+                "user_similarity_bonus_scale": 0.2,
+                "rank_component_scale": 0.2,
+                "decay_days": decay_days,
+                "cluster_size_normalization_limit": CLUSTERIZATION_MAX_VALUE,
+            },
+        }
 
-        # print all relevant information regarding all calculations above, using line breaks for clarity
+    def get_cluster_sort_key(self, cluster, verbose=False):
+        components = self.calculate_cluster_score_components(cluster)
+        if components is None:
+            default_key = (
+                float("inf"),
+                float("inf"),
+                float("inf"),
+                float("inf"),
+                float("inf"),
+                float("inf"),
+                "",
+            )
+            return default_key
+
         if verbose:
-            self.logger.debug(f"Cluster main article ID: {main_article['id']} - Score: {score:.4f}")
-            self.logger.debug(f" Urgency raw: {urgency_raw}, published At: {main_article.get('published_at')}, Decay: {decay:.4f}, Decayed Urgency: {urgency:.4f}")
-            self.logger.debug(f" Impact raw: {impact_raw}")
-            self.logger.debug(f" User Similarity: {user_similarity:.4f}, adding to Urgency+Impact: {user_similarity * 0.2:.4f}")
-            self.logger.debug(f" Normalized Urgency+Impact+similarity Score: {normalized_urgency_impact_score:.4f}, Weighted: {urgency_impact_weighted:.4f}")
-            self.logger.debug(f" Cluster size: {cluster_size}, Normalized Size: {normalized_cluster_size:.4f}, Weighted Size: {cluster_size_weighted:.4f}")
-            self.logger.debug(f" {urgency_impact_weighted:.4f} + {cluster_size_weighted:.4f} = Total Score: {score:.4f}")
-        return -score
+            self.logger.debug(
+                f"Cluster main article ID: {components['main_article_id']} - Score: {components['final_score']:.4f}"
+            )
+            self.logger.debug(
+                f" Urgency raw: {components['urgency_raw']}, published At: {components['published_at']}, "
+                f"Decay: {components['decay']:.4f}, Decayed Urgency: {components['decayed_urgency']:.4f}"
+            )
+            self.logger.debug(f" Impact raw: {components['impact_raw']}")
+            self.logger.debug(
+                " User Similarity: {:.4f}, adding to Urgency+Impact: {:.4f}".format(
+                    components['user_similarity'],
+                    components['user_similarity_bonus'],
+                )
+            )
+            rank_score_display = components['rank_score'] if components['rank_score'] is not None else 0.0
+            self.logger.debug(
+                " Rank Score: {:.4f}, Rank component: {:.4f}".format(
+                    rank_score_display,
+                    components['rank_component_scaled'],
+                )
+            )
+            self.logger.debug(
+                " Normalized Urgency+Impact+similarity Score: {:.4f}, Weighted: {:.4f}".format(
+                    components['normalized_with_rank'],
+                    components['urgency_impact_weighted'],
+                )
+            )
+            self.logger.debug(
+                " Cluster size: {}, Normalized Size: {:.4f}, Weighted Size: {:.4f}".format(
+                    components['cluster_size'],
+                    components['normalized_cluster_size'],
+                    components['cluster_size_weighted'],
+                )
+            )
+            self.logger.debug(
+                " {:.4f} + {:.4f} = Total Score: {:.4f}".format(
+                    components['urgency_impact_weighted'],
+                    components['cluster_size_weighted'],
+                    components['final_score'],
+                )
+            )
+        rank_score_value = components['rank_score'] if components['rank_score'] is not None else float('-inf')
+        combined_urgency_impact = components['urgency_raw'] + components['impact_raw']
+        published_at_ms = self._parse_published_at_to_milliseconds(components['published_at'])
+        cluster_size = components['cluster_size']
+
+        return (
+            -components['final_score'],
+            -rank_score_value,
+            -components['user_similarity'],
+            -combined_urgency_impact,
+            -cluster_size,
+            -published_at_ms,
+            components['main_article_id'] or "",
+        )
 
     def sort_clusters(self, clusters, limit=None):
         sorted_clusters = sorted(clusters, key=self.get_cluster_sort_key)
@@ -439,10 +541,16 @@ class NewsCurator:
         user_embedding = None
         try:
             user_embedding = self.db_service.get_user_embedding(email_address)
+            if user_embedding is None:
+                user_embedding = self.clusterer.update_user_embedding(email_address)
         except Exception:
             user_embedding = None
 
-        # If user embedding and article embeddings are available, rank by similarity
+        # Collect feature vectors for LTR scoring per article
+        article_features = {}
+        user_ranker = UserRanker(self.db_service)
+
+        # If user embedding and article embeddings are available, compute similarity
         if user_embedding is not None and len(articles) > 0:
             # Get all article embeddings and ids
             all_embeddings, all_ids = self.db_service.get_all_article_embeddings()
@@ -452,16 +560,38 @@ class NewsCurator:
             for a in articles:
                 emb = id_to_emb.get(a['id'])
                 if emb is not None:
-                    # Cosine similarity
                     sim = float(np.dot(user_embedding, emb) / (np.linalg.norm(user_embedding) * np.linalg.norm(emb) + 1e-8))
                     a['user_similarity'] = sim
+                    feature_vec = build_feature_vector(
+                        article=a,
+                        user_embedding=user_embedding,
+                        article_embedding=emb,
+                        reference_time=end_date
+                    )
+                    article_features[a['id']] = feature_vec
                 else:
                     a['user_similarity'] = 0.0
-        
+                    feature_vec = build_feature_vector(article=a, reference_time=end_date)
+                    article_features[a['id']] = feature_vec
+        else:
+            for a in articles:
+                feature_vec = build_feature_vector(article=a, reference_time=end_date)
+                article_features[a['id']] = feature_vec
+
+        # Apply personalized ranking scores
+        for article in articles:
+            feature_vec = article_features.get(article['id'])
+            if feature_vec is not None:
+                article['rank_score'] = user_ranker.score(email_address, feature_vec)
+            else:
+                article['rank_score'] = 0.0
+
+        # Sort articles using the unified cluster sort key logic (treat each as a single-article cluster)
+        articles.sort(key=lambda article: self.get_cluster_sort_key([article]))
+
         clustered_curated_articles = []
         category_counts = defaultdict(int)
         used_article_ids = set()
-        clusterer = ArticleClusterer()
 
         for article in articles:
             if article['id'] in used_article_ids:
@@ -485,7 +615,7 @@ class NewsCurator:
                 try:
                     # date threshold is start_date minus 1 day to allow for more similar articles
                     date_threshold = start_date - timedelta(days=1)
-                    similar = clusterer.get_similar_articles(
+                    similar = self.clusterer.get_similar_articles(
                         article['id'],
                         enabled_source_ids,
                         top_k=int(os.getenv("CLUSTERIZATION_TOP_K", 20)),
@@ -507,10 +637,21 @@ class NewsCurator:
         
         clustered_curated_articles = self.sort_clusters(clustered_curated_articles)
 
+        # Attach feature metadata so the API can return it for LTR debugging
+        for cluster in clustered_curated_articles:
+            for article in cluster:
+                feature_vec = article_features.get(article['id'])
+                if feature_vec is not None:
+                    article['ltr_features'] = feature_vec.tolist()
+                else:
+                    article['ltr_features'] = None
+
         self.logger.debug(f"Curated {len(clustered_curated_articles)} clusters for user {email_address}")
         if self.logger.isEnabledFor(logging.DEBUG):
             for cluster in clustered_curated_articles:
-                self.logger.debug(f"Cluster: {[article['id'] for article in cluster]} - score: {self.get_cluster_sort_key(cluster, verbose=True):.4f}")
+                sort_key = self.get_cluster_sort_key(cluster, verbose=True)
+                final_score = -sort_key[0]
+                self.logger.debug(f"Cluster: {[article['id'] for article in cluster]} - score: {final_score:.4f}")
                 for article in cluster:
                     self.logger.debug(f" - Article {article['id']}: Urgency {article.get('urgency_score', 0)}, Impact {article.get('impact_score', 0)}, Similarity {article.get('user_similarity', 0):.4f}, Category: {article.get('category', 'N/A')}, Title: {article.get('title_pt', '')[:20]}...")
                 self.logger.debug("\n")
