@@ -14,15 +14,15 @@
         .content {
             max-width: 628px;
             margin: 0 auto;
-            padding: 16px 28px 16px 0px;
+            padding: 16px 28px 16px 0;
         }
 
         .category {
-            margin: 24px 0 12px 0;
+            margin: 24px 0 12px;
             font-size: 18px;
             font-weight: bold;
-            color: #black;
-            padding-bottom: 0px;
+            color: #000;
+            padding-bottom: 0;
         }
 
         .main-news-section {
@@ -30,7 +30,7 @@
         }
 
         .main-news-title {
-            margin: 24px 0 16px 0;
+            margin: 24px 0 16px;
             font-size: 20px;
             font-weight: bold;
             color: #0a97f5;
@@ -55,7 +55,7 @@
         }
 
         .category-links-title {
-            margin: 24px 0 16px 0;
+            margin: 24px 0 16px;
             font-size: 18px;
             font-weight: bold;
             color: #333;
@@ -131,8 +131,7 @@
         }
 
         .view-more-related {
-            margin-top: 8px;
-            margin-left: 16px;
+            margin: 8px 0 0 16px;
         }
 
         .view-more-related a {
@@ -156,7 +155,7 @@
         .view-more-button a {
             display: inline-block;
             background-color: #0a97f5;
-            color: white;
+            color: #fff;
             text-decoration: none;
             padding: 12px 24px;
             border-radius: 6px;
@@ -170,24 +169,21 @@
             background-color: #0878d1;
         }
 
-        .feedback-actions {}
-
-        .feedback-chip {
+        .feedback-chip,
+        .feedback-chip-small {
             display: inline-block;
             border-radius: 6px;
-            padding: 6px 8px;
             text-decoration: none;
             line-height: 0;
             vertical-align: top;
         }
 
+        .feedback-chip {
+            padding: 6px 8px;
+        }
+
         .feedback-chip-small {
-            display: inline-block;
-            border-radius: 6px;
             padding: 4px 6px;
-            text-decoration: none;
-            line-height: 0;
-            vertical-align: top;
         }
 
         .feedback-chip-tiny {
@@ -198,10 +194,6 @@
             line-height: 0;
             vertical-align: middle;
         }
-
-        .feedback-chip-positive {}
-
-        .feedback-chip-negative {}
 
         .feedback-chip:hover,
         .feedback-chip-small:hover {
@@ -216,6 +208,28 @@
         .feedback-hint {
             font-size: 11px;
             color: #9ca3af;
+        }
+
+        .feedback-chip img,
+        .feedback-chip-small img {
+            display: block;
+        }
+
+        .align-top {
+            vertical-align: top;
+        }
+
+        .vote-cell {
+            width: 28px;
+        }
+
+        .category-vote-cell {
+            width: 48px;
+            white-space: nowrap;
+        }
+
+        .category-link {
+            margin-bottom: 6px;
         }
 
         /* Mobile optimizations */
@@ -242,7 +256,7 @@
 
         .sub-header {
             max-width: 600px;
-            margin: 0 auto 16px auto;
+            margin: 0 auto 16px;
             padding: 0 16px;
             text-align: center;
         }
@@ -259,14 +273,12 @@
             width="200">
     </div>
     <div class="sub-header">
-    <div class="feedback-hint"> Use <span title="{{feedback.tooltip_positive}}">
+        <div class="feedback-hint"> Use <span title="{{feedback.tooltip_positive}}">
             <img class="feedback-chip-tiny feedback-chip-positive"
-        src="{{base_url}}/keyboard_arrow_up_24dp_000000.png" alt="" width="10"
-                style="display:inline-block;"></span>
+    src="{{base_url}}/keyboard_arrow_up_24dp_000000.png" alt="" width="10"></span>
             <span title="{{feedback.tooltip_negative}}">
             <img class="feedback-chip-tiny feedback-chip-negative"
-        src="{{base_url}}/keyboard_arrow_down_24dp_000000.png" alt="" width="10"
-                style="display:inline-block;"></span> e treine o algoritmo para entregar as melhores noticias para você.
+    src="{{base_url}}/keyboard_arrow_down_24dp_000000.png" alt="" width="10"></span> e treine o algoritmo para entregar as melhores noticias para você.
         </div>
     </div>
     <div class="content">
@@ -277,16 +289,14 @@
             <div class="cluster">
                 <table>
                     <tbody>
-                        <td style="vertical-align: top; width: 28px;">
+                        <td class="align-top vote-cell">
                             <a class="feedback-chip feedback-chip-positive" href="{{feedback.positive_url}}" target="_blank" rel="noopener noreferrer"
                                 title="{{feedback.tooltip_positive}}" aria-label="{{feedback.tooltip_positive}}"><img
-                                    src="{{../base_url}}/keyboard_arrow_up_24dp_000000.png" alt="" width="12"
-                                    style="display:block;"></a><a class="feedback-chip feedback-chip-negative" href="{{feedback.negative_url}}" target="_blank" rel="noopener noreferrer"
+                                    src="{{../base_url}}/keyboard_arrow_up_24dp_000000.png" alt="" width="12"></a><a class="feedback-chip feedback-chip-negative" href="{{feedback.negative_url}}" target="_blank" rel="noopener noreferrer"
                                 title="{{feedback.tooltip_negative}}" aria-label="{{feedback.tooltip_negative}}"><img
-                                    src="{{../base_url}}/keyboard_arrow_down_24dp_000000.png" alt="" width="12"
-                                    style="display:block;"></a>
+                                    src="{{../base_url}}/keyboard_arrow_down_24dp_000000.png" alt="" width="12"></a>
                         </td>
-                        <td class="summary" style="vertical-align: top;">
+                        <td class="summary align-top">
                             <span class="title">{{main_article.preferred_title}}:</span>
                             {{main_article.preferred_summary}} <a
                                 href="{{main_article.wrapped_url}}">[{{main_article.source}}]</a>
@@ -323,20 +333,19 @@
             {{#each category_links}}
             <div class="category">Outras em {{category_name}}</div>
             {{#each articles}}
-            <div style="margin-bottom: 6px">
+            <div class="category-link">
                 <table>
                     <tbody>
                         <tr>
-                            <td style="vertical-align: top; width: 48px; white-space: nowrap;">
+                            <td class="align-top category-vote-cell">
                                 <a class="feedback-chip-small feedback-chip-positive" href="{{feedback.positive_url}}" target="_blank" rel="noopener noreferrer"
                                     title="{{feedback.tooltip_positive}}" aria-label="{{feedback.tooltip_positive}}"><img
-                                        src="{{../../base_url}}/keyboard_arrow_up_24dp_000000.png" alt="" width="10"
-                                        style="display:block;"></a><a class="feedback-chip-small feedback-chip-negative" href="{{feedback.negative_url}}" target="_blank" rel="noopener noreferrer"
+                                        src="{{../../base_url}}/keyboard_arrow_up_24dp_000000.png" alt="" width="10"></a><a class="feedback-chip-small feedback-chip-negative" href="{{feedback.negative_url}}" target="_blank" rel="noopener noreferrer"
                                     title="{{feedback.tooltip_negative}}" aria-label="{{feedback.tooltip_negative}}"><img
                                         src="{{../../base_url}}/keyboard_arrow_down_24dp_000000.png" alt=""
-                                        width="10" style="display:block;"></a>
+                                        width="10"></a>
                             </td>
-                            <td class="category-link-item" style="vertical-align: top;">
+                            <td class="category-link-item align-top">
                                 <a href="{{../../base_url}}/news/{{article_id}}">{{preferred_title}}</a>
                                 {{#if similar_news_count}}
                                 <span class="cluster-number-info">[+{{similar_news_count}} similares]</span>

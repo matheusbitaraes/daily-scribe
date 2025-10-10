@@ -17,3 +17,4 @@ PyJWT>=2.0.0
 resend
 elasticsearch>=8.11.0
 elasticsearch-dsl>=8.11.0
+htmlmin>=0.1.12

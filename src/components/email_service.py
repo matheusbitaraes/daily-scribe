@@ -13,6 +13,10 @@ from urllib.parse import urlencode
 from .database import DatabaseService
 from .security.token_manager import SecureTokenManager
 from .digest_builder import DigestBuilder
+from utils.html_minifier import minify_html
+
+
+MAX_EMAIL_HTML_BYTES = int(os.getenv("MAX_EMAIL_HTML_BYTES", 95_000))
 
 logger = logging.getLogger(__name__)
 
@@ -204,6 +208,25 @@ class EmailService:
                 max_clusters=20,
                 base_url=self.base_url
             )
+            original_length = len(digest_html.encode("utf-8"))
+            digest_html = minify_html(digest_html)
+            minified_length = len(digest_html.encode("utf-8"))
+
+            if minified_length >= MAX_EMAIL_HTML_BYTES:
+                logger.warning(
+                    "Digest HTML length after minification is %s bytes (threshold=%s). Original was %s bytes."
+                    " Consider reducing content to avoid email clipping.",
+                    minified_length,
+                    MAX_EMAIL_HTML_BYTES,
+                    original_length
+                )
+            else:
+                logger.info(
+                    "Digest HTML minified successfully: original=%s bytes, minified=%s bytes (threshold=%s)",
+                    original_length,
+                    minified_length,
+                    MAX_EMAIL_HTML_BYTES,
+                )
             
             return {
                 "html_content": digest_html,
@@ -224,12 +247,22 @@ class EmailService:
             logger.error(f"Error building digest with preferences for {email_address}: {e}")
             # Fallback to basic digest without preference button
             digest_builder = DigestBuilder()
+            fallback_html = digest_builder.build_html_digest(
+                clustered_summaries=clustered_summaries,
+                max_clusters=20,
+                base_url=self.base_url
+            )
+
+            minified_fallback = minify_html(fallback_html)
+            fb_length = len(minified_fallback.encode("utf-8"))
+            if fb_length >= MAX_EMAIL_HTML_BYTES:
+                logger.warning(
+                    "Fallback digest HTML length after minification is %s bytes (threshold=%s).",
+                    fb_length,
+                    MAX_EMAIL_HTML_BYTES,
+                )
             return {
-                "html_content": digest_builder.build_html_digest(
-                    clustered_summaries=clustered_summaries,
-                    max_clusters=20,
-                    base_url=self.base_url
-                ),
+                "html_content": minified_fallback,
                 "preference_token": None,
                 "unsubscribe_token": None,
                 "email_address": email_address,
