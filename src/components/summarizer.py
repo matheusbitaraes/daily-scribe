@@ -16,15 +16,15 @@ from typing import List, Dict, Any
 
 class NewsMetadata(BaseModel):
     summary: str = Field(description="Summarize the following text in approximately 40 to 100 words and DO IT ALWAYS IN THE ORIGINAL LANGUAGE OF THE ARTICLE (LIMITED TO ENGLISH OR BRAZILIAN PORTUGUESE).")
-    summary_pt: str = Field(description="Summarize the following text in approximately 40 to 100 words and DO IT ALWAYS IN PORTUGUESE, no matter the original language of the article.")
-    title_pt: str = Field(description="Translate the title of the article to Portuguese. If the original title is already in Portuguese, repeat it exactly as is.")
+    summary_pt: str = Field(description="Summarize the following text in approximately 40 to 100 words and DO IT ALWAYS IN PORTUGUESE, no matter the original language of the article. Make the summary as a news article summary. Don't repeat information that is present in the title. Make it concise and interesting")
+    title_pt: str = Field(description="Translate the title of the article to Portuguese. If the original title is already in Portuguese, repeat it exactly as is. Attention: don't make the title will all words in capital leters. Example, instead of 'Dólar Atinge Nível Mais Alto Devido à China', do 'Dólar atinge nível mais alto devido à China")
     sentiment: str = Field(description="The overall sentiment of the article (Positive, Negative, Neutral).")
     keywords: List[str] = Field(description="A list of key people, organizations, or locations mentioned.")
     category: str = Field(description="The main category of the news. Select one of those options: 'Politics', 'Technology', 'Science and Health', 'Business', 'Entertainment', 'Sports'. Use the category 'Other' if none of the options fit.")
     region: str = Field(description="The primary geographical place the news is about (e.g., Brazil, USA, Europe, Asia).")
     urgency_score: int = Field(description="Rate the urgency of this news on a scale of 0-100. 0-20=Evergreen (timeless content), 21-40=Long-Term (relevant for weeks/months), 41-60=Topical (recent events, follow-up), 61-80=Time-Sensitive (urgent, needs attention within days), 81-100=Breaking News (happening now or just occurred).")
     impact_score: int = Field(description="Rate the impact of this news on a scale of 0-100. 0-20=Minor Update (very low impact, small number of people), 21-40=Niche Impact (significant to specific community), 41-60=Moderate Impact (affects large community), 61-80=Significant Impact (major consequences for region/country/industry), 81-100=Major Development (landmark event with profound consequences).")
-    subject_pt: str = Field(description="Create a very short 2-3 word phrase in Portuguese that can be used as part of an email subject line to represent this news headline. Make a cohesive very small phrase that captures the essence of the news.")
+    subject_pt: str = Field(description="Create a very short 2-4 word phrase in Portuguese that can be used as part of an email subject line to represent this news headline. Make a cohesive very small phrase that captures the essence of the news. You can use prepositions, they don't count. So, intead of 'Conflito Gaza', you should use 'Conflito em Gaza'")
 
 class Summarizer:
     """Handles summarizing text using the Gemini API and OpenAI API."""
