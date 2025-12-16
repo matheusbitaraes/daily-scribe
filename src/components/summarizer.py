@@ -49,26 +49,32 @@ class Summarizer:
         # Store quota exceeded status for each model in a dict
         self._quota_exceeded = {
             # Gemini models
-            'gemini-2.5-pro': True, # not using pro for now
             'gemini-2.5-flash': False,
             'gemini-2.5-flash-lite': False,
             'gemini-2.0-flash': False,
             'gemini-2.0-flash-lite': False,
+            'gemini-2.5-flash-preview-09-2025': False,
+            'gemini-2.0-flash-001': False,
+            'gemini-3-pro-preview': False,
+            'gemini-2.5-pro': False, 
             # OpenAI models
+            'gpt-5-nano': False,
+            'gpt-4.1-nano': False,
             'gpt-4o-mini': False,
-            'gpt-4o': False,
-            'gpt-3.5-turbo': False,
         }
         # List of model names in order of preference (mix of Gemini and OpenAI)
         self._model_order = [
             'gemini-2.0-flash-lite',
             'gemini-2.5-flash-lite',
+            'gemini-2.5-flash-preview-09-2025',
             'gemini-2.0-flash',
+            'gemini-2.0-flash-001',
             'gemini-2.5-flash',
             'gemini-2.5-pro',
+            'gemini-3-pro-preview',
+            'gpt-5-nano',
+            'gpt-4.1-nano',
             'gpt-4o-mini',
-            'gpt-3.5-turbo',
-            'gpt-4o',
         ]
         # Track per-minute rate limit for each model
         self._rate_limited_until = {model: None for model in self._model_order}
