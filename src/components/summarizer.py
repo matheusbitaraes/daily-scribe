@@ -49,11 +49,11 @@ class Summarizer:
         # Store quota exceeded status for each model in a dict
         self._quota_exceeded = {
             # Gemini models
+            'gemini-3-flash-preview': False,
             'gemini-2.5-flash': False,
             'gemini-2.5-flash-lite': False,
             'gemini-2.0-flash': False,
             'gemini-2.0-flash-lite': False,
-            'gemini-2.5-flash-preview-09-2025': False,
             'gemini-2.0-flash-001': False,
             'gemini-3-pro-preview': False,
             'gemini-2.5-pro': False, 
@@ -64,9 +64,9 @@ class Summarizer:
         }
         # List of model names in order of preference (mix of Gemini and OpenAI)
         self._model_order = [
+            'gemini-3-flash-preview',
             'gemini-2.0-flash-lite',
             'gemini-2.5-flash-lite',
-            'gemini-2.5-flash-preview-09-2025',
             'gemini-2.0-flash',
             'gemini-2.0-flash-001',
             'gemini-2.5-flash',
@@ -234,6 +234,16 @@ class Summarizer:
             {"role": "system", "content": f"{prompt_prefix}. Follow the JSON schema exactly and return only JSON, no prose."},
             {"role": "user", "content": text}
         ]
+
+        def _token_params_for_model(name: str, max_tokens_value: int = 1000) -> Dict[str, Any]:
+            """
+            Return the correct token parameter dict for the given model.
+            Newer OpenAI gpt-5* models require max_completion_tokens
+            instead of max_tokens.
+            """
+            if name.startswith("gpt-5"):
+                return {"max_completion_tokens": max_tokens_value}
+            return {"max_tokens": max_tokens_value}
         
         for attempt in range(max_retries):
             try:
@@ -250,7 +260,7 @@ class Summarizer:
                         }
                     },
                     temperature=0.1,
-                    max_tokens=1000
+                    **_token_params_for_model(model_name, 1000),
                 )
                 
                 content = response.choices[0].message.content
@@ -287,7 +297,7 @@ class Summarizer:
                             messages=fallback_messages,
                             response_format={"type": "json_object"},
                             temperature=0.1,
-                            max_tokens=1000
+                            **_token_params_for_model(model_name, 1000),
                         )
                         content = response.choices[0].message.content
                         if content:
