@@ -244,7 +244,7 @@ class Summarizer:
             """
             params = {}
             if name.startswith("gpt-5"):
-                params["max_completion_tokens"] = max_tokens_value
+                params["max_completion_tokens"] = max_tokens_value * 10
             else:
                 params["max_tokens"] = max_tokens_value
                 params["temperature"] = 0.1
@@ -268,16 +268,24 @@ class Summarizer:
                 )
                 
                 content = response.choices[0].message.content
+                refusal = getattr(response.choices[0].message, 'refusal', None)
+
+                if refusal:
+                    self.logger.warning(f"[{model_name}] Model refused: {refusal}")
+                    break
+
                 if content:
                     try:
                         import json
                         result = json.loads(content)
-                        # Validate against schema
                         validated = schema_class(**result)
                         return validated.model_dump()
                     except Exception as parse_exc:
-                        self.logger.error(f"Failed to parse OpenAI response as JSON or validate schema: {parse_exc}")
+                        self.logger.error(f"[{model_name}] Failed to parse/validate response: {parse_exc}. Content: {content[:200]}")
                         continue
+                else:
+                    self.logger.warning(f"[{model_name}] Empty content in response. Full message: {response.choices[0].message}")
+                    break
                         
             except Exception as e:
                 error_message = str(e)
