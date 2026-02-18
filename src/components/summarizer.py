@@ -235,15 +235,20 @@ class Summarizer:
             {"role": "user", "content": text}
         ]
 
-        def _token_params_for_model(name: str, max_tokens_value: int = 1000) -> Dict[str, Any]:
+        def _get_openai_params_for_model(name: str, max_tokens_value: int = 1000) -> Dict[str, Any]:
             """
-            Return the correct token parameter dict for the given model.
-            Newer OpenAI gpt-5* models require max_completion_tokens
-            instead of max_tokens.
+            Return the correct parameters dict for OpenAI API calls based on the model.
+            Newer OpenAI gpt-5* models require:
+            - max_completion_tokens instead of max_tokens
+            - temperature parameter omitted (uses default value of 1)
             """
+            params = {}
             if name.startswith("gpt-5"):
-                return {"max_completion_tokens": max_tokens_value}
-            return {"max_tokens": max_tokens_value}
+                params["max_completion_tokens"] = max_tokens_value
+            else:
+                params["max_tokens"] = max_tokens_value
+                params["temperature"] = 0.1
+            return params
         
         for attempt in range(max_retries):
             try:
@@ -259,8 +264,7 @@ class Summarizer:
                             "strict": True
                         }
                     },
-                    temperature=0.1,
-                    **_token_params_for_model(model_name, 1000),
+                    **_get_openai_params_for_model(model_name, 1000),
                 )
                 
                 content = response.choices[0].message.content
@@ -296,8 +300,7 @@ class Summarizer:
                             model=model_name,
                             messages=fallback_messages,
                             response_format={"type": "json_object"},
-                            temperature=0.1,
-                            **_token_params_for_model(model_name, 1000),
+                            **_get_openai_params_for_model(model_name, 1000),
                         )
                         content = response.choices[0].message.content
                         if content:
