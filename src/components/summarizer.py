@@ -58,7 +58,7 @@ class Summarizer:
             'gemini-3-pro-preview': False,
             'gemini-2.5-pro': False, 
             # OpenAI models
-            'gpt-5-nano': False,
+            'gpt-5-nano': True, # this model does not work well
             'gpt-4.1-nano': False,
             'gpt-4o-mini': False,
         }
