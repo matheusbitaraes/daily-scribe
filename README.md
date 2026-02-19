@@ -105,8 +105,11 @@ The application uses a `config.json` file for configuration. Here's the structur
 The following environment variables are supported for configuration:
 
 ### Required Environment Variables
-- `GEMINI_API_KEY`: Your Gemini API key for content summarization
+- `GEMINI_API_KEY`: Your Gemini API key for content summarization (or another LLM provider key)
 - `SMTP_PASSWORD`: SMTP password for email delivery
+
+### LLM Summarization (Multi-Provider)
+The summarizer uses LiteLLM with automatic failover. Free-tier providers are tried first; OpenAI (paid) is used last. At least one of: `GEMINI_API_KEY`, `GROQ_API_KEY`, `DEEPSEEK_API_KEY`, `OPENROUTER_API_KEY`, `OLLAMA_HOST`, or `OPENAI_API_KEY` is required. See `.env.example` for optional free-tier keys.
 
 ### Optional Environment Variables
 - `DB_PATH`: Path to SQLite database file (default: `data/digest_history.db`)

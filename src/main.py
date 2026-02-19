@@ -285,7 +285,7 @@ def summarize_articles_command(config_path: Optional[str] = typer.Option(None, "
     Summarize articles that have been fetched and stored.
     """
     setup_cli_logging()
-    summarize_articles(config_path)
+    summarize_articles()
 
 
 @app.command(name="send-digest")

@@ -28,7 +28,13 @@ jwt_secret = get_jwt_secret_key()
 - `JWT_SECRET_KEY`: Secret key for signing JWT tokens used in unsubscribe and preference management
 
 ### API Keys
-- `GEMINI_API_KEY`: API key for Google Gemini AI service
+- `GEMINI_API_KEY`: API key for Google Gemini AI service (primary free-tier summarization)
+- `OPENAI_API_KEY`: API key for OpenAI (optional, used as paid fallback when free tiers are exhausted)
+- `GROQ_API_KEY`: (Optional) Groq API key for high-speed free-tier models (e.g. Llama 3.3 70B)
+- `DEEPSEEK_API_KEY`: (Optional) DeepSeek API key for free-tier fallback
+- `OPENROUTER_API_KEY`: (Optional) OpenRouter API key for 30+ free models as meta fallback
+- `OLLAMA_HOST`: (Optional) URL for local Ollama instance (e.g. `http://localhost:11434`) for offline fallback
+- `LLM_MODEL_OVERRIDE`: (Optional) Override model for testing (e.g. `ollama/llama3.1`)
 - `SMTP_PASSWORD`: Password for email SMTP authentication
 
 ### Database
