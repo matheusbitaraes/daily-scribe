@@ -36,10 +36,8 @@ def get_model_config() -> Tuple[str, List[str]]:
             "openrouter/z-ai/glm-4.5-air:free",
             "openrouter/deepseek/deepseek-r1-0528:free",
             "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
-            "openrouter/qwen/qwen3-235b-a22b-thinking-2507",
             "openrouter/openai/gpt-oss-120b:free",
             "openrouter/arcee-ai/trinity-mini:free",
-            "openrouter/qwen/qwen3-vl-235b-a22b-thinking",
         ]
         # "openrouter/meta-llama/llama-3.3-70b-instruct:free"
             
