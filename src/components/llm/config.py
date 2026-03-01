@@ -40,14 +40,14 @@ def get_model_config() -> Tuple[str, List[str]]:
             "openrouter/openai/gpt-oss-120b:free",
             "openrouter/arcee-ai/trinity-mini:free",
             "openrouter/qwen/qwen3-vl-235b-a22b-thinking",
-            #  "openrouter/arcee-ai/trinity-large-preview:free", # this model didn't work well
         ]
+        # "openrouter/meta-llama/llama-3.3-70b-instruct:free"
             
         if primary is None:
             primary = openrouter_models[0]
-            fallbacks.append(openrouter_models[1:])
+            fallbacks.extend(openrouter_models[1:])
         else:
-            fallbacks.append(openrouter_models)
+            fallbacks.extend(openrouter_models)
 
     #Tier 1: Gemini models (free)
     if os.getenv("GEMINI_API_KEY"):
@@ -102,4 +102,6 @@ def get_model_config() -> Tuple[str, List[str]]:
             "OPENROUTER_API_KEY, OLLAMA_HOST, OPENAI_API_KEY"
         )
 
-    return primary, fallbacks
+    # Guard against accidental nested fallback entries.
+    normalized_fallbacks = [model for model in fallbacks if isinstance(model, str)]
+    return primary, normalized_fallbacks
