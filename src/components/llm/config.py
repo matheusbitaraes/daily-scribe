@@ -31,11 +31,11 @@ def get_model_config() -> Tuple[str, List[str]]:
         openrouter_models = [
             "openrouter/deepseek/deepseek-r1-0528:free",
             "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
-            "openrouter/openai/gpt-oss-120b:free",
-            "openrouter/arcee-ai/trinity-mini:free",
+            "openrouter/nvidia/nvidia/nemotron-nano-12b-v2-vl:free",
+            "openrouter/nvidia/nemotron-nano-9b-v2:free",
+            "openrouter/mistralai/mistral-small-3.1-24b-instruct:free",
         ]
-
-        #    "openrouter/nvidia/nemotron-nano-9b-v2:free",
+        #    "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
         #     "openrouter/stepfun/step-3.5-flash:free",
         #     "openrouter/z-ai/glm-4.5-air:free",
             
@@ -49,10 +49,10 @@ def get_model_config() -> Tuple[str, List[str]]:
     if os.getenv("GEMINI_API_KEY"):
         gemini_models = [
             "gemini/gemini-2.5-flash",
-            "gemini/gemini-2.5-flash-lite",
-            "gemini/gemini-2.0-flash",
-            "gemini/gemini-2.0-flash-lite",
-            "gemini/gemini-2.0-flash-001",
+            # "gemini/gemini-2.5-flash-lite",
+            # "gemini/gemini-2.0-flash",
+            # "gemini/gemini-2.0-flash-lite",
+            # "gemini/gemini-2.0-flash-001",
         ]
         if primary is None:
             primary = gemini_models[0]
