@@ -9,7 +9,7 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  # Docker container logs
+  # Docker container logs (all containers)
   - job_name: containers
     static_configs:
       - targets:
@@ -40,6 +40,11 @@ scrape_configs:
           container_name:
       - output:
           source: output
+      # Extract log level from Python log format: "YYYY-MM-DD HH:MM:SS,mmm - logger - LEVEL - message"
+      - regex:
+          expression: '^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+\s+-\s+\S+\s+-\s+(?P<level>[A-Z]+)\s+-'
+      - labels:
+          level:
 
   # System logs
   - job_name: syslog
@@ -62,16 +67,7 @@ scrape_configs:
       - output:
           source: message
 
-  # Docker daemon logs (alternative way to get container logs)
-  - job_name: docker-daemon
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: dockerlogs
-          __path__: /var/log/docker.log
-
-  # Individual cron job logs
+  # Cron job log pipeline (shared stages definition reused per job below)
   - job_name: send-digest-logs
     static_configs:
       - targets:
@@ -135,14 +131,14 @@ scrape_configs:
       - output:
           source: message
 
-  - job_name: cleanup-logs
+  - job_name: disk-cleanup-logs
     static_configs:
       - targets:
           - localhost
         labels:
           job: cronlogs
-          cronjob: cleanup
-          __path__: /mnt/cron-logs/cleanup.log
+          cronjob: disk-cleanup
+          __path__: /mnt/cron-logs/disk-cleanup.log
 
     pipeline_stages:
       - regex:
@@ -156,21 +152,14 @@ scrape_configs:
       - output:
           source: message
 
-  # Alternative container log collection using docker inspect
-  - job_name: daily-scribe-containers
-    docker_sd_configs:
-      - host: unix:///var/run/docker.sock
-        refresh_interval: 5s
-        filters:
-          - name: label
-            values: ["com.docker.compose.project=daily-scribe"]
-
-    relabel_configs:
-      - source_labels: ['__meta_docker_container_name']
-        regex: '/(.*)'
-        target_label: 'container_name'
-      - source_labels: ['__meta_docker_container_log_stream']
-        target_label: 'stream'
+  - job_name: sanity-check-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: cronlogs
+          cronjob: sanity-check
+          __path__: /mnt/cron-logs/sanity-check.log
 
     pipeline_stages:
       - regex:

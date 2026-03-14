@@ -298,20 +298,28 @@ def send_digest_command(
     """
     setup_cli_logging()
 
-    if dry_run:
-        email_address = os.getenv("TEST_EMAIL_ADDRESS")
-        send_digest(email_address, force=force)
-    else:
-        db_service = DatabaseService()
-        email_addresses = db_service.get_all_user_email_addresses()
-        if not email_addresses:
-            logging.getLogger(__name__).info("No user email addresses found in the database.")
-            return
-        for email in email_addresses:
-            try:
-                send_digest(email_address=email, force=force)
-            except Exception as e:
-                logging.getLogger(__name__).error(f"Failed to send digest to {email}: {e}")
+    try:
+        from cron_metrics import CronJobMetrics
+        _ctx: object = CronJobMetrics("send-digest")
+    except ImportError:
+        from contextlib import nullcontext
+        _ctx = nullcontext()
+
+    with _ctx:
+        if dry_run:
+            email_address = os.getenv("TEST_EMAIL_ADDRESS")
+            send_digest(email_address, force=force)
+        else:
+            db_service = DatabaseService()
+            email_addresses = db_service.get_all_user_email_addresses()
+            if not email_addresses:
+                logging.getLogger(__name__).info("No user email addresses found in the database.")
+                return
+            for email in email_addresses:
+                try:
+                    send_digest(email_address=email, force=force)
+                except Exception as e:
+                    logging.getLogger(__name__).error(f"Failed to send digest to {email}: {e}")
 
 
 @app.command(name="run")
@@ -348,32 +356,39 @@ def full_run_command(
     """
     setup_cli_logging()
     logger = logging.getLogger(__name__)
-    logger.info("[1/4] Fetching articles...")
-    fetch_news()
 
-    logger.info("[2/4] Summarizing articles...")
-    summarize_articles()
+    try:
+        from cron_metrics import CronJobMetrics
+        _ctx: object = CronJobMetrics("full-run")
+    except ImportError:
+        from contextlib import nullcontext
+        _ctx = nullcontext()
 
-    logger.info("[3/4] Generating embeddings...")
-    clusterer = ArticleClusterer()
-    clusterer.generate_embeddings()
+    with _ctx:
+        logger.info("[1/4] Fetching articles...")
+        fetch_news()
 
-    logger.info("[4/4] running full search db index...")
-    migration = ElasticsearchMigration()
-    success = migration.migrate_articles_full()
-    if not success:
-        logger.error("Elasticsearch full migration failed!")
-        return
-    logger.info("✅ Migration completed successfully!")
-            
-    # Show performance metrics
-    metrics = migration.get_performance_metrics()
-    if metrics:
-        logger.info("\n📊 Performance Metrics:")
-        logger.info(json.dumps(metrics, indent=2, default=str))
-    
+        logger.info("[2/4] Summarizing articles...")
+        summarize_articles()
 
-    logger.info("Full pipeline complete.")
+        logger.info("[3/4] Generating embeddings...")
+        clusterer = ArticleClusterer()
+        clusterer.generate_embeddings()
+
+        logger.info("[4/4] running full search db index...")
+        migration = ElasticsearchMigration()
+        success = migration.migrate_articles_full()
+        if not success:
+            logger.error("Elasticsearch full migration failed!")
+            raise RuntimeError("Elasticsearch full migration failed")
+        logger.info("✅ Migration completed successfully!")
+
+        metrics = migration.get_performance_metrics()
+        if metrics:
+            logger.info("\n📊 Performance Metrics:")
+            logger.info(json.dumps(metrics, indent=2, default=str))
+
+        logger.info("Full pipeline complete.")
 
 
 @app.command(name="sanity-check")
@@ -398,7 +413,10 @@ def sanity_check_command(
     """
     setup_cli_logging()
     logger = logging.getLogger(__name__)
-    
+
+    import time as _time
+    _start = _time.time()
+    _sanity_success = False
     try:
         # Initialize sanity checker
         checker = DatabaseSanityChecker(verbose=verbose)
@@ -454,7 +472,8 @@ def sanity_check_command(
                 logger.warning("Some checks returned warnings")
             elif exit_code == 2:
                 logger.error("Critical issues detected")
-        
+
+        _sanity_success = exit_code == 0
         raise typer.Exit(exit_code)
         
     except typer.Exit:
@@ -480,6 +499,12 @@ def sanity_check_command(
                 logger.error(f"Failed to send error notification email: {email_error}")
         
         raise typer.Exit(2)
+    finally:
+        try:
+            from cron_metrics import record_job_run
+            record_job_run("sanity-check", success=_sanity_success, duration_seconds=_time.time() - _start)
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

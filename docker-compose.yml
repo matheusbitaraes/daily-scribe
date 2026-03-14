@@ -22,6 +22,7 @@ services:
       - ./config.json:/app/config.json:ro
     networks:
       - daily_scribe_internal
+      - daily-scribe-network
     ports:
       - "8000:8000"
     healthcheck:
@@ -96,3 +97,5 @@ networks:
   daily_scribe_internal:
     driver: bridge
     internal: false
+  daily-scribe-network:
+    external: true

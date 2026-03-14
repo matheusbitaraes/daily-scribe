@@ -311,4 +311,12 @@ def main() -> int:
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    import time as _time
+    _start = _time.time()
+    _exit_code = main()
+    try:
+        from cron_metrics import record_job_run
+        record_job_run("db-backup-cleanup", success=_exit_code == 0, duration_seconds=_time.time() - _start)
+    except Exception as _exc:
+        logger.warning(f"Failed to write cron metrics: {_exc}")
+    sys.exit(_exit_code)
