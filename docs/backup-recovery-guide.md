@@ -713,6 +713,20 @@ find "$BACKUP_ROOT/config" -name "config_backup_*.tar.gz" -mtime +60 -delete
 echo "Backup cleanup completed"
 ```
 
+## 🔧 Docker Compose: Litestream Override Fix
+
+If you see `service "litestream" has neither an image nor build context specified`:
+
+- **Cause:** A broken `docker-compose.override.yml` on the server defines litestream without `image:`.
+- **Fix:** The repo includes a valid `docker-compose.override.yml` with litestream. Deploy to overwrite:
+  ```bash
+  git pull && docker-compose build cron && docker-compose up -d cron
+  ```
+- Litestream is under the `litestream` profile and does not start by default. To use it, create `litestream.yml` and run:
+  ```bash
+  docker-compose --profile litestream up -d
+  ```
+
 ## 💾 Disk Space Optimization (Constrained VMs)
 
 When you see **"No space left on device"** or **"Errno 28"** during database health checks, the disk is full. Daily Scribe's cleanup jobs are designed to prevent this.

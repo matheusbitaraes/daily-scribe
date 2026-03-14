@@ -1,0 +1,22 @@
+# Optional override: Litestream for continuous DB backup to cloud storage
+# Uses profile so it doesn't start by default. Enable with:
+#   docker-compose --profile litestream up -d
+#
+# Requires: litestream.yml and GCS credentials. See docs/backup-recovery-guide.md
+version: '3.8'
+
+services:
+  litestream:
+    image: litestream/litestream:latest
+    container_name: daily-scribe-litestream
+    restart: unless-stopped
+    profiles:
+      - litestream
+    volumes:
+      - ./data:/data:ro
+      - ./litestream.yml:/etc/litestream.yml:ro
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/gcs-service-account.json
+    command: replicate -config /etc/litestream.yml
+    depends_on:
+      - app
