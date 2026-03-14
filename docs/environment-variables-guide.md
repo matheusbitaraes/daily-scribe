@@ -44,6 +44,13 @@ jwt_secret = get_jwt_secret_key()
 ### Email Configuration
 Email settings are typically loaded through the config.json file, but some sensitive values come from environment variables.
 
+### Backup and Cleanup (Disk Space)
+- `RETENTION_DAYS`: Delete articles older than N days (default: 3)
+- `BACKUP_RETENTION_DAYS`: Keep backup files for N days (default: 5)
+- `BACKUP_DIR`: Directory for backup files (default: same as DB directory)
+- `SKIP_BACKUP_IF_LOW_DISK`: Skip backup when disk is critically low (default: true)
+- `CLEANUP_MIN_FREE_SPACE_MB`: Minimum free MB before backup is allowed (default: 500)
+
 ### Backup Configuration (Litestream)
 - `GCS_SERVICE_ACCOUNT_PATH`: Path to Google Cloud Service Account JSON file
 - `GCS_BUCKET`: Google Cloud Storage bucket name for backups

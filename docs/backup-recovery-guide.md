@@ -713,6 +713,74 @@ find "$BACKUP_ROOT/config" -name "config_backup_*.tar.gz" -mtime +60 -delete
 echo "Backup cleanup completed"
 ```
 
+## 💾 Disk Space Optimization (Constrained VMs)
+
+When you see **"No space left on device"** or **"Errno 28"** during database health checks, the disk is full. Daily Scribe's cleanup jobs are designed to prevent this.
+
+### Root Causes
+
+| Source | Description |
+|--------|-------------|
+| **SQLite DB + WAL** | `digest_history.db`, `-wal`, `-shm` files grow over time |
+| **Backup files** | Old backups in `/data` (or `BACKUP_DIR`) |
+| **Cron logs** | `/var/log/cron/*.log` append indefinitely |
+| **Articles table** | `raw_content` stores full article text |
+
+### Built-in Cleanup Jobs
+
+1. **Daily backup + cleanup** (4 AM UTC): Removes old backups → deletes old articles → VACUUM → creates backup (skipped if disk low).
+2. **Light disk cleanup** (10 AM, 10 PM UTC): Same steps but no backup; runs twice daily to reclaim space between full runs.
+
+### Environment Variables
+
+Add to `.env` on the VM:
+
+```bash
+# Shorter retention = less disk usage
+RETENTION_DAYS=3              # Delete articles older than N days (default: 3)
+BACKUP_RETENTION_DAYS=5       # Keep only 5 days of backups (default: 5)
+
+# Skip backup when disk is critically low (recommended)
+SKIP_BACKUP_IF_LOW_DISK=true
+
+# Minimum free MB before backup is allowed (default: 500)
+CLEANUP_MIN_FREE_SPACE_MB=500
+```
+
+### Immediate Recovery Steps
+
+When disk is full:
+
+1. **SSH into the VM** and free space manually:
+   ```bash
+   cd /path/to/daily-scribe
+   docker-compose exec cron python disk_cleanup_only.py
+   ```
+
+2. **Remove oldest backups** (if in `./data`):
+   ```bash
+   ls -la ./data/digest_history_backup_*.db
+   rm ./data/digest_history_backup_YYYYMMDD.db   # Remove oldest
+   ```
+
+3. **Truncate large cron logs**:
+   ```bash
+   docker-compose exec cron sh -c 'echo "" > /var/log/cron/full-run.log'
+   ```
+
+4. **Rebuild cron container** to pick up the new cleanup jobs:
+   ```bash
+   docker-compose build cron && docker-compose up -d cron
+   ```
+
+### Moving Backups Off the Data Volume
+
+To avoid backups consuming the same disk as the DB, set a different `BACKUP_DIR` (e.g. external volume or NFS):
+
+```bash
+BACKUP_DIR=/mnt/backups   # Different partition or mount
+```
+
 ---
 
 **Recovery Time Objectives:**

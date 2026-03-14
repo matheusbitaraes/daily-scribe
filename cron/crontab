@@ -16,8 +16,12 @@
 # Daily database backup and cleanup - run daily at 4 AM UTC
 0 4 * * * cd /app && python daily_cleanup_and_backup.py >> /var/log/cron/db-backup-cleanup.log 2>&1
 
-# Log rotation and cleanup - run weekly at 3 AM Sunday UTC
-0 3 * * 0 find /var/log/cron -name "*.log" -mtime +7 -delete >> /var/log/cron/cleanup.log 2>&1
+# Lightweight disk cleanup (no backup) - run every 12h at 10 and 22 UTC
+# Uses VACUUM to reclaim space; prevents disk fill between daily backup runs
+0 10,22 * * * cd /app && python disk_cleanup_only.py >> /var/log/cron/disk-cleanup.log 2>&1
+
+# Log rotation and cleanup - run daily at 3 AM UTC (was weekly; more frequent to save disk)
+0 3 * * * find /var/log/cron -name "*.log" -mtime +7 -delete >> /var/log/cron/cleanup.log 2>&1
 
 # full index of elasticsearch - todo: improve this - every hour for now
 # 0 * * * * cd /app && python -m src.main sync-search-db --mode full >> /var/log/cron/full-index.log 2>&1
