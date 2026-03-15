@@ -1,9 +1,18 @@
 version: '3.8'
 
+# Default log rotation for ALL services in this compose file.
+# Prevents runaway log files (Loki alone hit 25GB without this).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   prometheus:
     image: prom/prometheus:v2.45.0
     container_name: daily-scribe-prometheus
+    logging: *default-logging
     ports:
       - "9092:9090"
     volumes:
@@ -25,6 +34,7 @@ services:
   node-exporter:
     image: prom/node-exporter:v1.6.0
     container_name: daily-scribe-node-exporter
+    logging: *default-logging
     ports:
       - "9100:9100"
     volumes:
@@ -45,20 +55,18 @@ services:
   grafana:
     image: grafana/grafana:10.1.0
     container_name: daily-scribe-grafana
+    logging: *default-logging
     ports:
       - "3001:3000"
     volumes:
       - grafana-data:/var/lib/grafana
-      # Provisioning configurations
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
-      # Dashboard JSON files
       - ./monitoring/dashboards:/var/lib/grafana/dashboards
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
-      # Enable provisioning logs for debugging
       - GF_LOG_LEVEL=info
     networks:
       - daily-scribe-network
@@ -67,6 +75,7 @@ services:
   loki:
     image: grafana/loki:2.9.0
     container_name: daily-scribe-loki
+    logging: *default-logging
     ports:
       - "3100:3100"
     volumes:
@@ -80,12 +89,14 @@ services:
   promtail:
     image: grafana/promtail:2.9.0
     container_name: daily-scribe-promtail
+    logging: *default-logging
     volumes:
       - /var/log:/var/log:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./monitoring/config/promtail.yml:/etc/promtail/config.yml
       - daily-scribe_daily_scribe_cron_logs:/mnt/cron-logs:ro
+      - promtail-positions:/var/lib/promtail
     command:
       - -config.file=/etc/promtail/config.yml
     networks:
@@ -96,6 +107,7 @@ volumes:
   prometheus-data:
   grafana-data:
   loki-data:
+  promtail-positions:
   daily-scribe_daily_scribe_cron_logs:
     external: true
 

@@ -3,13 +3,16 @@ server:
   grpc_listen_port: 0
 
 positions:
-  filename: /tmp/positions.yaml
+  filename: /var/lib/promtail/positions.yaml
 
 clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  # Docker container logs (all containers)
+  # Docker container logs — reads the on-disk JSON log files directly.
+  # We intentionally use static_configs (not docker_sd_configs) because
+  # docker_sd reads via the Docker API and replays full container history on
+  # first start, which can overwhelm both Promtail and Loki.
   - job_name: containers
     static_configs:
       - targets:
@@ -24,29 +27,19 @@ scrape_configs:
             output: log
             stream: stream
             time: time
-            attrs: attrs
-      - json:
-          expressions:
-            tag: tag
-          source: attrs
-      - regex:
-          expression: (?P<container_name>(?:[^|]*))
-          source: tag
       - timestamp:
           format: RFC3339Nano
           source: time
       - labels:
           stream:
-          container_name:
       - output:
           source: output
-      # Extract log level from Python log format: "YYYY-MM-DD HH:MM:SS,mmm - logger - LEVEL - message"
       - regex:
           expression: '^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2},\d+\s+-\s+\S+\s+-\s+(?P<level>[A-Z]+)\s+-'
       - labels:
           level:
 
-  # System logs
+  # System logs (ISO 8601 format from rsyslogd)
   - job_name: syslog
     static_configs:
       - targets:
@@ -57,9 +50,9 @@ scrape_configs:
 
     pipeline_stages:
       - regex:
-          expression: '^(?P<timestamp>\w+\s+\d+\s+\d+:\d+:\d+)\s+(?P<hostname>\S+)\s+(?P<service>\S+):\s*(?P<message>.*)'
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+[+-]\d{2}:\d{2})\s+(?P<hostname>\S+)\s+(?P<service>[^\s\[:]+)(?:\[\d+\])?:\s*(?P<message>.*)'
       - timestamp:
-          format: 'Jan 02 15:04:05'
+          format: RFC3339
           source: timestamp
       - labels:
           hostname:
@@ -67,7 +60,7 @@ scrape_configs:
       - output:
           source: message
 
-  # Cron job log pipeline (shared stages definition reused per job below)
+  # Cron job log pipelines — shared pipeline_stages pattern
   - job_name: send-digest-logs
     static_configs:
       - targets:
@@ -77,7 +70,7 @@ scrape_configs:
           cronjob: send-digest
           __path__: /mnt/cron-logs/send-digest.log
 
-    pipeline_stages:
+    pipeline_stages: &cron_pipeline
       - regex:
           expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\d+\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\S+)\s+-\s+(?P<message>.*)'
       - timestamp:
@@ -97,18 +90,7 @@ scrape_configs:
           job: cronlogs
           cronjob: full-run
           __path__: /mnt/cron-logs/full-run.log
-
-    pipeline_stages:
-      - regex:
-          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\d+\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\S+)\s+-\s+(?P<message>.*)'
-      - timestamp:
-          format: '2006-01-02 15:04:05'
-          source: timestamp
-      - labels:
-          level:
-          logger:
-      - output:
-          source: message
+    pipeline_stages: *cron_pipeline
 
   - job_name: db-backup-cleanup-logs
     static_configs:
@@ -118,18 +100,7 @@ scrape_configs:
           job: cronlogs
           cronjob: db-backup-cleanup
           __path__: /mnt/cron-logs/db-backup-cleanup.log
-
-    pipeline_stages:
-      - regex:
-          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\d+\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\S+)\s+-\s+(?P<message>.*)'
-      - timestamp:
-          format: '2006-01-02 15:04:05'
-          source: timestamp
-      - labels:
-          level:
-          logger:
-      - output:
-          source: message
+    pipeline_stages: *cron_pipeline
 
   - job_name: disk-cleanup-logs
     static_configs:
@@ -139,18 +110,7 @@ scrape_configs:
           job: cronlogs
           cronjob: disk-cleanup
           __path__: /mnt/cron-logs/disk-cleanup.log
-
-    pipeline_stages:
-      - regex:
-          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\d+\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\S+)\s+-\s+(?P<message>.*)'
-      - timestamp:
-          format: '2006-01-02 15:04:05'
-          source: timestamp
-      - labels:
-          level:
-          logger:
-      - output:
-          source: message
+    pipeline_stages: *cron_pipeline
 
   - job_name: sanity-check-logs
     static_configs:
@@ -160,15 +120,4 @@ scrape_configs:
           job: cronlogs
           cronjob: sanity-check
           __path__: /mnt/cron-logs/sanity-check.log
-
-    pipeline_stages:
-      - regex:
-          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}),\d+\s+-\s+(?P<logger>\S+)\s+-\s+(?P<level>\S+)\s+-\s+(?P<message>.*)'
-      - timestamp:
-          format: '2006-01-02 15:04:05'
-          source: timestamp
-      - labels:
-          level:
-          logger:
-      - output:
-          source: message
+    pipeline_stages: *cron_pipeline

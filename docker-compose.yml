@@ -1,5 +1,11 @@
 version: '3.8'
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   # Daily Scribe FastAPI Application
   app:
@@ -9,6 +15,7 @@ services:
       target: production
     image: daily-scribe:latest
     container_name: daily-scribe-app
+    logging: *default-logging
     restart: unless-stopped
     env_file:
       - .env
@@ -40,6 +47,7 @@ services:
       dockerfile: cron/Dockerfile
     image: daily-scribe-cron:latest
     container_name: daily-scribe-cron
+    logging: *default-logging
     restart: unless-stopped
     env_file:
       - .env
@@ -68,6 +76,7 @@ services:
   cloudbeaver:
     image: dbeaver/cloudbeaver:latest
     container_name: daily-scribe-cloudbeaver
+    logging: *default-logging
     restart: unless-stopped
     ports:
       - "8080:8978"
