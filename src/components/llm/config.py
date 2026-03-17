@@ -29,12 +29,9 @@ def get_model_config() -> Tuple[str, List[str]]:
     if os.getenv("OPENROUTER_API_KEY"):
         # go here to update the list: https://openrouter.ai/models?fmt=cards&input_modalities=text&max_price=0&order=top-weekly
         openrouter_models = [
-            "openrouter/deepseek/deepseek-r1-0528:free",
-            "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
-            "openrouter/nvidia/nvidia/nemotron-nano-12b-v2-vl:free",
-            "openrouter/nvidia/nemotron-nano-9b-v2:free",
-            "openrouter/mistralai/mistral-small-3.1-24b-instruct:free",
+            "openrouter/nvidia/nemotron-3-nano-30b-a3b:free"
         ]
+        # "openrouter/deepseek/deepseek-r1-0528:free",
         #    "openrouter/nvidia/nemotron-3-nano-30b-a3b:free",
         #     "openrouter/stepfun/step-3.5-flash:free",
         #     "openrouter/z-ai/glm-4.5-air:free",

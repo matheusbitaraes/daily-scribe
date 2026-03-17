@@ -22,13 +22,7 @@
 
 # Log rotation and cleanup - run daily at 3 AM UTC
 # Deletes log files older than 7 days, and trims any log file larger than 10MB to its last 2MB
-0 3 * * * find /var/log/cron -name "*.log" -mtime +7 -delete && python3 -c "import os,glob
-for p in glob.glob('/var/log/cron/*.log'):
-    s=os.path.getsize(p)
-    if s>10*1024*1024:
-        f=open(p,'rb');f.seek(-2*1024*1024,2);d=f.read();f.close();f=open(p,'wb');f.write(d);f.close()
-        print(f'trimmed {p}: {s}->2MB')
-" >> /var/log/cron/cleanup.log 2>&1
+0 3 * * * cd /app && python log_rotation.py >> /var/log/cron/log-rotation.log 2>&1
 
 # full index of elasticsearch - todo: improve this - every hour for now
 # 0 * * * * cd /app && python -m src.main sync-search-db --mode full >> /var/log/cron/full-index.log 2>&1

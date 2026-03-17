@@ -106,9 +106,14 @@ create_directories() {
 # Setup internal monitoring
 setup_internal_monitoring() {
     log_info "Setting up internal monitoring..."
-    
-    # Create Prometheus configuration
-    cat > "$CONFIG_DIR/prometheus.yml" << 'EOF'
+
+    # The canonical configs live in the repo under monitoring/.
+    # Only create them from scratch if they don't already exist (first-time setup).
+    if [[ -f "$CONFIG_DIR/prometheus.yml" ]]; then
+        log_info "prometheus.yml already exists — skipping (edit the file in the repo directly)"
+    else
+        log_info "Creating default prometheus.yml..."
+        cat > "$CONFIG_DIR/prometheus.yml" << 'PROM_EOF'
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -119,30 +124,23 @@ rule_files:
 scrape_configs:
   - job_name: 'daily-scribe-app'
     static_configs:
-      - targets: ['app:8000']
+      - targets: ['daily-scribe-app:8000']
     metrics_path: '/metrics'
     scrape_interval: 30s
     scrape_timeout: 10s
-
-  - job_name: 'caddy'
-    static_configs:
-      - targets: ['caddy:2019']
-    metrics_path: '/metrics'
-    scrape_interval: 30s
 
   - job_name: 'node-exporter'
     static_configs:
       - targets: ['node-exporter:9100']
     scrape_interval: 30s
+PROM_EOF
+    fi
 
-  - job_name: 'docker'
-    static_configs:
-      - targets: ['docker-exporter:9323']
-    scrape_interval: 30s
-EOF
-
-    # Create alert rules
-    cat > "$ALERTS_DIR/daily-scribe.yml" << 'EOF'
+    if [[ -f "$ALERTS_DIR/daily-scribe.yml" ]]; then
+        log_info "daily-scribe.yml alert rules already exist — skipping (edit the file in the repo directly)"
+    else
+        log_info "Creating default alert rules..."
+        cat > "$ALERTS_DIR/daily-scribe.yml" << 'ALERT_EOF'
 groups:
   - name: daily-scribe.rules
     rules:
@@ -152,65 +150,12 @@ groups:
         labels:
           severity: critical
         annotations:
-          summary: "Service {{ $labels.instance }} is down"
+          summary: "Service {{ $labels.job }} is down"
           description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 2 minutes."
+ALERT_EOF
+    fi
 
-      - alert: HighErrorRate
-        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High error rate on {{ $labels.instance }}"
-          description: "Error rate is {{ $value }} on {{ $labels.instance }}"
-
-      - alert: HighMemoryUsage
-        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High memory usage on {{ $labels.instance }}"
-          description: "Memory usage is above 90% on {{ $labels.instance }}"
-
-      - alert: LowDiskSpace
-        expr: (node_filesystem_size_bytes - node_filesystem_free_bytes) / node_filesystem_size_bytes > 0.9
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Low disk space on {{ $labels.instance }}"
-          description: "Disk usage is above 90% on {{ $labels.instance }}"
-
-      - alert: DatabaseConnectivity
-        expr: daily_scribe_database_health != 1
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Database connectivity issues"
-          description: "Daily Scribe cannot connect to the database"
-
-      - alert: BackupFailure
-        expr: litestream_backup_last_success_timestamp < (time() - 3600)
-        for: 0m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Backup failure detected"
-          description: "Litestream backup has not succeeded in the last hour"
-
-      - alert: DDNSUpdateFailure
-        expr: ddns_last_update_success < (time() - 7200)
-        for: 0m
-        labels:
-          severity: warning
-        annotations:
-          summary: "DDNS update failure"
-          description: "DDNS has not updated successfully in the last 2 hours"
-EOF
-
-    log_success "Internal monitoring configuration created"
+    log_success "Internal monitoring configuration ready"
 }
 
 # Setup external monitoring

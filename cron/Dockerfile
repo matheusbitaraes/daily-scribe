@@ -25,6 +25,7 @@ COPY cron/entrypoint.sh /app/entrypoint.sh
 COPY cron/cron_metrics.py /app/cron_metrics.py
 COPY cron/daily_cleanup_and_backup.py /app/daily_cleanup_and_backup.py
 COPY cron/disk_cleanup_only.py /app/disk_cleanup_only.py
+COPY cron/log_rotation.py /app/log_rotation.py
 
 # Make entrypoint script executable and set proper ownership
 RUN chmod +x /app/entrypoint.sh && \
