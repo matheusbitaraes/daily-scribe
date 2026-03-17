@@ -121,3 +121,13 @@ scrape_configs:
           cronjob: sanity-check
           __path__: /mnt/cron-logs/sanity-check.log
     pipeline_stages: *cron_pipeline
+
+  - job_name: log-rotation-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: cronlogs
+          cronjob: log-rotation
+          __path__: /mnt/cron-logs/log-rotation.log
+    pipeline_stages: *cron_pipeline

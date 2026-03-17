@@ -60,8 +60,6 @@ app_metrics = {
     "errors_total": 0,
     "database_queries_total": 0,
     "database_query_duration_total": 0.0,
-    "articles_processed_total": 0,
-    "digests_generated_total": 0,
     "start_time": time.time()
 }
 
@@ -447,14 +445,6 @@ def get_metrics():
             "# TYPE daily_scribe_database_query_duration_seconds counter",
             f"daily_scribe_database_query_duration_seconds {app_metrics['database_query_duration_total']:.2f}",
             "",
-            "# HELP daily_scribe_articles_processed_total Total number of articles processed",
-            "# TYPE daily_scribe_articles_processed_total counter",
-            f"daily_scribe_articles_processed_total {app_metrics['articles_processed_total']}",
-            "",
-            "# HELP daily_scribe_digests_generated_total Total number of digests generated",
-            "# TYPE daily_scribe_digests_generated_total counter",
-            f"daily_scribe_digests_generated_total {app_metrics['digests_generated_total']}",
-            "",
             "# HELP daily_scribe_uptime_seconds Application uptime in seconds",
             "# TYPE daily_scribe_uptime_seconds gauge",
             f"daily_scribe_uptime_seconds {uptime_seconds:.2f}",
@@ -484,18 +474,25 @@ def get_metrics():
                 metrics_lines.append(f'daily_scribe_requests_by_endpoint_total{{method="{method}",path="{path}"}} {count}')
             metrics_lines.append("")
         
-        # Check database health for metrics
+        # Check database health and read activity counters from DB
         try:
             db_start = time.time()
             with db_service._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
+
+                cursor.execute("SELECT COUNT(*) FROM articles")
+                articles_count = cursor.fetchone()[0]
+
+                cursor.execute("SELECT COUNT(DISTINCT digest_id) FROM sent_articles")
+                digests_count = cursor.fetchone()[0]
+
             db_query_time = time.time() - db_start
-            
+
             app_metrics["database_queries_total"] += 1
             app_metrics["database_query_duration_total"] += db_query_time
-            
+
             metrics_lines.extend([
                 "# HELP daily_scribe_database_health Database connectivity status",
                 "# TYPE daily_scribe_database_health gauge",
@@ -504,7 +501,15 @@ def get_metrics():
                 "# HELP daily_scribe_database_last_query_duration_seconds Last database query duration",
                 "# TYPE daily_scribe_database_last_query_duration_seconds gauge",
                 f"daily_scribe_database_last_query_duration_seconds {db_query_time:.4f}",
-                ""
+                "",
+                "# HELP daily_scribe_articles_processed_total Total number of articles in the database",
+                "# TYPE daily_scribe_articles_processed_total counter",
+                f"daily_scribe_articles_processed_total {articles_count}",
+                "",
+                "# HELP daily_scribe_digests_generated_total Total number of unique digests sent",
+                "# TYPE daily_scribe_digests_generated_total counter",
+                f"daily_scribe_digests_generated_total {digests_count}",
+                "",
             ])
         except Exception as e:
             logger.warning(f"Database health check failed in metrics: {e}")
